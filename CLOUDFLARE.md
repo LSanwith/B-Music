@@ -18,13 +18,17 @@ git push -u origin main
 
 ## 二、Cloudflare Pages 部署
 
-1. 打开 [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers 和 Pages** → **创建** → **Pages** → **连接到 Git**，授权并选择刚才的仓库；
+> ⚠️ 仓库里应用位于 `music/` 子目录，**必须**在构建设置里把根目录指到 `music/`，
+> 否则 `functions/` 不会被识别、静态文件也找不到。
+
+1. 打开 [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers 和 Pages** → **创建** → **Pages** → **连接到 Git**，授权并选择 `LSanwith/B-Music` 仓库；
 2. 构建设置：
+   - **根目录（Root directory）：`music`** ← 关键！
    - 框架预设：**无（None）**
    - 构建命令：留空
-   - 构建输出目录：`/`（根目录，保持默认）
+   - 构建输出目录：`/`（相对根目录，保持默认）
    - 环境变量：无需
-3. 保存并部署（`functions/` 会被自动识别为 Pages Functions）。
+3. 保存并部署（`music/functions/` 会被自动识别为 Pages Functions）。
 
 ## 三、KV 绑定（账号数据持久化，必须）
 
