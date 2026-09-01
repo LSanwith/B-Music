@@ -1,6 +1,9 @@
 # B·Music 网页版 🎵
 
-一款可直接双击运行的本地音乐播放器（Web 版），支持搜索、歌单、滚动歌词、音质选择、收藏等功能。
+一款可直接双击运行的本地音乐播放器（Web 版），支持搜索、歌单、滚动歌词、音质选择、收藏、账号云同步等功能。
+
+> 🌐 **部署到 Cloudflare Pages（含代理与账号 API 的 Pages Functions、KV 持久化、DNS 配置）**
+> 见 [`CLOUDFLARE.md`](CLOUDFLARE.md)。
 
 ## ✨ 功能
 
