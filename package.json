@@ -1,0 +1,17 @@
+{
+  "name": "b-music-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "B·Music 网页版 - 本地音乐播放器（网易云音乐API + 红云点歌备用源）",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "main": "server.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}

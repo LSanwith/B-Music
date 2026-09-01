@@ -1,0 +1,8 @@
+# 本地数据（账号库/用户数据）
+data/
+# Node
+node_modules/
+*.log
+# 系统
+.DS_Store
+Thumbs.db

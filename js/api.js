@@ -1,0 +1,440 @@
+/* ============================================================
+ * API 层
+ *  主接口: www.sanwith.cc.cd      (网易云音乐API增强版)
+ *  备用接口: silence-music-api.cc.cd
+ *  兜底源: 红云点歌v4 (仅用于播放地址 / 歌词，密钥仅发往
+ *          api.xunjinlu.fun)
+ * ============================================================ */
+(function () {
+  'use strict';
+
+  const CFG = window.APP_CONFIG;
+  const PRIMARY = CFG.API_PRIMARY;
+  const SECONDARY = CFG.API_SECONDARY;
+
+  /* ---------- 基础请求 ---------- */
+  function buildApiUrl(base, path, params) {
+    const url = new URL(path, base);
+    if (params) {
+      for (const k of Object.keys(params)) {
+        if (params[k] !== undefined && params[k] !== null && params[k] !== '') {
+          url.searchParams.set(k, params[k]);
+        }
+      }
+    }
+    return url.toString();
+  }
+
+  async function fetchJson(url, timeoutMs) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs || 20000);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /*
+   * 上游接口（sanwith / silence / 红云）的 CORS 响应头不可靠：
+   *  - sanwith/silence：CDN 共享缓存导致 Access-Control-Allow-Origin 偶尔是别的 origin；
+   *  - 红云点歌：返回格式错误的 "*,*"。
+   * 因此 http(s) 页面优先走同源代理 /proxy（server.js 提供），
+   * 代理不可用时（如 file:// 双击打开）退化为直连并自动重试一次。
+   */
+  let _proxyState = 'auto'; // auto | on | off
+  async function request(base, path, params, timeoutMs) {
+    const isHongyun = base === CFG.HONGYUN_ENDPOINT;
+    // 红云请求不携带 key：http(s) 由本地代理注入（hk=1），URL 中不暴露密钥
+    const target = buildApiUrl(base, path, params);
+    const proxyPath = window.APP_CONFIG.PROXY_PATH;
+    const canProxy = proxyPath && location.protocol !== 'file:';
+
+    if (canProxy && _proxyState !== 'off') {
+      try {
+        const u = proxyPath + '?u=' + encodeURIComponent(target) + (isHongyun ? '&hk=1' : '');
+        const res = await fetch(u, { signal: AbortSignal.timeout(timeoutMs || 30000) });
+        if (res.status === 404 || res.status === 405) {
+          _proxyState = 'off'; // 页面不在本应用服务器上，无代理
+        } else if (!res.ok) {
+          throw new Error('proxy HTTP ' + res.status); // 上游失败：代理本身可用，保留
+        } else {
+          _proxyState = 'on';
+          return await res.json();
+        }
+      } catch (e) {
+        if (String(e.message).indexOf('proxy HTTP') === 0) throw e;
+        if (_proxyState === 'auto') {
+          if (isHongyun) throw e; // 红云不回退直连（避免密钥暴露在 URL）
+          _proxyState = 'off';
+        } else {
+          throw e;
+        }
+      }
+    }
+    if (isHongyun) {
+      // file:// 无代理可用：兜底直连，此时必须带 key（仅此场景暴露）
+      const sep = target.indexOf('?') >= 0 ? '&' : '?';
+      return await fetchJson(target + sep + 'key=' + encodeURIComponent(CFG.HONGYUN_KEY), timeoutMs);
+    }
+    // 直连模式（file:// 或代理不可用），失败重试一次
+    try {
+      return await fetchJson(target, timeoutMs);
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 500));
+      return await fetchJson(target, timeoutMs);
+    }
+  }
+
+  /* 双接口并行竞速：主/备同时请求，第一个有效响应即胜出（不等待慢的那一个，保证流畅） */
+  async function requestNetease(path, params, timeoutMs) {
+    const ok = (j) => !!(j && (j.code === undefined || j.code === 200 || j.code === 0 ||
+      (j.result || j.playlist || j.banners || j.list)));
+    return await new Promise((resolve, reject) => {
+      let pending = 2, done = false;
+      const fail = (e) => {
+        if (!done && --pending === 0) { done = true; reject(e); }
+      };
+      const tryResolve = (j) => {
+        if (!done && ok(j)) { done = true; resolve(j); return true; }
+        return false;
+      };
+      request(PRIMARY, path, params, timeoutMs).then((j) => {
+        if (!tryResolve(j)) fail(new Error('bad response'));
+      }).catch(fail);
+      request(SECONDARY, path, params, timeoutMs).then((j) => {
+        if (!tryResolve(j)) fail(new Error('bad response'));
+      }).catch(fail);
+    });
+  }
+
+  /* ---------- 数据归一化 ---------- */
+  /** 是否试听片段：响应带 freeTrialInfo（被截取歌曲的开始/结束时间）即为试听 */
+  function isTrial(d) {
+    return !!(d && d.freeTrialInfo);
+  }
+
+  function artistsOf(o) {
+    const ar = o.ar || o.artists || [];
+    return ar.map(a => ({ id: a.id, name: a.name })).filter(a => a.name);
+  }
+  function albumOf(o) {
+    const al = o.al || o.album;
+    if (!al) return null;
+    return { id: al.id, name: al.name, cover: al.picUrl || al.coverImgUrl || '' };
+  }
+  function normalizeSong(o) {
+    if (!o || !o.id) return null;
+    const al = albumOf(o);
+    const fee = o.fee != null ? o.fee : (o.privilege ? o.privilege.fee : 0);
+    return {
+      id: o.id,
+      name: o.name,
+      artists: artistsOf(o),
+      album: al,
+      cover: (al && al.cover) || '',
+      duration: o.duration || o.dt || 0,
+      fee: fee,
+      vip: fee > 0,
+    };
+  }
+
+  /* ---------- 歌曲信息 ---------- */
+  const API = {
+
+    /** 搜索  type: 1歌曲 10专辑 100歌手 1000歌单 */
+    async search(keyword, type, limit, offset) {
+      const j = await requestNetease('/cloudsearch', { keywords: keyword, type: type, limit: limit || 20, offset: offset || 0 });
+      const r = j.result || {};
+      if (type === 1) return { songs: (r.songs || []).map(normalizeSong).filter(Boolean), total: r.songCount || r.songs?.length || 0 };
+      if (type === 1000) return { playlists: (r.playlists || []).map(p => ({
+        id: p.id, name: p.name, cover: p.coverImgUrl, creator: p.creator ? p.creator.nickname : '',
+        trackCount: p.trackCount, playCount: p.playCount, desc: p.description || '',
+      })), total: r.playlistCount || 0 };
+      if (type === 10) return { albums: (r.albums || []).map(a => ({
+        id: a.id, name: a.name, cover: a.picUrl, artist: a.artist ? a.artist.name : '',
+        publishTime: a.publishTime, size: a.size,
+      })), total: r.albumCount || 0 };
+      if (type === 100) return { artists: (r.artists || []).map(a => ({
+        id: a.id, name: a.name, cover: a.picUrl || a.img1v1Url, albumCount: a.albumSize, songCount: a.musicSize,
+      })), total: r.artistCount || 0 };
+      return { songs: (r.songs || []).map(normalizeSong).filter(Boolean) };
+    },
+
+    /** 热门搜索词 */
+    async searchHot() {
+      const j = await requestNetease('/search/hot/detail');
+      return (j.data || []).map(d => d.searchWord).filter(Boolean);
+    },
+
+    /** 歌曲详情（banner 跳转等） */
+    async songDetail(id) {
+      const j = await requestNetease('/song/detail', { ids: id });
+      const s = (j.songs || [])[0];
+      return s ? normalizeSong(s) : null;
+    },
+
+    /** 歌词（带缓存）：/lyric/new 含 lrc/yrc(逐字)；tlyric 缺失时回补 /lyric */
+    _lyricCache: new Map(),
+    async lyric(id) {
+      const hit = API._lyricCache.get(id);
+      if (hit && Date.now() - hit.t < 30 * 60 * 1000) return hit.v;
+      const j = await requestNetease('/lyric/new', { id: id });
+      const v = {
+        base: (j.lrc && j.lrc.lyric) || '',
+        trans: (j.tlyric && j.tlyric.lyric) || '',
+        yrc: (j.yrc && j.yrc.lyric) || '',
+        uncollected: !!j.uncollected,
+      };
+      if (!v.trans || !v.base) {
+        try {
+          const j2 = await requestNetease('/lyric', { id: id });
+          if (!v.base && j2.lrc) v.base = j2.lrc.lyric || '';
+          if (!v.trans && j2.tlyric) v.trans = j2.tlyric.lyric || '';
+        } catch (e) { /* 保持已有内容 */ }
+      }
+      API._lyricCache.set(id, { t: Date.now(), v });
+      return v;
+    },
+
+    /** 推荐歌单 */
+    async personalized(limit) {
+      const j = await requestNetease('/personalized', { limit: limit || 10 });
+      return (j.result || []).map(p => ({
+        id: p.id, name: p.name, cover: p.picUrl, playCount: p.playCount, trackCount: p.trackCount,
+        desc: p.copywriter || '',
+      }));
+    },
+
+    /** 新歌速递 */
+    async newsong(limit) {
+      const j = await requestNetease('/personalized/newsong', { limit: limit || 10 });
+      return (j.result || []).map(r => normalizeSong(r.song)).filter(Boolean);
+    },
+
+    /** Banner */
+    async banner() {
+      const j = await requestNetease('/banner', { type: 2 });
+      return (j.banners || []).map(b => ({
+        pic: b.pic, targetType: b.targetType, targetId: b.targetId,
+        title: b.typeTitle || b.titleColor || '', url: b.url || '',
+      }));
+    },
+
+    /** 所有榜单 */
+    async toplist() {
+      const j = await requestNetease('/toplist');
+      return (j.list || []).map(l => ({
+        id: l.id, name: l.name, cover: l.coverImgUrl, updateFrequency: l.updateFrequency, trackCount: l.trackCount,
+      }));
+    },
+
+    /** 歌单分类（缓存 1 小时） */
+    _catlistCache: null,
+    async playlistCatlist() {
+      if (API._catlistCache) return API._catlistCache;
+      const j = await requestNetease('/playlist/catlist');
+      const v = { all: j.all ? j.all.name : '全部', sub: (j.sub || []).map(c => c.name) };
+      API._catlistCache = v;
+      setTimeout(() => { API._catlistCache = null; }, 3600 * 1000);
+      return v;
+    },
+
+    /** 歌单广场 */
+    async topPlaylists(cat, order, limit, offset) {
+      const j = await requestNetease('/top/playlist', { cat: cat || '全部', order: order || 'hot', limit: limit || 30, offset: offset || 0 });
+      return {
+        playlists: (j.playlists || []).map(p => ({
+          id: p.id, name: p.name, cover: p.coverImgUrl, creator: p.creator ? p.creator.nickname : '',
+          trackCount: p.trackCount, playCount: p.playCount, desc: p.description || '',
+        })),
+        total: j.total || 0,
+      };
+    },
+
+    /** 歌单详情 */
+    async playlistDetail(id) {
+      const j = await requestNetease('/playlist/detail', { id: id });
+      const p = j.playlist;
+      return {
+        id: p.id, name: p.name, cover: p.coverImgUrl,
+        creator: p.creator ? p.creator.nickname : '',
+        trackCount: p.trackCount, playCount: p.playCount,
+        description: p.description || '', tags: p.tags || [],
+        updateFrequency: p.updateFrequency || '',
+      };
+    },
+
+    /** 歌单全部歌曲（分页） */
+    async playlistTracks(id, limit, offset) {
+      const j = await requestNetease('/playlist/track/all', { id: id, limit: limit || 100, offset: offset || 0 });
+      return {
+        songs: (j.songs || []).map(normalizeSong).filter(Boolean),
+        more: !!(j.more || j.songs && j.songs.length >= (limit || 100)),
+      };
+    },
+
+    /** 专辑详情 */
+    async albumDetail(id) {
+      const j = await requestNetease('/album', { id: id });
+      const a = j.album || {};
+      return {
+        album: {
+          id: a.id, name: a.name, cover: a.picUrl || a.coverImgUrl,
+          artist: (a.artist && a.artist.name) || '',
+          artistId: (a.artist && a.artist.id) || 0,
+          publishTime: a.publishTime,
+          description: a.description || '', size: a.size,
+        },
+        songs: (j.songs || []).map(normalizeSong).filter(Boolean),
+      };
+    },
+
+    /** 歌手详情 */
+    async artistDetail(id) {
+      const j = await requestNetease('/artist/detail', { id: id });
+      const a = j.data && (j.data.artist || j.data);
+      return {
+        id: a.id, name: a.name, cover: (a.picUrl || a.img1v1Url || '').replace(/^http:/, 'https:'),
+        songCount: a.musicSize, albumCount: a.albumSize,
+        briefDesc: (a.briefDesc || (j.data && j.data.artist && j.data.artist.briefDesc)) || '',
+      };
+    },
+
+    /** 歌手热门歌曲 */
+    async artistSongs(id) {
+      const j = await requestNetease('/artist/top/song', { id: id });
+      return { songs: (j.songs || []).map(normalizeSong).filter(Boolean), more: !!j.more };
+    },
+
+    /* ================= 播放地址解析（完整音频，拒绝试听） ================= */
+
+    /**
+     * 从网易云接口拿【完整】直链：
+     *   1) /song/download/url/v1 —— 客户端下载直链（完整音频，免费歌可达 Hi-Res）
+     *   2) /song/url/v1 —— 播放直链，但非会员返回的是试听片段（freeTrialInfo），一律拒绝
+     * 抛出的错误带 .trial 标记，供降级链判断是否直接走红云完整源。
+     */
+    async neteaseUrl(base, id, level) {
+      // 1) 下载直链（完整音频）
+      try {
+        const j = await request(base, '/song/download/url/v1', { id: id, level: level }, 15000);
+        const d = (j.data || [])[0];
+        if (d && d.url && !isTrial(d)) {
+          return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
+        }
+      } catch (e) { /* 继续尝试播放直链 */ }
+      // 2) 播放直链：仅接受完整音频
+      const j = await request(base, '/song/url/v1', { id: id, level: level }, 15000);
+      const d = (j.data || [])[0];
+      if (d && d.url && !isTrial(d)) {
+        return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
+      }
+      const err = new Error(isTrial(d) ? '仅返回试听片段' : 'unavailable');
+      err.trial = isTrial(d);
+      throw err;
+    },
+
+    /** 红云点歌v4 获取直链（兜底）。密钥不进入 URL：代理注入 / file:// 直连兜底。
+     *  官方档位：standard/higher/exhigh/lossless/hires/jyeffect/sky/dolby/jymaster
+     *  （应用内“超清母带”= jymaster，为最高档） */
+    async hongyunUrl(id, level) {
+      // 应用档位 → 红云档位（名称一致，直接透传）
+      const HY_MAP = {
+        standard: 'standard', higher: 'higher', exhigh: 'exhigh', lossless: 'lossless',
+        hires: 'hires', jyeffect: 'jyeffect', sky: 'sky', dolby: 'dolby', jymaster: 'jymaster',
+      };
+      const want = HY_MAP[level] || 'lossless';
+      const fetchLevel = async (lv) => {
+        const j = await request(CFG.HONGYUN_ENDPOINT, '', { action: 'song', id: id, level: lv }, 20000);
+        const d = j && j.data && j.data.data;
+        if (j.code === 0 && d && d.url) {
+          return { url: d.url, br: 0, type: d.type || '', level: d.level || lv, lrc: d.lrc || '', cover: d.cover || '', size: d.size || '' };
+        }
+        const err = new Error((j && j.msg) || '红云点歌失败');
+        err.hyCode = j && j.code;
+        throw err;
+      };
+      const r = await fetchLevel(want);
+      // 高档位请求被接口降级为 mp3 时，重试 lossless 拿最高可用无损文件
+      if (r.type === 'mp3' && ['jymaster', 'hires', 'sky', 'jyeffect', 'dolby'].indexOf(want) >= 0) {
+        try {
+          const r2 = await fetchLevel('lossless');
+          if (r2.type !== 'mp3' || r2.url !== r.url) return r2;
+        } catch (e) { /* 保留原结果 */ }
+      }
+      return r;
+    },
+
+    /** 红云点歌搜索（供参考/补充结果） */
+    async hongyunSearch(keyword, limit) {
+      const j = await request(CFG.HONGYUN_ENDPOINT, '', { action: 'search', keyword: keyword, limit: limit || 20 }, 20000);
+      const songs = (j && j.data && j.data.data && j.data.data.songs) || [];
+      return songs.map(s => ({
+        id: s.id, name: s.name,
+        artists: (s.artists || '').split('/').map(n => ({ id: 0, name: n })).filter(a => a.name),
+        album: { id: s.albumId, name: s.album, cover: s.coverImgUrl },
+        cover: s.coverImgUrl || '', duration: 0, fee: 0, vip: false,
+        fromHongyun: true,
+      }));
+    },
+
+    /**
+     * 解析【完整】播放地址 —— 三个数据源【同时并发请求】，先成功者胜出：
+     *   主接口 / 备用接口 / 红云点歌v4 并行竞速，谁快用谁，加载流畅不卡顿；
+     *   若红云先返回，给网易云 300ms 优先窗口（优先官方源），窗口内官方源成功则改选官方源。
+     * 结果按 (id, level) 缓存 10 分钟。
+     */
+    _urlCache: new Map(),
+    async resolveUrl(song, level) {
+      const lv = level || Store.Settings.quality;
+      const key = song.id + '|' + lv;
+      const hit = API._urlCache.get(key);
+      if (hit && Date.now() - hit.t < 10 * 60 * 1000) return hit.v;
+      let result = null;
+      const errors = [];
+      await new Promise((done) => {
+        const tasks = [
+          API.neteaseUrl(PRIMARY, song.id, lv).then(r => { r.source = '主接口'; return r; }),
+          API.neteaseUrl(SECONDARY, song.id, lv).then(r => { r.source = '备用接口'; return r; }),
+          API.hongyunUrl(song.id, lv).then(r => { r.source = '红云点歌'; return r; }),
+        ];
+        let settled = 0;
+        tasks.forEach((p) => {
+          p.then((r) => {
+            if (result) return;
+            if (r.source !== '红云点歌') { result = r; done(); return; }
+            // 红云先到：给官方源 300ms 优先窗口
+            setTimeout(() => { if (!result) { result = r; done(); } }, 300);
+          }).catch((e) => {
+            errors.push(e.message);
+            if (++settled === tasks.length && !result) done();
+          });
+        });
+      });
+      if (result) {
+        if (location.protocol === 'https:' && result.url.startsWith('http://')) {
+          result.url = 'https://' + result.url.slice(7);
+        }
+        API._urlCache.set(key, { t: Date.now(), v: result });
+        return result;
+      }
+      throw new Error('无法获取播放地址（' + errors.join('；') + '）');
+    },
+
+    /** 红云点歌 lrc 兜底（已缓存于 hongyunUrl 结果） */
+    _hyLrcCache: new Map(),
+    async hongyunLrc(id) {
+      if (API._hyLrcCache.has(id)) return API._hyLrcCache.get(id);
+      try {
+        const r = await API.hongyunUrl(id, Store.Settings.quality);
+        API._hyLrcCache.set(id, r.lrc || '');
+        return r.lrc || '';
+      } catch (e) { return ''; }
+    },
+  };
+
+  window.API = API;
+})();
