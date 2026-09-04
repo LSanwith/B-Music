@@ -197,6 +197,18 @@ const HONGYUN_KEY = (function () {
   } catch (e) { /* 无 key.local */ }
   return '';
 })();
+
+/* sanwith 站点 SKey（API 鉴权，供 /proxy 转发时注入 x-skey 头）：
+ * 优先级：环境变量 SANWITH_SKEY → 仓库根目录 ./skey.local（被 gitignore） */
+const SANWITH_SKEY = (function () {
+  if (process.env.SANWITH_SKEY) return process.env.SANWITH_SKEY;
+  try {
+    const p = require('path').join(__dirname, 'skey.local');
+    const v = require('fs').readFileSync(p, 'utf8').trim();
+    if (v) return v;
+  } catch (e) { /* 无 skey.local */ }
+  return '';
+})();
 async function handleProxy(req, res, urlPath) {
   if (urlPath !== '/proxy') return false;
   const u = new URL(req.url, 'http://localhost');
@@ -228,7 +240,10 @@ async function handleProxy(req, res, urlPath) {
   }
   try {
     const ctrl = AbortSignal.timeout(25000);
-    const upstream = await fetch(dest, { signal: ctrl, headers: { 'User-Agent': 'BMusicWeb/1.0' } });
+    const headers = { 'User-Agent': 'BMusicWeb/1.0' };
+    // sanwith 站点的 SKey 鉴权：由本地 skey.local（gitignore）或环境变量提供，浏览器不可见
+    if (dest.origin === 'https://www.sanwith.cc.cd' && SANWITH_SKEY) headers['x-skey'] = SANWITH_SKEY;
+    const upstream = await fetch(dest, { signal: ctrl, headers });
     const ctype = upstream.headers.get('content-type') || 'application/json';
     res.writeHead(upstream.status, {
       'Content-Type': ctype,

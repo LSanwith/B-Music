@@ -2,6 +2,8 @@
 data/
 # 红云私有密钥（本机专用，绝不提交）
 key.local
+# sanwith SKey（本机专用，绝不提交）
+skey.local
 # Node
 node_modules/
 *.log

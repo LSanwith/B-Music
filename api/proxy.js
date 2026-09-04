@@ -26,8 +26,13 @@ export default async function handler(req, res) {
   }
   let upstream;
   try {
+    // sanwith 站点启用 SKey 鉴权后需带 x-skey 头（值由部署环境 SANWITH_SKEY 提供，浏览器不可见）
+    const headers = { 'User-Agent': 'BMusicWeb/1.0' };
+    if (dest.origin === 'https://www.sanwith.cc.cd' && process.env.SANWITH_SKEY) {
+      headers['x-skey'] = process.env.SANWITH_SKEY;
+    }
     upstream = await fetch(dest, {
-      headers: { 'User-Agent': 'BMusicWeb/1.0' },
+      headers,
       signal: AbortSignal.timeout(25000),
     });
   } catch (e) {

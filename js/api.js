@@ -136,8 +136,10 @@
     }
   }
 
-  /* 双接口并行竞速：主/备同时请求，第一个有效响应即胜出（不等待慢的那一个，保证流畅） */
+  /* 双接口并行竞速：主/备同时请求，第一个有效响应即胜出（不等待慢的那一个，保证流畅）
+   * 默认 12s 超时：任一镜像挂起/缓慢时不阻塞页面与其它操作（更快切到可用镜像） */
   async function requestNetease(path, params, timeoutMs) {
+    const tmo = timeoutMs || 12000;
     const ok = (j) => !!(j && (j.code === undefined || j.code === 200 || j.code === 0 ||
       (j.result || j.playlist || j.banners || j.list)));
     return await new Promise((resolve, reject) => {
@@ -149,19 +151,25 @@
         if (!done && ok(j)) { done = true; resolve(j); return true; }
         return false;
       };
-      request(PRIMARY, path, params, timeoutMs).then((j) => {
+      request(PRIMARY, path, params, tmo).then((j) => {
         if (!tryResolve(j)) fail(new Error('bad response'));
       }).catch(fail);
-      request(SECONDARY, path, params, timeoutMs).then((j) => {
+      request(SECONDARY, path, params, tmo).then((j) => {
         if (!tryResolve(j)) fail(new Error('bad response'));
       }).catch(fail);
     });
   }
 
   /* ---------- 数据归一化 ---------- */
-  /** 是否试听片段：响应带 freeTrialInfo（被截取歌曲的开始/结束时间）即为试听 */
+  /** 是否试听片段：响应带 freeTrialInfo（被截取歌曲的开始/结束时间）即为试听。
+   *  兼容解锁源返回的字符串形式 'null'/'{}'（代表无截取，不是试听）。 */
   function isTrial(d) {
-    return !!(d && d.freeTrialInfo);
+    if (!d || !d.freeTrialInfo) return false;
+    const t = d.freeTrialInfo;
+    if (typeof t === 'string') {
+      return t !== 'null' && t !== 'undefined' && t !== '{}' && t.length > 0;
+    }
+    return true;
   }
 
   function artistsOf(o) {
@@ -370,17 +378,21 @@
      *   2) /song/url/v1 —— 播放直链，但非会员返回的是试听片段（freeTrialInfo），一律拒绝
      * 抛出的错误带 .trial 标记，供降级链判断是否直接走红云完整源。
      */
-    async neteaseUrl(base, id, level) {
-      // 1) 下载直链（完整音频）
-      try {
-        const j = await request(base, '/song/download/url/v1', { id: id, level: level, realIP: REAL_IP }, 15000);
-        const d = (j.data || [])[0];
-        if (d && d.url && !isTrial(d)) {
-          return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
-        }
-      } catch (e) { /* 继续尝试播放直链 */ }
-      // 2) 播放直链：仅接受完整音频
-      const j = await request(base, '/song/url/v1', { id: id, level: level, realIP: REAL_IP }, 15000);
+    async neteaseUrl(base, id, level, opts) {
+      opts = opts || {};
+      // 1) 下载直链（完整音频）；解锁模式跳过此步（解锁只走播放直链）
+      if (!opts.unblock) {
+        try {
+          const j = await request(base, '/song/download/url/v1', { id: id, level: level, realIP: REAL_IP }, 15000);
+          const d = (j.data || [])[0];
+          if (d && d.url && !isTrial(d)) {
+            return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
+          }
+        } catch (e) { /* 继续尝试播放直链 */ }
+      }
+      // 2) 播放直链：仅接受完整音频（unblock=true 时走 sanwith 的解锁通道）
+      const q = opts.unblock ? { id: id, level: level, realIP: REAL_IP, unblock: 'true' } : { id: id, level: level, realIP: REAL_IP };
+      const j = await request(base, '/song/url/v1', q, 20000);
       const d = (j.data || [])[0];
       if (d && d.url && !isTrial(d)) {
         return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
@@ -491,6 +503,16 @@
         }
         API._urlCache.set(key, { t: Date.now(), v: result });
         return result;
+      }
+      // 兜底：普通三源全挂（VIP/版权歌常见）时，走主接口(sanwith)的 unblock 解锁通道
+      try {
+        const r = await API.neteaseUrl(PRIMARY, song.id, lv, { unblock: true });
+        r.source = '解锁源';
+        if (location.protocol === 'https:' && r.url.startsWith('http://')) r.url = 'https://' + r.url.slice(7);
+        API._urlCache.set(key, { t: Date.now(), v: r });
+        return r;
+      } catch (e) {
+        errors.push(e.message);
       }
       throw new Error('无法获取播放地址（' + errors.join('；') + '）');
     },
