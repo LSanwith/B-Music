@@ -4,7 +4,7 @@
 
 | 文件 | 作用 |
 | --- | --- |
-| `api/[[path]].js` | 账号 API（注册/登录/滑动验证/数据同步），catch-all `/api/*` |
+| `api/account.js` | 账号 API（注册/登录/滑动验证/数据同步），由 `vercel.json` 把 `/api/*` 显式重写过来（不要用 `api/[[path]].js` 这类动态段文件名——Vercel 上不可靠） |
 | `api/proxy.js` | 上游转发代理（CORS 规避 + 红云密钥注入），`vercel.json` 把 `/proxy` 重写过来 |
 
 ## 一、连接仓库部署
@@ -15,9 +15,14 @@
 
 ## 二、KV 持久化（账号数据，必须）
 
-1. 控制台 → **Storage** → **Create Database** → **KV (Redis)** → 创建（免费档即可）；
-2. 创建后选 **Connect to Project** → 选择本项目；
-3. Vercel 会自动注入 `KV_REST_API_URL` / `KV_REST_API_TOKEN` 环境变量，无需手动配置。
+控制台 → **Storage** → **Create Database** → 展开 **Upstash** → **Upstash for Redis**：
+（不要选 "Global Config" 或 "Official Redis for Vercel"——本应用代码使用 Upstash REST 协议，要求 `KV_REST_API_URL` / `KV_REST_API_TOKEN`）
+
+1. 套餐选 **Free**（免绑卡；读副本/Eviction 保持默认，主区域 iad1 即可）；
+2. 资源名随意（如 `bmusic-kv`）→ 创建；
+3. **Connect a Project** → 选本项目 → 环境勾 **Production + Preview**；
+4. **前缀（Custom Prefix）填 `KV`** → Connect；
+5. Vercel 自动注入 `KV_REST_API_URL` / `KV_REST_API_TOKEN`（另有 `KV_URL`/`KV_REDIS_URL` 等），无需手动配置。
 
 > 不连 KV 也能跑，但数据只存在函数内存中，冷启动后会丢失。
 
