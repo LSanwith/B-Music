@@ -1,6 +1,13 @@
-/* Vercel Serverless Function：账号 + 数据同步 API（catch-all /api/*）
+/* Vercel Serverless Function：账号 + 数据同步 API
  *
- * 路由：/api/register /api/login /api/logout /api/account/delete /api/data /api/captcha
+ * 路由由 vercel.json 显式 rewrite 映射（避免动态段文件名在 Vercel 上
+ * 不可靠）：
+ *   /api/captcha        → /api/account?r=captcha        (GET)
+ *   /api/register       → /api/account?r=register       (POST)
+ *   /api/login          → /api/account?r=login          (POST)
+ *   /api/logout         → /api/account?r=logout         (POST)
+ *   /api/account/delete → /api/account?r=delete         (POST)
+ *   /api/data           → /api/account?r=data           (GET/POST)
  *
  * 持久化：
  *  - 推荐：Vercel KV（Redis）—— 控制台 Storage → KV → 创建并连接到本项目，
@@ -59,12 +66,12 @@ function authUser(db, req) {
 }
 
 export default async function handler(req, res) {
-  const path = '/' + (Array.isArray(req.query.path) ? req.query.path.join('/') : (req.query.path || ''));
+  const r = String((req.query && req.query.r) || '');
   const method = req.method;
   const db = await loadDb();
   try {
     /* 人机验证（滑块拼图）：一次一题，5 分钟有效 */
-    if (path === '/captcha' && method === 'GET') {
+    if (r === 'captcha' && method === 'GET') {
       const target = 35 + Math.floor(Math.random() * 45);
       const id = crypto.randomBytes(8).toString('hex');
       db.captchas = db.captchas || {};
@@ -73,7 +80,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ id, target });
     }
     /* 注册：滑动验证通过后直接注册并登录；同邮箱+正确密码 = 二次注册直接登录 */
-    if (path === '/register' && method === 'POST') {
+    if (r === 'register' && method === 'POST') {
       const b = await readBody(req);
       const email = String(b.email || '').trim().toLowerCase();
       const password = String(b.password || '');
@@ -107,7 +114,7 @@ export default async function handler(req, res) {
       await saveDb(db);
       return res.status(200).json({ token, email });
     }
-    if (path === '/login' && method === 'POST') {
+    if (r === 'login' && method === 'POST') {
       const b = await readBody(req);
       const email = String(b.email || '').trim().toLowerCase();
       const user = Object.values(db.users).find(u => u.email === email);
@@ -121,20 +128,20 @@ export default async function handler(req, res) {
     }
     const user = authUser(db, req);
     if (!user) return res.status(401).json({ msg: '未登录或登录已过期' });
-    if (path === '/logout' && method === 'POST') {
+    if (r === 'logout' && method === 'POST') {
       const m = /^Bearer\s+(\S+)$/.exec(req.headers.authorization || '');
       if (m) delete db.sessions[m[1]];
       await saveDb(db);
       return res.status(200).json({ ok: true });
     }
-    if (path === '/account/delete' && method === 'POST') {
+    if (r === 'delete' && method === 'POST') {
       delete db.users[user.id];
       delete db.data[user.id];
       Object.keys(db.sessions).forEach(t => { if (db.sessions[t] === user.id) delete db.sessions[t]; });
       await saveDb(db);
       return res.status(200).json({ ok: true });
     }
-    if (path === '/data') {
+    if (r === 'data') {
       if (method === 'GET') {
         const d = db.data[user.id] || { settings: {}, favSongs: [], favPlaylists: [] };
         return res.status(200).json(d);
