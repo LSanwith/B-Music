@@ -186,8 +186,17 @@ const PROXY_ALLOWED = [
 
 /** /proxy?u=<完整URL>[&hk=1] —— 同源转发上游 API，规避上游 CORS 响应头不稳定问题。
  *  hk=1 表示红云点歌请求：密钥由本代理注入上游 URL，浏览器请求中不暴露密钥。
- *  与 js/config.js 的 HONGYUN_KEY 保持一致。 */
-const HONGYUN_KEY = process.env.HONGYUN_KEY || '';
+ *  密钥来源优先级：环境变量 HONGYUN_KEY → 仓库根目录 ./key.local（被 gitignore，
+ *  不随仓库上传）→ 未配置（红云请求将返回明确错误）。 */
+const HONGYUN_KEY = (function () {
+  if (process.env.HONGYUN_KEY) return process.env.HONGYUN_KEY;
+  try {
+    const p = require('path').join(__dirname, 'key.local');
+    const v = require('fs').readFileSync(p, 'utf8').trim();
+    if (v) return v;
+  } catch (e) { /* 无 key.local */ }
+  return '';
+})();
 async function handleProxy(req, res, urlPath) {
   if (urlPath !== '/proxy') return false;
   const u = new URL(req.url, 'http://localhost');
@@ -277,6 +286,10 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
+  if (!HONGYUN_KEY) {
+    console.log('⚠️ 未找到红云密钥：请创建 key.local（与 server.js 同目录，内容为 ...）');
+    console.log('   或设置环境变量 HONGYUN_KEY，否则红云兜底源不可用（其余功能正常）');
+  }
   const url = `http://localhost:${PORT}/`;
   console.log('┌──────────────────────────────────────┐');
   console.log('│  B·Music 网页版 已启动                │');

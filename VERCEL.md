@@ -27,7 +27,7 @@
 
 | 名称 | 值 |
 | --- | --- |
-| `HONGYUN_KEY` | `` |
+| `HONGYUN_KEY` | 你的红云点歌密钥（形如 ``，在设置页填写） |
 
 添加后重新部署（或触发一次 Deployments → Redeploy）。
 

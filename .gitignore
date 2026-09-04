@@ -1,5 +1,7 @@
 # 本地数据（账号库/用户数据）
 data/
+# 红云私有密钥（本机专用，绝不提交）
+key.local
 # Node
 node_modules/
 *.log
