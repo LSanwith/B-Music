@@ -996,3 +996,6 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 #sidebar { padding-top: 0; }
 #sidebar .side-logo { padding-top: 24px; }
 @media (max-width: 900px) { #topbar { left: 0; } #sidebar { padding-top: 0; } }
+
+/* 返回按钮微调：下移 2px */
+.topbar-back { transform: translateY(2px); }
