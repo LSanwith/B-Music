@@ -838,3 +838,29 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .set-row.col .set-quality .q-item { flex: 1 1 auto; justify-content: center; padding: 9px 12px; }
 .set-row.col .set-btns { display: flex; flex-wrap: wrap; gap: 10px; }
 .set-row.col .set-btns .mini-btn { flex: 1 1 200px; margin-top: 0; justify-content: center; }
+
+/* ===== 歌词双层 GPU 渲染 =====
+ * 模糊层：整层一个 blur 滤镜 + 自身 translate3d（纹理缓存复用，合成器平移，不逐行重光栅化）；
+ * 清晰层：仅活动行高亮，非播放行透明度很低露出模糊层。
+ */
+.lyric-blur-wrap { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.lyric-blur-inner {
+  filter: blur(5px);
+  opacity: .5;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  padding: 48vh 34px 52vh;
+  color: rgba(245, 245, 247, .45);
+  transition: opacity .3s ease;
+}
+.lyric-blur-inner .ly-line { color: inherit; }
+.lyric-blur-inner .ly-text { color: inherit; }
+@media (max-width: 720px) { .lyric-blur-inner { padding: 42vh 24px 44vh; } }
+
+/* 清晰层：活动行 1，近处行半透明微露（叠在模糊层上呈柔和光晕），远处行全透（交给模糊层） */
+.ly-line:not(.active):not(.ly-far) { opacity: .18; }
+.ly-line.ly-far { opacity: 0; }
+.ly-line.active { opacity: 1; }
+/* 手动浏览歌词：关模糊层，全部行清晰可读 */
+.ov-lyrics.lyrics-previewing .lyric-blur-inner { opacity: 0; }
+.ov-lyrics.lyrics-previewing .ly-line:not(.active) { opacity: 1; }

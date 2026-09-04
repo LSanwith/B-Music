@@ -1089,13 +1089,17 @@
     },
 
     _renderLyricBox(box, lines, hasTrans) {
-      box.innerHTML = lines.map((l, i) => {
+      const html = lines.map((l, i) => {
         const dur = Math.max(0.5, ((lines[i + 1] ? lines[i + 1].t : l.t + 5) - l.t));
         return '<div class="ly-line" data-li="' + i + '" data-t="' + l.t + '" data-d="' + dur + '">' +
           '<div class="ly-text">' + (l.l ? esc(l.l) : '&nbsp;') + '</div>' +
           (l.tl ? '<div class="ly-trans' + (hasTrans ? '' : ' hide') + '">' + esc(l.tl) + '</div>' : '') +
           '</div>';
       }).join('');
+      box.innerHTML = html;
+      // 模糊层同步同一份歌词（只渲染一次，纹理随自身 transform 平移，GPU 合成）
+      const blurBox = $('#ov-lyric-blur-inner');
+      if (blurBox) blurBox.innerHTML = html;
       // 点击歌词跳转（同时退出预览模式，恢复模糊）
       $$('.ly-line', box).forEach(el => {
         el.addEventListener('click', () => {
@@ -1323,7 +1327,11 @@
       if (wrap && wrap.scrollTop !== 0) wrap.scrollTop = 0;
       const inner = $('#ov-lyrics-inner') || wrap;
       if (inner) {
-        inner.style.transform = 'translate3d(0, ' + (-(this._lyricScroll || 0)).toFixed(2) + 'px, 0)';
+        const t = 'translate3d(0, ' + (-(this._lyricScroll || 0)).toFixed(2) + 'px, 0)';
+        inner.style.transform = t;
+        // 模糊层与清晰层同步平移（各层自带 transform → 合成器纹理平移，无逐行重光栅化）
+        const blurInner = $('#ov-lyric-blur-inner');
+        if (blurInner) blurInner.style.transform = t;
       }
     },
 
