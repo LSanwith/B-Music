@@ -338,9 +338,19 @@
 
     /* ---------------- 音量 / 分析 ---------------- */
     _analyser: null,
-    /** 懒创建 Web Audio 分析器（背景高光随音乐起伏） */
+    /** iOS 上 createMediaElementSource 会把音频路由进 WebAudio：
+     *  锁屏/切后台时系统挂起 AudioContext → 音乐被掐断。因此 iOS 一律不用
+     *  WebAudio 分析（背景高光退化为静态渐变），保证后台/锁屏继续播放。 */
+    _isIOS() {
+      const ua = navigator.userAgent || '';
+      if (/iP(hone|od|ad)/.test(ua)) return true;
+      // iPadOS 13+ UA 伪装成 Mac，但支持多点触控
+      return ua.indexOf('Macintosh') >= 0 && navigator.maxTouchPoints > 1;
+    },
+    /** 懒创建 Web Audio 分析器（背景高光随音乐起伏）；iOS 返回 null */
     ensureAnalyser() {
       if (this._analyser) return this._analyser;
+      if (this._isIOS()) return null;
       try {
         const AC = window.AudioContext || window.webkitAudioContext;
         if (!AC) return null;

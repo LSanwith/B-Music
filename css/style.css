@@ -864,3 +864,33 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 /* 手动浏览歌词：关模糊层，全部行清晰可读 */
 .ov-lyrics.lyrics-previewing .lyric-blur-inner { opacity: 0; }
 .ov-lyrics.lyrics-previewing .ly-line:not(.active) { opacity: 1; }
+
+/* 窄屏底部播放器：收起次要按钮，防控件越界；适配刘海安全区 */
+@media (max-width: 700px) {
+  #playerbar {
+    left: calc(10px + env(safe-area-inset-left));
+    right: calc(10px + env(safe-area-inset-right));
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    width: auto;
+  }
+  .pb-left { flex: 0 1 auto; max-width: 46vw; min-width: 0; }
+  .pb-mid { flex: 1 1 auto; min-width: 0; }
+  .pb-btns { gap: 0px; }
+  .pb-btns .icon-btn { width: 36px; height: 36px; flex: none; }
+  #pb-mode { display: none !important; }
+  #pb-fav { display: none !important; }
+  .pb-btns .pb-play { width: 46px; height: 46px; flex: none; }
+  .pb-progress { width: 100%; min-width: 0; }
+  .pb-progress .pb-time { font-size: 10px; }
+  .pb-info { min-width: 0; }
+  .pb-title, .pb-artist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* 进度行可收缩：极窄屏下时间文本固定、进度条吸收剩余宽度 */
+@media (max-width: 700px) {
+  .pb-progress { gap: 6px; }
+  #pb-bar { flex: 1 1 auto; min-width: 40px; }
+  .pb-progress .pb-time { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+}
+
+@media (max-width: 700px) { .pb-vol { display: none !important; } }
