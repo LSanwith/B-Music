@@ -27,6 +27,8 @@
     lyricSize: 22,         // 歌词字号 px
     lyricWeight: 600,      // 歌词粗细
     lyricLineHeight: 1.75, // 歌词行距
+    cacheOn: true,         // 音频本地缓存开关
+    cacheCapMB: 300,       // 音频缓存容量上限（MB）
   }, read('settings', {}));
 
   const Settings = {
@@ -38,6 +40,8 @@
     get lyricWeight() { return SETTINGS.lyricWeight; },
     get lyricLineHeight() { return SETTINGS.lyricLineHeight; },
     get playMode() { return SETTINGS.playMode; },
+    get cacheOn() { return SETTINGS.cacheOn !== false; },
+    get cacheCapMB() { return SETTINGS.cacheCapMB || 300; },
     set(patch) {
       Object.assign(SETTINGS, patch);
       write('settings', SETTINGS);

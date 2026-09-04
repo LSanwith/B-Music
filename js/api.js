@@ -47,6 +47,28 @@
    */
   let _proxyState = 'auto'; // auto | on | off
   let _localServer = null;
+
+  /*
+   * 代理请求并发上限：搜索/解析会同时打多个上游代理请求，慢网络下（镜像 20s+）
+   * 浏览器同源 6 连接很快被占满，导致登录/退出等界面请求排队"点了没反应"。
+   * 限制最多 4 个代理请求在飞，永远给界面关键请求留出通道。
+   */
+  const MAX_PROXY_INFLIGHT = 4;
+  let _proxyInflight = 0;
+  let _proxyWaiters = [];
+  function _acquireProxySlot() {
+    if (_proxyInflight < MAX_PROXY_INFLIGHT) {
+      _proxyInflight++;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => _proxyWaiters.push(resolve));
+  }
+  function _releaseProxySlot() {
+    const w = _proxyWaiters.shift();
+    if (w) w();
+    else _proxyInflight--;
+  }
+
   /** file:// 模式下探测本机服务器（127.0.0.1:8899），供代理与账号 API 使用 */
   function probeLocalServer() {
     if (location.protocol !== 'file:' || _localServer) return;
@@ -76,7 +98,13 @@
       try {
         const base0 = viaLocal ? _localServer : '';
         const u = base0 + proxyPath + '?u=' + encodeURIComponent(target) + (isHongyun ? '&hk=1' : '');
-        const res = await fetch(u, { signal: AbortSignal.timeout(timeoutMs || 30000) });
+        await _acquireProxySlot();
+        let res;
+        try {
+          res = await fetch(u, { signal: AbortSignal.timeout(timeoutMs || 30000) });
+        } finally {
+          _releaseProxySlot();
+        }
         if (res.status === 404 || res.status === 405) {
           _proxyState = 'off'; // 页面不在本应用服务器上，无代理
         } else if (!res.ok) {

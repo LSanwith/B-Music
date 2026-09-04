@@ -80,8 +80,27 @@
           .map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
         if (qs) h += '?' + qs;
       }
+      const cur = location.hash;
+      if (cur && cur !== h) {
+        // 记录浏览历史（供详情页「返回」按钮回到上一页）
+        this._stack = this._stack || [];
+        this._stack.push(cur);
+        if (this._stack.length > 50) this._stack.shift();
+      }
       if (location.hash === h) this.render();
       else location.hash = h;
+    },
+
+    /** 返回上一页（详情页左上角按钮 / 空历史则回发现页） */
+    _goBack() {
+      const s = this._stack || [];
+      const prev = s.pop();
+      if (prev) location.hash = prev;
+      else location.hash = '#/discover';
+    },
+    /** 详情页顶部返回按钮 HTML */
+    _backBtn() {
+      return '<div class="view-back" data-back="1"><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>返回</span></div>';
     },
 
     /* ============================================================
@@ -461,6 +480,7 @@
         this._ctx = { songs: tracks.songs };
         const pl = { id: info.id, name: info.name, cover: info.cover, trackCount: info.trackCount };
         const html =
+          this._backBtn() +
           '<section class="detail-head">' +
           '<div class="dt-cover"><img src="' + esc(coverUrl(info.cover)) + '" alt=""></div>' +
           '<div class="dt-info">' +
@@ -522,6 +542,7 @@
         if (seq !== this._viewSeq) return;
         this._ctx = { songs };
         const html =
+          this._backBtn() +
           '<section class="detail-head">' +
           '<div class="dt-cover"><img src="' + esc(coverUrl(album.cover)) + '" alt=""></div>' +
           '<div class="dt-info"><div class="dt-type">专辑</div>' +
@@ -551,6 +572,7 @@
         if (seq !== this._viewSeq) return;
         this._ctx = { songs: data.songs };
         const html =
+          this._backBtn() +
           '<section class="detail-head artist-head">' +
           '<div class="dt-cover round"><img src="' + esc(coverUrl(info.cover)) + '" alt=""></div>' +
           '<div class="dt-info"><div class="dt-type">歌手</div>' +
@@ -615,6 +637,8 @@
     _bindViewEvents() {
       $('#view').addEventListener('click', (e) => {
         /* 注意顺序：歌单收藏/歌曲收藏/下载按钮必须先于导航/播放判断 */
+        const backEl = e.target.closest('[data-back]');
+        if (backEl) { this._goBack(); return; }
         const plFavEl = e.target.closest('[data-plfav]');
         if (plFavEl) {
           const id = plFavEl.dataset.plfav;
@@ -887,7 +911,11 @@
         el.addEventListener('click', () => this.closeNotice()));
       $('#set-clear-fav').addEventListener('click', () => { Store.FavSongs.clear(); Store.FavPlaylists.clear(); toast('收藏已清空'); });
       $('#set-clear-recent').addEventListener('click', () => { Store.Recent.clear(); toast('最近播放已清空'); });
-      $('#set-clear-all').addEventListener('click', () => { Store.clearAll(); toast('全部数据已清空'); });
+      $('#set-clear-all').addEventListener('click', () => {
+        Store.clearAll();
+        if (window.AudioCache) AudioCache.clear().then(() => {});
+        toast('全部数据已清空');
+      });
 
       this._bindViewEvents();
     },
@@ -1573,6 +1601,66 @@
         }));
       }
       this._applyLyricStyle();
+      this._bindCacheSettings();
+    },
+    /** 音频缓存设置：开关 / 上限 / 用量显示 / 清空 */
+    _bindCacheSettings() {
+      const refreshUsed = () => {
+        AudioCache.used().then((b) => {
+          const el = $('#set-cache-used');
+          if (el) {
+            const mb = b / 1048576;
+            el.textContent = '已用 ' + (mb >= 100 ? Math.round(mb) : mb.toFixed(1)) + ' MB / 上限 ' + Store.Settings.cacheCapMB + ' MB';
+          }
+        });
+      };
+      const onBox = $('#set-cache-on');
+      if (onBox && !onBox.dataset.bound) {
+        onBox.dataset.bound = '1';
+        const draw = () => {
+          const on = Store.Settings.cacheOn;
+          onBox.innerHTML = [true, false].map(v =>
+            '<button class="q-item' + (on === v ? ' active' : '') + '" data-v="' + v + '"><span class="q-name">' +
+            (v ? '开' : '关') + '</span><span class="q-check">✓</span></button>').join('');
+        };
+        draw();
+        onBox.addEventListener('click', (e) => {
+          const it = e.target.closest('.q-item');
+          if (!it) return;
+          const v = it.dataset.v === 'true';
+          Store.Settings.set({ cacheOn: v });
+          draw();
+          toast(v ? '音频缓存已开启（播放过的歌会自动缓存）' : '音频缓存已关闭（已缓存内容保留）');
+        });
+      }
+      const capBox = $('#set-cache-cap');
+      if (capBox && !capBox.dataset.bound) {
+        capBox.dataset.bound = '1';
+        const opts = [[100, '100MB'], [300, '300MB'], [500, '500MB'], [1000, '1GB']];
+        const draw = () => {
+          const cur = Store.Settings.cacheCapMB;
+          capBox.innerHTML = opts.map(o =>
+            '<button class="q-item' + (cur === o[0] ? ' active' : '') + '" data-v="' + o[0] + '"><span class="q-name">' +
+            o[1] + '</span><span class="q-check">✓</span></button>').join('');
+        };
+        draw();
+        capBox.addEventListener('click', (e) => {
+          const it = e.target.closest('.q-item');
+          if (!it) return;
+          Store.Settings.set({ cacheCapMB: +it.dataset.v });
+          draw();
+          AudioCache.evict().then(refreshUsed);
+          toast('缓存上限已更新为 ' + it.textContent.trim().replace('✓', ''));
+        });
+      }
+      const clearBtn = $('#set-clear-cache');
+      if (clearBtn && !clearBtn.dataset.bound) {
+        clearBtn.dataset.bound = '1';
+        clearBtn.addEventListener('click', () => {
+          AudioCache.clear().then(() => { toast('音频缓存已清空'); refreshUsed(); });
+        });
+      }
+      refreshUsed();
     },
     /** 应用歌词样式（字号/粗细/行距）到播放页 */
     _applyLyricStyle() {

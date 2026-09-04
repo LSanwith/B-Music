@@ -234,18 +234,49 @@
       }
       this.state = 'loading';
       this._retried = false;
+      this._curKey = null;      // 当前歌曲的缓存键（id@音质）
+      this._cacheUsed = false;  // 当前是否正用本地缓存播放
+      this._cacheRetryDone = false;
       this._emit('change');
       this._emit('state');
       const resume = (keepTime !== undefined ? keepTime : (this.curTime || 0));
       try {
         let info = await API.resolveUrl(song, this.quality);
-        a.src = info.url;
+        // 音频本地缓存：有缓存直接用（免等待、不怕源链接过期）；无缓存则远程直播并后台整曲入缓存
+        // 键 = 歌曲 id @ 用户所选音质（不能用 info.level —— 各源返回的 level 标签不稳定）
+        const ck = (window.AudioCache && song.id) ? AudioCache.key(song.id, this.quality) : null;
+        this._curKey = ck;
+        if (ck && AudioCache.enabled()) {
+          const cu = await AudioCache.url(ck);
+          if (cu) {
+            this._cacheUsed = true;
+            a.src = cu;
+          } else {
+            a.src = info.url;
+            this._fetchToCache(ck, info.url);
+          }
+        } else {
+          a.src = info.url;
+        }
         if (resume > 0 && song.id === this.current().id) this._pendingSeek = resume;
         this._retried = false;
         try { await a.play(); } catch (e) { /* 自动播放被拦截 */ }
       } catch (e) {
         this._fail(song, e);
       }
+    },
+
+    /** 后台整曲下载入缓存（并发限 2 路；失败静默，不影响播放） */
+    _cacheActive: 0,
+    _fetchToCache(k, url) {
+      if (!k || !url || /^blob:/.test(url)) return;
+      if (this._cacheActive >= 2) return; // 已经在缓存 2 首，跳过本次
+      this._cacheActive++;
+      fetch(url, { mode: 'cors' }).then((res) => {
+        if (!res.ok) throw new Error('http ' + res.status);
+        return res.blob();
+      }).then((blob) => AudioCache.put(k, blob)).catch(() => { /* 缓存失败无碍 */ })
+        .then(() => { this._cacheActive--; });
     },
 
     _fail(song, err) {
@@ -264,6 +295,24 @@
 
     _onAudioError() {
       if (!this.current() || this.state === 'error') return;
+      const a = this.audio;
+      // 1) 本地缓存兜底：远程链接失败/过期且本曲有缓存时直接切缓存（仅一次）
+      if (!this._cacheUsed && !this._cacheRetryDone && this._curKey && window.AudioCache) {
+        this._cacheRetryDone = true;
+        AudioCache.url(this._curKey).then((u) => {
+          if (!u || !this.current()) { this._retryDowngrade(); return; }
+          this._cacheUsed = true;
+          UI.toast('源链接失效，已切换本地缓存播放');
+          a.src = u;
+          a.play().catch(() => {});
+        }).catch(() => this._retryDowngrade());
+        return;
+      }
+      this._retryDowngrade();
+    },
+    _retryDowngrade() {
+      if (!this.current() || this.state === 'error') return;
+      const a = this.audio;
       // 降级：尝试更低音质一次
       if (!this._retried) {
         const cur = this.quality;

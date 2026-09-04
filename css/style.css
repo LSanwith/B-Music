@@ -803,3 +803,10 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   .song-row { gap: 10px; padding: 9px 10px; }
   .sr-dur { display: none; }
 }
+
+/* ===== œÍ«È“≥∑µªÿ∞¥≈• ===== */
+.view-back { display: inline-flex; align-items: center; gap: 8px; width: fit-content; margin: 2px 0 14px; padding: 7px 16px 7px 10px; border-radius: 999px; background: var(--panel); border: 1px solid var(--border); color: var(--text); font-size: 13px; line-height: 1; cursor: pointer; user-select: none; transition: background .18s var(--ease); }
+.view-back svg { width: 16px; height: 16px; fill: var(--sub); transition: fill .18s var(--ease); }
+.view-back:hover { background: var(--accent-soft); }
+.view-back:hover svg { fill: var(--accent); }
+@media (max-width: 720px) { .view-back { margin: 0 0 10px; padding: 6px 12px 6px 8px; font-size: 12px; } }
