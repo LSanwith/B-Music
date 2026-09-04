@@ -894,3 +894,23 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 }
 
 @media (max-width: 700px) { .pb-vol { display: none !important; } }
+
+/* 详情页顶部全宽遮罩条：左类型文本 / 右返回按钮 */
+.detail-topbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: -30px -32px 24px; padding: 12px 18px 12px 20px;
+  background: rgba(255, 255, 255, .05);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+.dtb-type {
+  font-size: 14px; font-weight: 700; letter-spacing: 2px; color: var(--text);
+  display: inline-flex; align-items: center;
+  padding: 7px 18px; border-radius: 999px;
+  background: var(--accent-soft); border: 1px solid rgba(250, 45, 60, .25);
+}
+.detail-topbar .view-back { margin: 0; flex: none; }
+@media (max-width: 700px) {
+  .detail-topbar { margin: -18px -16px 18px; padding: 10px 10px 10px 14px; }
+  .dtb-type { font-size: 13px; padding: 6px 14px; }
+}
