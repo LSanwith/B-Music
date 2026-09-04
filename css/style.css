@@ -999,3 +999,13 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 
 /* 返回按钮微调：下移 2px */
 .topbar-back { transform: translateY(2px); }
+
+/* 歌单/专辑/歌手详情文字统一左对齐（含手机窄屏） */
+@media (max-width: 700px) {
+  .detail-head { text-align: left; }
+  .detail-head .dt-info { width: 100%; text-align: left; }
+  .detail-head .dt-name { text-align: left; }
+  .detail-head .dt-meta { text-align: left; }
+  .detail-head .dt-desc { text-align: left; margin-left: 0; }
+  .detail-head .dt-actions { justify-content: flex-start; text-align: left; }
+}
