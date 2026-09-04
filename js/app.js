@@ -107,6 +107,61 @@
       else location.hash = '#/discover';
     },
 
+    /* ============ 分享 ============ */
+    /** 生成可分享链接（当前协议/域名 + 路由 hash） */
+    shareUrl(hash) {
+      const base = location.href.split('#')[0];
+      return base + (hash || location.hash || '#/discover');
+    },
+    /** 分享：优先系统分享面板，否则复制链接 */
+    async _doShare(title, hash) {
+      const url = this.shareUrl(hash);
+      try { window.__lastShareUrl = url; } catch (e) {}
+      try {
+        if (navigator.share) {
+          await navigator.share({ title: title || '', text: title || '', url: url });
+          toast('已唤起系统分享');
+          return;
+        }
+      } catch (e) {
+        if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return; // 用户取消
+      }
+      try {
+        await navigator.clipboard.writeText(url);
+        toast('分享链接已复制，发送给好友打开即可');
+        return;
+      } catch (e) { /* 继续 execCommand 兜底 */ }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = url;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        const ok = document.execCommand('copy');
+        ta.remove();
+        if (ok) {
+          toast('分享链接已复制，发送给好友打开即可');
+          return;
+        }
+      } catch (e) { /* 继续 */ }
+      toast('请手动复制链接：' + url, 'warn');
+    },
+    _artistText(song) {
+      return (song.artists || []).map(a => a.name).join(' / ') || '未知歌手';
+    },
+    /** 分享单曲：链接为独立歌曲页（打开自动播放） */
+    _shareSong(song) {
+      if (!song || !song.id) return;
+      this._doShare(song.name + ' - ' + this._artistText(song), '#/song/' + song.id);
+    },
+    /** 分享歌单/专辑/歌手等页面：链接即原页面，打开回到原位置 */
+    _sharePage(route, id, label, name) {
+      if (!id) return;
+      this._doShare((name || '') + ' · ' + label, '#/' + route + '/' + id);
+    },
+
     /* ============================================================
      * 路由
      * ============================================================ */
@@ -118,15 +173,19 @@
       const seg = path.split('/').filter(Boolean);
       const root = seg[0] || 'discover';
       this._highlightNav(root);
-      // 顶栏返回按钮：仅在 歌单/专辑/歌手 等详情页显示（位于顶部标题文本右侧的遮罩带内）
+      // 顶栏返回按钮：仅在 歌单/专辑/歌手/单曲 等详情页显示（位于顶部标题文本左侧）
       const topBack = $('#btn-topback');
-      if (topBack) topBack.classList.toggle('hidden', !(root === 'playlist' || root === 'album' || root === 'artist'));
+      if (topBack) topBack.classList.toggle('hidden', !(root === 'playlist' || root === 'album' || root === 'artist' || root === 'song'));
+      // 分享深度链接的 ?song= 参数：页面就绪后在原列表定位并自动播放该曲
+      this._autoSong = params.get('song') ? String(params.get('song')) : null;
+      this._autoSongTries = 0;
 
       if (root === 'discover') return this.vDiscover();
       if (root === 'leaderboard') return this.vLeaderboard();
       if (root === 'playlists') return this.vPlaylists(params.get('cat'), params.get('order'));
       if (root === 'search') return this.vSearch(params.get('q') || '');
       if (root === 'favorites') return this.vFavorites();
+      if (root === 'song' && seg[1]) return this.vSong(seg[1]);
       if (root === 'playlist' && (seg[1] || params.get('id'))) return this.vPlaylist(seg[1] || params.get('id'));
       if (root === 'album' && (seg[1] || params.get('id'))) return this.vAlbum(seg[1] || params.get('id'));
       if (root === 'artist' && (seg[1] || params.get('id'))) return this.vArtist(seg[1] || params.get('id'));
@@ -135,7 +194,7 @@
 
     _highlightNav(root) {
       $$('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.nav === root));
-      const titles = { discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', playlist: '歌单', album: '专辑', artist: '歌手' };
+      const titles = { discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲' };
       const t = $('#page-title');
       if (t) t.textContent = titles[root] || '发现';
       const cur = Player.current();
@@ -147,6 +206,32 @@
       v.innerHTML = html;
       $('#main').scrollTop = 0;
       window.scrollTo(0, 0);
+      // 分享深度链接：列表就绪后自动定位并播放 ?song= 指定的歌曲
+      if (html.indexOf('view-loading') < 0) this._tryAutoPlayShared();
+    },
+
+    /** 尝试在已渲染列表里定位 ?song= 分享目标并自动播放 */
+    _tryAutoPlayShared() {
+      if (this._autoSong == null) return;
+      const songs = this._ctx && Array.isArray(this._ctx.songs) ? this._ctx.songs : null;
+      if (songs && songs.length) {
+        const i = songs.findIndex(s => s && String(s.id) === this._autoSong);
+        if (i >= 0) {
+          const sid = this._autoSong;
+          this._autoSong = null;
+          Player.playQueue(songs.slice(), i);
+          toast('已打开分享的歌曲并开始播放');
+          return;
+        }
+      }
+      if ((this._autoSongTries = (this._autoSongTries || 0) + 1) <= 14) {
+        clearTimeout(this._autoSongT);
+        this._autoSongT = setTimeout(() => this._tryAutoPlayShared(), 650);
+      } else {
+        const id = this._autoSong;
+        this._autoSong = null;
+        if (location.hash.indexOf('#/song/') !== 0) location.hash = '#/song/' + id;
+      }
     },
 
     _viewLoading() {
@@ -472,6 +557,40 @@
     },
 
     /* ============================================================
+     * 视图：单曲落地页（分享链接 #/song/id 打开，自动播放）
+     * ============================================================ */
+    async vSong(id) {
+      const seq = this._viewSeq;
+      this._viewLoading();
+      try {
+        const s = await API.songDetail(id);
+        if (seq !== this._viewSeq) return;
+        if (!s) throw new Error('未找到该歌曲');
+        this._ctx = { songs: [s] };
+        const html =
+          '<section class="detail-head">' +
+          '<div class="dt-cover"><img src="' + esc(coverUrl(s.cover || (s.album && s.album.cover))) + '" alt=""></div>' +
+          '<div class="dt-info"><div class="dt-type">歌曲</div>' +
+          '<h1 class="dt-name">' + esc(s.name) + '</h1>' +
+          '<div class="dt-meta">' + esc(this._artistText(s)) + (s.album && s.album.name ? ' · ' + esc(s.album.name) : '') +
+          (s.duration ? ' · ' + fmtDuration(s.duration) : '') + '</div>' +
+          '<div class="dt-actions">' +
+          '<button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放</button>' +
+          '<button class="btn" id="dt-share">分享</button></div>' +
+          '</div></section>' +
+          '<section class="view-section"><div class="sec-head"><h2>单曲</h2></div>' +
+          this._songListHtml([s], { album: true }) + '</section>';
+        this._setView(html);
+        $('#dt-playall').addEventListener('click', () => Player.playQueue([s], 0));
+        $('#dt-share').addEventListener('click', () => this._shareSong(s));
+        // 打开分享链接后自动播放（浏览器自动播放策略允许时；被拦截则用户点播放）
+        setTimeout(() => { if (this._viewSeq === seq) Player.playQueue([s], 0); }, 600);
+      } catch (e) {
+        this._viewError('歌曲加载失败：' + e.message, 'App.vSong(\'' + id + '\')');
+      }
+    },
+
+    /* ============================================================
      * 视图：歌单详情
      * ============================================================ */
     async vPlaylist(id) {
@@ -497,6 +616,7 @@
           (info.tags && info.tags.length ? '<div class="dt-tags">' + info.tags.map(t => '<span class="tag">' + esc(t) + '</span>').join('') + '</div>' : '') +
           '<div class="dt-actions">' +
           '<button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放全部</button>' +
+          '<button class="btn" id="dt-share">分享</button>' +
           '<button class="btn' + (fav ? ' on' : '') + '" id="dt-fav">' + Icons.heartIcon(fav) +
           (fav ? '已收藏' : '收藏歌单') + '</button></div>' +
           (info.description ? '<div class="dt-desc">' + esc(info.description).slice(0, 120) + '</div>' : '') +
@@ -517,6 +637,7 @@
           b.lastChild.textContent = on ? '已收藏' : '收藏歌单';
           toast(on ? '已收藏歌单' : '已取消收藏');
         });
+        $('#dt-share').addEventListener('click', () => this._sharePage('playlist', id, '歌单', info.name));
       } catch (e) {
         this._viewError('歌单加载失败：' + e.message, 'App.vPlaylist(\'' + id + '\')');
       }
@@ -555,12 +676,14 @@
           '<div class="dt-meta"><a class="link" data-artist="' + (album.artistId || '') + '">' + esc(album.artist || '') + '</a>' +
           (album.publishTime ? ' · ' + new Date(album.publishTime).toLocaleDateString('zh-CN') : '') + ' · ' + (album.size || songs.length) + ' 首</div>' +
           (album.description ? '<div class="dt-desc">' + esc(album.description).slice(0, 120) + '</div>' : '') +
-          '<div class="dt-actions"><button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放全部</button></div>' +
+          '<div class="dt-actions"><button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放全部</button>' +
+          '<button class="btn" id="dt-share">分享</button></div>' +
           '</div></section>' +
           '<section class="view-section"><div class="sec-head"><h2>歌曲列表</h2></div>' +
           this._songListHtml(songs, { album: false }) + '</section>';
         this._setView(html);
         $('#dt-playall').addEventListener('click', () => Player.playQueue(this._ctx.songs, 0));
+        $('#dt-share').addEventListener('click', () => this._sharePage('album', id, '专辑', album.name));
       } catch (e) {
         this._viewError('专辑加载失败：' + e.message, 'App.vAlbum(\'' + id + '\')');
       }
@@ -583,12 +706,14 @@
           '<h1 class="dt-name">' + esc(info.name) + '</h1>' +
           '<div class="dt-meta">歌曲 ' + (info.songCount || 0) + ' 首 · 专辑 ' + (info.albumCount || 0) + ' 张</div>' +
           (info.briefDesc ? '<div class="dt-desc">' + esc(info.briefDesc).slice(0, 150) + '</div>' : '') +
-          '<div class="dt-actions"><button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放热门50首</button></div>' +
+          '<div class="dt-actions"><button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放热门50首</button>' +
+          '<button class="btn" id="dt-share">分享</button></div>' +
           '</div></section>' +
           '<section class="view-section"><div class="sec-head"><h2>热门歌曲</h2></div>' +
           this._songListHtml(data.songs, { album: true }) + '</section>';
         this._setView(html);
         $('#dt-playall').addEventListener('click', () => Player.playQueue(this._ctx.songs, 0));
+        $('#dt-share').addEventListener('click', () => this._sharePage('artist', id, '歌手', info.name));
       } catch (e) {
         this._viewError('歌手加载失败：' + e.message, 'App.vArtist(\'' + id + '\')');
       }
@@ -629,6 +754,8 @@
           '<div class="sr-dur">' + fmtDuration(s.duration) + '</div>' +
           '<button class="sr-fav' + (Store.FavSongs.has(s.id) ? ' on' : '') + '" data-fav="' + n + '">' +
           Icons.heartIcon(Store.FavSongs.has(s.id)) + '</button>' +
+          '<button class="sr-dl sr-share" data-share="' + n + '" aria-label="分享">' +
+          '<svg viewBox="0 0 1024 1024"><path d="M807 588c-36 0-68 14-93 36L416 486c1-7 1-13 0-20l298-138c25 22 57 36 93 36 75 0 136-61 136-136S882 92 807 92 671 153 671 228c0 7 0 13 1 20L374 386c-25-22-57-36-93-36-75 0-136 61-136 136s61 136 136 136c36 0 68-14 93-36l298 138c-1 7-1 13 0 20-1 75 60 136 135 136s136-61 136-136-61-136-136-136z"/></svg></button>' +
           '<button class="sr-dl" data-dl="' + n + '">' +
           '<svg viewBox="0 0 1024 1024"><path d="M752 288H538v359.8l95.8-94.4c10.2-10 26.6-10 36.8 0.2 10 10.2 10 26.6-0.2 36.8l-140 138c-5 4.8-11.6 7.4-18.2 7.4-3.4 0-6.8-0.6-10-2-3-1.2-5.8-3.2-8.2-5.4l-140-138c-10.2-10-10.4-26.6-0.2-36.8 10-10.2 26.6-10.4 36.8-0.2l95.8 94.4V288H272c-44 0-80 36-80 80v480c0 44 36 80 80 80h480c44 0 80-36 80-80V368c0-44-36-80-80-80zM538 122c0-14.4-11.6-26-26-26s-26 11.6-26 26v166h52V122z"/></svg></button>' +
           '</div>';
@@ -662,6 +789,13 @@
           favEl.classList.toggle('on', on);
           favEl.innerHTML = Icons.heartIcon(on);
           toast(on ? '已收藏 ♥' : '已取消收藏');
+          return;
+        }
+        const shareEl = e.target.closest('[data-share]');
+        if (shareEl) {
+          const i = +shareEl.dataset.share;
+          const s = this._ctx.songs && this._ctx.songs[i];
+          if (s) this._shareSong(s);
           return;
         }
         const dlEl = e.target.closest('[data-dl]');
@@ -896,6 +1030,11 @@
         const ob = $('#ov-body');
         if (ob) ob.classList.toggle('lyrics-hidden', !this._lyricsVisible);
         $('#ly-toggle').classList.toggle('on', this._lyricsVisible);
+      });
+      $('#ly-share').addEventListener('click', () => {
+        const s = Player.current();
+        if (s) this._shareSong(s);
+        else toast('当前没有播放歌曲', 'warn');
       });
 
       /* 队列抽屉 */
