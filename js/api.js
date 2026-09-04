@@ -401,17 +401,29 @@
       return r;
     },
 
-    /** 红云点歌搜索（供参考/补充结果） */
+    /** 红云点歌搜索（兼容新旧结构）。
+     *  新版: { code:200, msg, count, data:[{ index, name, singer, id }] }（参数为 name）
+     *  旧版: { code:0, data:{ data:{ songs:[{ id,name,artists,album,... }] } } } */
     async hongyunSearch(keyword, limit) {
-      const j = await request(CFG.HONGYUN_ENDPOINT, '', { action: 'search', keyword: keyword, limit: limit || 20 }, 20000);
-      const songs = (j && j.data && j.data.data && j.data.data.songs) || [];
-      return songs.map(s => ({
-        id: s.id, name: s.name,
-        artists: (s.artists || '').split('/').map(n => ({ id: 0, name: n })).filter(a => a.name),
-        album: { id: s.albumId, name: s.album, cover: s.coverImgUrl },
-        cover: s.coverImgUrl || '', duration: 0, fee: 0, vip: false,
+      const j = await request(CFG.HONGYUN_ENDPOINT, '', { action: 'search', name: keyword, limit: limit || 20 }, 20000);
+      let list = null;
+      if (j && j.code === 200 && Array.isArray(j.data)) {
+        list = j.data; // 新版扁平列表
+      }
+      let oldSongs = null;
+      if (list === null && j && j.data && j.data.data) {
+        oldSongs = (j.data.data.songs || (j.data.data.data && j.data.data.data.songs)) || null;
+      }
+      const norm = (s) => ({
+        id: Number(s.id),
+        name: s.name,
+        artists: String(s.singer || s.artists || '').split('/').map(n => ({ id: 0, name: n.trim() })).filter(a => a.name),
+        album: { id: s.albumId || 0, name: s.album || '', cover: s.coverImgUrl || '' },
+        cover: s.coverImgUrl || '',
+        duration: 0, fee: 0, vip: false,
         fromHongyun: true,
-      }));
+      });
+      return (list || oldSongs || []).map(norm).filter(s => s.id && s.name);
     },
 
     /**
