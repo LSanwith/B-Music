@@ -358,15 +358,16 @@
     },
 
     /** 红云点歌v4 获取直链（兜底）。密钥不进入 URL：代理注入 / file:// 本机服务器代理。
-     *  官方档位：standard/higher/exhigh/lossless/hires/jyeffect/sky/dolby/jymaster
-     *  兼容两种响应结构：
+     *  v4 官方档位（2026-09 文档）：standard(128) / high(320) / lossless(flac)；
+     *  应用内更高档位（hires/jymaster 等）一律映射到 lossless —— v4 已不识别
+     *  旧档位名，直接传反而会多一轮 20s 降级等待。兼容新旧两种响应结构：
      *    新版：{ code:200, music_url, cover, quality, lyric, fee }（扁平）
      *    旧版：{ code:0, data:{ data:{ url, type, level, lrc, cover } } }（嵌套） */
     async hongyunUrl(id, level) {
-      // 应用档位 → 红云档位（名称一致，直接透传）
+      // 应用档位 → 红云 v4 档位（standard/high/lossless）
       const HY_MAP = {
-        standard: 'standard', higher: 'higher', exhigh: 'exhigh', lossless: 'lossless',
-        hires: 'hires', jyeffect: 'jyeffect', sky: 'sky', dolby: 'dolby', jymaster: 'jymaster',
+        standard: 'standard', higher: 'high', exhigh: 'high', lossless: 'lossless',
+        hires: 'lossless', jyeffect: 'lossless', sky: 'lossless', dolby: 'lossless', jymaster: 'lossless',
       };
       const want = HY_MAP[level] || 'lossless';
       const fetchLevel = async (lv) => {
@@ -390,15 +391,7 @@
         err.hyCode = (j && j.code !== undefined && j.code !== 0) ? j.code : (j && j.data && j.data.code);
         throw err;
       };
-      const r = await fetchLevel(want);
-      // 高档位请求被接口降级为 mp3 时，重试 lossless 拿最高可用无损文件
-      if (r.type === 'mp3' && ['jymaster', 'hires', 'sky', 'jyeffect', 'dolby'].indexOf(want) >= 0) {
-        try {
-          const r2 = await fetchLevel('lossless');
-          if (r2.type !== 'mp3' || r2.url !== r.url) return r2;
-        } catch (e) { /* 保留原结果 */ }
-      }
-      return r;
+      return await fetchLevel(want);
     },
 
     /** 红云点歌搜索（兼容新旧结构）。
