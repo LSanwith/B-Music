@@ -41,20 +41,41 @@
    * 上游接口（sanwith / silence / 红云）的 CORS 响应头不可靠：
    *  - sanwith/silence：CDN 共享缓存导致 Access-Control-Allow-Origin 偶尔是别的 origin；
    *  - 红云点歌：返回格式错误的 "*,*"。
-   * 因此 http(s) 页面优先走同源代理 /proxy（server.js 提供），
-   * 代理不可用时（如 file:// 双击打开）退化为直连并自动重试一次。
+   * 因此 http(s) 页面优先走同源代理 /proxy（server.js 提供）；
+   * file:// 双击打开时，若本机 8899 服务器在运行则自动探测并走它的代理/API
+   * （探测成功设 window.APP_LOCAL_SERVER），否则退化为直连（尽力而为）。
    */
   let _proxyState = 'auto'; // auto | on | off
+  let _localServer = null;
+  /** file:// 模式下探测本机服务器（127.0.0.1:8899），供代理与账号 API 使用 */
+  function probeLocalServer() {
+    if (location.protocol !== 'file:' || _localServer) return;
+    try {
+      fetch('http://127.0.0.1:8899/api/captcha', { signal: AbortSignal.timeout(1200) })
+        .then((r) => {
+          if (r.ok) {
+            _localServer = 'http://127.0.0.1:8899';
+            window.APP_LOCAL_SERVER = _localServer;
+            _proxyState = 'on';
+          }
+        }).catch(() => { /* 服务器未运行 */ });
+    } catch (e) { /* 忽略 */ }
+  }
+  probeLocalServer();
+
   async function request(base, path, params, timeoutMs) {
     const isHongyun = base === CFG.HONGYUN_ENDPOINT;
-    // 红云请求不携带 key：http(s) 由本地代理注入（hk=1），URL 中不暴露密钥
+    // 红云请求不携带 key：代理注入（hk=1），URL 中不暴露密钥
     const target = buildApiUrl(base, path, params);
     const proxyPath = window.APP_CONFIG.PROXY_PATH;
-    const canProxy = proxyPath && location.protocol !== 'file:';
+    const viaHttp = proxyPath && location.protocol !== 'file:';
+    const viaLocal = location.protocol === 'file:' && !!_localServer; // file:// + 本机服务器在跑
 
-    if (canProxy && _proxyState !== 'off') {
+    // 1) 走代理（http 同源代理，或 file:// 下的本机服务器代理）
+    if ((viaHttp || viaLocal) && _proxyState !== 'off') {
       try {
-        const u = proxyPath + '?u=' + encodeURIComponent(target) + (isHongyun ? '&hk=1' : '');
+        const base0 = viaLocal ? _localServer : '';
+        const u = base0 + proxyPath + '?u=' + encodeURIComponent(target) + (isHongyun ? '&hk=1' : '');
         const res = await fetch(u, { signal: AbortSignal.timeout(timeoutMs || 30000) });
         if (res.status === 404 || res.status === 405) {
           _proxyState = 'off'; // 页面不在本应用服务器上，无代理
@@ -66,18 +87,17 @@
         }
       } catch (e) {
         if (String(e.message).indexOf('proxy HTTP') === 0) throw e;
-        if (_proxyState === 'auto') {
-          if (isHongyun) throw e; // 红云不回退直连（避免密钥暴露在 URL）
-          _proxyState = 'off';
-        } else {
-          throw e;
-        }
+        if (isHongyun) throw e; // 红云不回退直连（避免密钥暴露在 URL）
+        _proxyState = 'off';     // 其它请求：关闭代理后走直连
       }
     }
     if (isHongyun) {
-      // file:// 无代理可用：兜底直连，此时必须带 key（仅此场景暴露）
-      const sep = target.indexOf('?') >= 0 ? '&' : '?';
-      return await fetchJson(target + sep + 'key=' + encodeURIComponent(CFG.HONGYUN_KEY), timeoutMs);
+      // 无代理可用（file:// 且本机服务器未运行）：红云上游 CORS 头非法，直连必然被浏览器拦截，
+      // 且会暴露密钥——直接给出明确提示，不发起注定失败的带 key 请求
+      const err = new Error(location.protocol === 'file:'
+        ? '红云接口需经本机服务器代理（请双击 start.bat 启动，或访问网页版）'
+        : '无法获取播放地址');
+      throw err;
     }
     // 直连模式（file:// 或代理不可用），失败重试一次
     try {
@@ -337,9 +357,11 @@
       throw err;
     },
 
-    /** 红云点歌v4 获取直链（兜底）。密钥不进入 URL：代理注入 / file:// 直连兜底。
+    /** 红云点歌v4 获取直链（兜底）。密钥不进入 URL：代理注入 / file:// 本机服务器代理。
      *  官方档位：standard/higher/exhigh/lossless/hires/jyeffect/sky/dolby/jymaster
-     *  （应用内“超清母带”= jymaster，为最高档） */
+     *  兼容两种响应结构：
+     *    新版：{ code:200, music_url, cover, quality, lyric, fee }（扁平）
+     *    旧版：{ code:0, data:{ data:{ url, type, level, lrc, cover } } }（嵌套） */
     async hongyunUrl(id, level) {
       // 应用档位 → 红云档位（名称一致，直接透传）
       const HY_MAP = {
@@ -349,12 +371,23 @@
       const want = HY_MAP[level] || 'lossless';
       const fetchLevel = async (lv) => {
         const j = await request(CFG.HONGYUN_ENDPOINT, '', { action: 'song', id: id, level: lv }, 20000);
-        const d = j && j.data && j.data.data;
-        if (j.code === 0 && d && d.url) {
-          return { url: d.url, br: 0, type: d.type || '', level: d.level || lv, lrc: d.lrc || '', cover: d.cover || '', size: d.size || '' };
+        const oldD = j && j.data && j.data.data && j.data.data.data; // 旧结构内层
+        const url = (j && j.music_url) || (oldD && oldD.url);
+        if (url) {
+          const type = (oldD && oldD.type) ||
+            (/\.flac/i.test(url) ? 'flac' : (/\.mp3/i.test(url) ? 'mp3' : (/\.m4a/i.test(url) ? 'm4a' : '')));
+          return {
+            url, br: 0,
+            type,
+            level: (oldD && oldD.level) || j.quality || lv,
+            lrc: (oldD && oldD.lrc) || j.lyric || '',
+            cover: (oldD && oldD.cover) || j.cover || '',
+            size: (oldD && oldD.size) || '',
+          };
         }
-        const err = new Error((j && j.msg) || '红云点歌失败');
-        err.hyCode = j && j.code;
+        const errMsg = (j && j.msg) || (j && j.data && j.data.msg) || (j && j.data && j.data.data && j.data.data.msg) || '红云点歌失败';
+        const err = new Error(errMsg);
+        err.hyCode = (j && j.code !== undefined && j.code !== 0) ? j.code : (j && j.data && j.data.code);
         throw err;
       };
       const r = await fetchLevel(want);

@@ -255,7 +255,11 @@
       this._emit('state');
       this._emit('time');
       console.warn('[player] 播放失败', song && song.name, err && err.message);
-      UI.toast('《' + (song ? song.name : '') + '》暂时无法播放（可能为 VIP/版权受限）', 'warn');
+      let msg = '《' + (song ? song.name : '') + '》暂时无法播放（可能为 VIP/版权受限）';
+      if (location.protocol === 'file:' && !window.APP_LOCAL_SERVER) {
+        msg += '。本地直连模式无法播放 VIP/版权歌曲，请双击 start.bat 启动服务器或访问网页版';
+      }
+      UI.toast(msg, 'warn');
     },
 
     _onAudioError() {

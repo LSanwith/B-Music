@@ -150,10 +150,18 @@
     get loggedIn() { return !!session; },
 
     _api(path, opts) {
-      if (location.protocol === 'file:') return Promise.reject(new Error('当前为本地文件模式，无法连接服务器'));
+      let base = '';
+      if (location.protocol === 'file:') {
+        // file:// 模式：账号 API 需经本机服务器（api.js 已探测 127.0.0.1:8899）
+        const local = window.APP_LOCAL_SERVER;
+        if (!local) {
+          return Promise.reject(new Error('账号功能需要本机服务器：请双击 start.bat 启动，或访问部署的网页版'));
+        }
+        base = local;
+      }
       const headers = { 'Content-Type': 'application/json' };
       if (session) headers['Authorization'] = 'Bearer ' + session.token;
-      return fetch('/api' + path, Object.assign({ headers }, opts)).then(async (r) => {
+      return fetch(base + '/api' + path, Object.assign({ headers }, opts)).then(async (r) => {
         const j = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(j.msg || ('HTTP ' + r.status));
         return j;

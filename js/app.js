@@ -1415,7 +1415,11 @@
         // 用「长度 × 数字」的合法 calc（百分比×长度在 CSS calc 中非法，会导致缺口位置失效）
         if (notch) notch.style.left = 'calc((100% - 44px) * ' + (c.target / 100) + ' + 7px)';
       } catch (e) {
-        if (hint) hint.textContent = '验证加载失败，请刷新';
+        if (hint) {
+          hint.textContent = (location.protocol === 'file:' && !window.APP_LOCAL_SERVER)
+            ? '账号功能需本机服务器：请双击 start.bat 启动后重试'
+            : ((e && e.message) || '验证加载失败，请刷新');
+        }
       }
     },
     /** 滑块拖拽（拖动到缺口±6% 且时长 300ms~15s 通过） */

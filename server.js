@@ -239,6 +239,16 @@ async function handleProxy(req, res, urlPath) {
 
 const server = http.createServer(async (req, res) => {
   try {
+    // CORS 预检（file:// 页面跨域访问本机服务器时需要）
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      });
+      res.end();
+      return;
+    }
     let urlPath = decodeURIComponent(req.url.split('?')[0]);
     if (await handleApi(req, res, urlPath)) return;
     if (await handleProxy(req, res, urlPath)) return;
