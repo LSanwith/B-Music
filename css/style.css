@@ -990,3 +990,9 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 @media (max-width: 700px) { .pb-progress { margin-top: 18px; } }
 
 @media (max-width: 700px) { .pb-progress { margin-top: 19px; } .pb-btns .icon-btn { width: 30px !important; height: 30px !important; } .pb-btns .pb-play { width: 34px !important; height: 34px !important; } }
+
+/* 恢复：桌面顶栏从侧栏右侧开始（玻璃背景覆盖内容区整宽）；侧栏回到顶部原位置 */
+#topbar { left: var(--side-offset); gap: 16px; }
+#sidebar { padding-top: 0; }
+#sidebar .side-logo { padding-top: 24px; }
+@media (max-width: 900px) { #topbar { left: 0; } #sidebar { padding-top: 0; } }
