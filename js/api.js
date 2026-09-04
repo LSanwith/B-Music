@@ -504,15 +504,20 @@
         API._urlCache.set(key, { t: Date.now(), v: result });
         return result;
       }
-      // 兜底：普通三源全挂（VIP/版权歌常见）时，走主接口(sanwith)的 unblock 解锁通道
-      try {
-        const r = await API.neteaseUrl(PRIMARY, song.id, lv, { unblock: true });
-        r.source = '解锁源';
-        if (location.protocol === 'https:' && r.url.startsWith('http://')) r.url = 'https://' + r.url.slice(7);
-        API._urlCache.set(key, { t: Date.now(), v: r });
-        return r;
-      } catch (e) {
-        errors.push(e.message);
+      // 兜底：普通三源全挂（VIP/版权歌常见）时，走主接口(sanwith)的 unblock 解锁通道。
+      // sanwith 别名迁移期会在多个实例间随机分发（旧实例 SKey 快照不同 → 偶发 403），
+      // 因此最多重试 3 次。
+      for (let a = 0; a < 3; a++) {
+        try {
+          const r = await API.neteaseUrl(PRIMARY, song.id, lv, { unblock: true });
+          r.source = '解锁源';
+          if (location.protocol === 'https:' && r.url.startsWith('http://')) r.url = 'https://' + r.url.slice(7);
+          API._urlCache.set(key, { t: Date.now(), v: r });
+          return r;
+        } catch (e) {
+          errors.push(e.message);
+          if (a < 2) await new Promise((res) => setTimeout(res, 400 + a * 300));
+        }
       }
       throw new Error('无法获取播放地址（' + errors.join('；') + '）');
     },

@@ -914,3 +914,25 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   .detail-topbar { margin: -18px -16px 18px; padding: 10px 10px 10px 14px; }
   .dtb-type { font-size: 13px; padding: 6px 14px; }
 }
+
+/* 顶栏标题遮罩带：横贯整个横向宽度，文本+返回同处一带 */
+.tb-band {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
+  height: calc(var(--topbar-h) - 18px); margin: 9px 0;
+  padding: 0 8px 0 18px;
+  background: rgba(255, 255, 255, .05);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--border); border-radius: 14px;
+}
+.tb-band .topbar-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+.topbar-back {
+  display: inline-flex; align-items: center; gap: 6px; flex: none;
+  padding: 7px 14px 7px 10px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  font-size: 13px; line-height: 1; cursor: pointer; transition: background .18s var(--ease);
+}
+.topbar-back svg { width: 15px; height: 15px; fill: var(--sub); }
+.topbar-back:hover { background: var(--accent-soft); }
+.topbar-back:hover svg { fill: var(--accent); }
+.topbar-back.hidden { display: none; }
+@media (max-width: 700px) { .tb-band { padding: 0 6px 0 12px; border-radius: 12px; } .topbar-back { padding: 6px 11px 6px 8px; } }

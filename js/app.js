@@ -99,21 +99,12 @@
       else location.hash = h;
     },
 
-    /** 返回上一页（详情页左上角按钮 / 空历史则回发现页） */
+    /** 返回上一页（顶栏返回按钮 / 空历史则回发现页） */
     _goBack() {
       const s = this._stack || [];
       const prev = s.pop();
       if (prev) location.hash = prev;
       else location.hash = '#/discover';
-    },
-    /** 详情页顶部全宽遮罩条：左侧类型文本（歌单/专辑/歌手），右侧返回按钮 */
-    _detailTopBar(tag) {
-      return '<div class="detail-topbar"><span class="dtb-type">' + tag + '</span>' +
-        '<button class="view-back" data-back="1"><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>返回</span></button></div>';
-    },
-    /** 详情页顶部返回按钮 HTML */
-    _backBtn() {
-      return '<div class="view-back" data-back="1"><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>返回</span></div>';
     },
 
     /* ============================================================
@@ -127,6 +118,9 @@
       const seg = path.split('/').filter(Boolean);
       const root = seg[0] || 'discover';
       this._highlightNav(root);
+      // 顶栏返回按钮：仅在 歌单/专辑/歌手 等详情页显示（位于顶部标题文本右侧的遮罩带内）
+      const topBack = $('#btn-topback');
+      if (topBack) topBack.classList.toggle('hidden', !(root === 'playlist' || root === 'album' || root === 'artist'));
 
       if (root === 'discover') return this.vDiscover();
       if (root === 'leaderboard') return this.vLeaderboard();
@@ -493,7 +487,6 @@
         this._ctx = { songs: tracks.songs };
         const pl = { id: info.id, name: info.name, cover: info.cover, trackCount: info.trackCount };
         const html =
-          this._detailTopBar('歌单') +
           '<section class="detail-head">' +
           '<div class="dt-cover"><img src="' + esc(coverUrl(info.cover)) + '" alt=""></div>' +
           '<div class="dt-info">' +
@@ -555,7 +548,6 @@
         if (seq !== this._viewSeq) return;
         this._ctx = { songs };
         const html =
-          this._detailTopBar('专辑') +
           '<section class="detail-head">' +
           '<div class="dt-cover"><img src="' + esc(coverUrl(album.cover)) + '" alt=""></div>' +
           '<div class="dt-info"><div class="dt-type">专辑</div>' +
@@ -585,7 +577,6 @@
         if (seq !== this._viewSeq) return;
         this._ctx = { songs: data.songs };
         const html =
-          this._detailTopBar('歌手') +
           '<section class="detail-head artist-head">' +
           '<div class="dt-cover round"><img src="' + esc(coverUrl(info.cover)) + '" alt=""></div>' +
           '<div class="dt-info"><div class="dt-type">歌手</div>' +
@@ -775,6 +766,7 @@
     _bindStatic() {
       /* 侧边栏 */
       $('#btn-settings').addEventListener('click', () => this.openSettings());
+      $('#btn-topback').addEventListener('click', () => this._goBack());
       $('#btn-login').addEventListener('click', () => this.openAuth('login'));
       $('#btn-register').addEventListener('click', () => this.openAuth('register'));
       $('#btn-logout').addEventListener('click', async () => {
