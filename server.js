@@ -287,7 +287,7 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
   if (!HONGYUN_KEY) {
-    console.log('⚠️ 未找到红云密钥：请创建 key.local（与 server.js 同目录，内容为 ...）');
+    console.log('⚠️ 未找到红云密钥：请创建 key.local（与 server.js 同目录，内容为你的 sk- 开头密钥）');
     console.log('   或设置环境变量 HONGYUN_KEY，否则红云兜底源不可用（其余功能正常）');
   }
   const url = `http://localhost:${PORT}/`;
