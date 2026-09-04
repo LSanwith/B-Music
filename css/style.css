@@ -824,3 +824,9 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 @media (prefers-reduced-motion: reduce) {
   .ly-line { transition: none !important; }
 }
+
+/* 设置弹窗加宽：长说明文字更少换行，便于阅读 */
+#settings .modal-panel { width: min(94vw, 700px); }
+#settings .set-label, #settings .set-sub { font-size: 13px; }
+#settings .set-hint { font-size: 12.5px; line-height: 1.8; }
+@media (max-width: 560px) { #settings .modal-panel { width: 96vw; padding: 20px 18px; } }
