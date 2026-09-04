@@ -634,11 +634,11 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   cursor: pointer;
 }
 /* 非播放行：模糊效果（当前行清晰；远处行关闭模糊，省 GPU） */
-.ly-line { transition: filter .35s ease; }
-.ly-line:not(.active):not(.ly-far) { filter: blur(1.5px); }
-.ly-line.ly-far { filter: none; }
+.ly-line { transition: opacity .3s ease, color .3s ease; }
+.ly-line:not(.active):not(.ly-far) { opacity: .55; }
+.ly-line.ly-far { opacity: .38; }
 /* 手动滚动预览时：歌词不模糊，便于浏览 */
-.ov-lyrics.lyrics-previewing .ly-line:not(.active) { filter: none; }
+.ov-lyrics.lyrics-previewing .ly-line:not(.active) { opacity: 1; }
 /* 当前行：整段白色显示，不放大字号 */
 .ly-line.active .ly-text {
   color: #fff;
