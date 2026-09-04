@@ -24,6 +24,14 @@
       this._bindStatic();
       this._bindPlayerEvents();
       window.addEventListener('hashchange', () => this.render());
+      // 歌词轨道度量缓存：窗口尺寸变化后重测（仅在歌词页打开时）
+      window.addEventListener('resize', () => {
+        clearTimeout(this._lyricRszT);
+        this._lyricRszT = setTimeout(() => {
+          const ov = $('#overlay');
+          if (ov && !ov.classList.contains('hidden')) this._measureLyrics();
+        }, 250);
+      });
       document.addEventListener('ym:favpls', () => this._renderSidePlaylists());
       document.addEventListener('ym:settings', (e) => this._onSettings(e.detail));
       this._renderSidePlaylists();
@@ -1110,7 +1118,35 @@
       this._lastPad = 0;
       this._lastGlowBg = 0;
       this._lyricScroll = 0;
+      this._measureLyrics();
       this._applyLyricScroll();
+    },
+
+    /**
+     * 度量歌词轨道与每行位置并缓存 —— 滚动动画循环里不再逐帧读 offsetTop/
+     * offsetHeight/clientHeight（那些读取会强制同步布局，是动画掉帧主因）。
+     * 行高/位置只在渲染后、字体加载、窗口变化时重测。
+     */
+    _measureLyrics() {
+      const els = this._lyricEls || [];
+      const wrap = $('.ov-lyrics');
+      const m = [];
+      for (let i = 0; i < els.length; i++) {
+        m.push({ top: els[i].offsetTop, h: els[i].offsetHeight || 42 });
+      }
+      this._lyricM = m;
+      this._lyricMeasuredAt = performance.now();
+      if (wrap) {
+        this._wrapClientH = wrap.clientHeight;
+        this._wrapScrollH = wrap.scrollHeight;
+      }
+    },
+    /** 懒重测：行数变化 / 字体加载 / 缩放断点改变后调用 */
+    _ensureLyricMeasured(force) {
+      if (force || !this._lyricM || !this._lyricM.length ||
+        performance.now() - (this._lyricMeasuredAt || 0) > 1500) {
+        this._measureLyrics();
+      }
     },
 
     /** 分析封面亮部区域（8x8 亮度网格），供背景多点高光 */
@@ -1261,11 +1297,16 @@
         } else {
           // 注意：clientHeight 已包含上下 padding，直接以其一半作为可视中心；
           // offsetTop 已相对轨道顶边（含其 padding），不再加 padTop
+          this._ensureLyricMeasured();
+          const m = this._lyricM && this._lyricM[li];
           const travel = 20; // 随唱上滑行程 px
-          const lineH = el.offsetHeight || 42;
-          const maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+          const wrapH = this._wrapClientH || wrap.clientHeight;
+          const scrollH = this._wrapScrollH || wrap.scrollHeight;
+          const lineH = m ? m.h : (el.offsetHeight || 42);
+          const maxScroll = Math.max(0, scrollH - wrapH);
+          const base = m ? m.top : el.offsetTop;
           const target = Math.max(0, Math.min(maxScroll,
-            el.offsetTop + lineH - wrap.clientHeight / 2 + 10 + p * travel));
+            base + lineH - wrapH / 2 + 10 + p * travel));
           const diff = target - (this._lyricScroll || 0);
           if (Math.abs(diff) > 0.5) {
             const k = 1 - Math.exp(-dt * 11); // 收敛时间约 250ms
@@ -1301,6 +1342,13 @@
       document.body.classList.add('no-scroll');
       this.startLyricLoop();
       this._syncLyric(Player.curTime);
+      // 等自定义字体就绪后重测行高（字体加载会改变行高，缓存的 offsetTop 会失效）
+      this._measureLyrics();
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+          if (!document.getElementById('overlay').classList.contains('hidden')) this._measureLyrics();
+        }).catch(() => {});
+      }
     },
     closeOverlay() {
       $('#overlay').classList.add('hidden');

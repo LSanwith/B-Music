@@ -810,3 +810,17 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .view-back:hover { background: var(--accent-soft); }
 .view-back:hover svg { fill: var(--accent); }
 @media (max-width: 720px) { .view-back { margin: 0 0 10px; padding: 6px 12px 6px 8px; font-size: 12px; } }
+
+/* ===== 歌词动画 GPU 化 =====
+ * 轨道只做 translate3d 平移（合成器层运行，不触发重排/重绘）；
+ * will-change 提前建层，避免动画中途反复提升。
+ */
+.ov-lyrics-inner {
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ly-line { transition: none !important; }
+}

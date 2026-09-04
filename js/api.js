@@ -189,6 +189,11 @@
     };
   }
 
+  /* 网易云接口 realIP 参数：api-enhanced 文档默认值（116.25.146.177）。
+   * 服务端若部署在海外，不带 realIP 时网易云按海外 IP 返回「无权限/无URL」；
+   * 指定国内 IP 后灰色/地区限制歌曲可正常返回（VIP 会员歌仍是试听，与 IP 无关）。 */
+  const REAL_IP = '116.25.146.177';
+
   /* ---------- 歌曲信息 ---------- */
   const API = {
 
@@ -368,14 +373,14 @@
     async neteaseUrl(base, id, level) {
       // 1) 下载直链（完整音频）
       try {
-        const j = await request(base, '/song/download/url/v1', { id: id, level: level }, 15000);
+        const j = await request(base, '/song/download/url/v1', { id: id, level: level, realIP: REAL_IP }, 15000);
         const d = (j.data || [])[0];
         if (d && d.url && !isTrial(d)) {
           return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
         }
       } catch (e) { /* 继续尝试播放直链 */ }
       // 2) 播放直链：仅接受完整音频
-      const j = await request(base, '/song/url/v1', { id: id, level: level }, 15000);
+      const j = await request(base, '/song/url/v1', { id: id, level: level, realIP: REAL_IP }, 15000);
       const d = (j.data || [])[0];
       if (d && d.url && !isTrial(d)) {
         return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
