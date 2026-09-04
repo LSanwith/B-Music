@@ -830,3 +830,11 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 #settings .set-label, #settings .set-sub { font-size: 13px; }
 #settings .set-hint { font-size: 12.5px; line-height: 1.8; }
 @media (max-width: 560px) { #settings .modal-panel { width: 96vw; padding: 20px 18px; } }
+
+/* 设置行上下堆叠：文字独占一行，控件在下一行 */
+.set-row.col { flex-direction: column; align-items: stretch; gap: 6px; }
+.set-row.col .set-sub { width: auto; }
+.set-row.col .set-quality { display: flex; flex-wrap: wrap; gap: 8px; }
+.set-row.col .set-quality .q-item { flex: 1 1 auto; justify-content: center; padding: 9px 12px; }
+.set-row.col .set-btns { display: flex; flex-wrap: wrap; gap: 10px; }
+.set-row.col .set-btns .mini-btn { flex: 1 1 200px; margin-top: 0; justify-content: center; }
