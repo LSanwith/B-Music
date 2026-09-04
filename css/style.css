@@ -936,3 +936,57 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .topbar-back:hover svg { fill: var(--accent); }
 .topbar-back.hidden { display: none; }
 @media (max-width: 700px) { .tb-band { padding: 0 6px 0 12px; border-radius: 12px; } .topbar-back { padding: 6px 11px 6px 8px; } }
+
+/* ===== 顶栏（全屏宽玻璃背景 + 返回/标题原位滑入动画） ===== */
+#topbar { left: 0; gap: 16px; }
+#topbar .topbar-title { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 200px; opacity: 1;
+  padding: 7px 14px 7px 10px; border-radius: 999px;
+  background: var(--panel); border: 1px solid var(--border); color: var(--text);
+  font-size: 13px; line-height: 1; cursor: pointer;
+  white-space: nowrap; overflow: hidden;
+  transition: max-width .28s var(--ease), opacity .22s var(--ease), padding .28s var(--ease), border-color .28s var(--ease), margin .28s var(--ease);
+}
+.topbar-back svg { width: 15px; height: 15px; fill: var(--sub); flex: none; }
+.topbar-back:hover { background: var(--accent-soft); }
+.topbar-back:hover svg { fill: var(--accent); }
+/* 隐藏态：宽度收缩为 0（带动画），标题随之平滑左移贴边 */
+.topbar-back.hidden {
+  max-width: 0; opacity: 0; padding-left: 0; padding-right: 0;
+  border-left-width: 0; border-right-width: 0; margin: 0;
+  pointer-events: none;
+}
+@media (max-width: 900px) { #topbar { gap: 10px; } .topbar-back { padding: 6px 11px 6px 8px; } .topbar-back.hidden { padding-left: 0; padding-right: 0; } }
+
+/* 侧栏抽屉遮罩（≤900px 时显示） */
+#side-mask {
+  position: fixed; inset: 0; z-index: 38; background: rgba(8, 8, 11, .55);
+  backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  opacity: 0; pointer-events: none; transition: opacity .25s ease;
+}
+#side-mask.show { opacity: 1; pointer-events: auto; }
+#side-mask.hidden { display: none; }
+#sidebar.open + #side-mask, #side-mask.show { display: block; }
+@media (min-width: 901px) { #side-mask { display: none !important; } }
+
+/* 手机端播放器：进度条上移与歌名同水平线（按钮换行在下方） */
+@media (max-width: 700px) {
+  .pb-mid { gap: 2px; }
+  .pb-btns { order: 2; }
+  .pb-progress { order: 1; margin-top: 11px; }
+  .pb-btns .icon-btn { width: 34px; height: 34px; }
+  .pb-btns .pb-play { width: 42px; height: 42px; }
+}
+
+/* 侧栏内容整体让出顶栏高度（全宽顶栏铺满其上） */
+#sidebar { padding-top: calc(var(--topbar-h) + 4px); }
+#sidebar .side-logo { padding-top: 6px; }
+@media (max-width: 900px) { #sidebar { padding-top: calc(var(--topbar-h) + 4px); } }
+
+#sidebar { z-index: 60; }
+
+@media (max-width: 700px) { .pb-progress { margin-top: 18px; } }
+
+@media (max-width: 700px) { .pb-progress { margin-top: 19px; } .pb-btns .icon-btn { width: 30px !important; height: 30px !important; } .pb-btns .pb-play { width: 34px !important; height: 34px !important; } }

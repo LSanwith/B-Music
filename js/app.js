@@ -774,9 +774,28 @@
         toast('已退出登录');
       });
       document.addEventListener('ym:session', () => this._syncAuthUI());
-      $('#btn-menu').addEventListener('click', () => $('#sidebar').classList.toggle('open'));
+      /* 侧栏抽屉开合：手机端伴随灰色遮罩，点遮罩/点导航/点收藏歌单均可收起 */
+      const setSide = (open) => {
+        const sb = $('#sidebar');
+        const mk = $('#side-mask');
+        sb.classList.toggle('open', open);
+        if (!mk) return;
+        clearTimeout(mk._t);
+        if (open) {
+          mk.classList.remove('hidden');
+          requestAnimationFrame(() => mk.classList.add('show'));
+        } else {
+          mk.classList.remove('show');
+          mk._t = setTimeout(() => mk.classList.add('hidden'), 260);
+        }
+      };
+      $('#btn-menu').addEventListener('click', () => {
+        const sb = $('#sidebar');
+        setSide(!sb.classList.contains('open'));
+      });
+      $('#side-mask').addEventListener('click', () => setSide(false));
       $('#sidebar').addEventListener('click', (e) => {
-        if (e.target.closest('a') || e.target.closest('[data-spl]')) $('#sidebar').classList.remove('open');
+        if (e.target.closest('a') || e.target.closest('[data-spl]')) setSide(false);
       });
 
       /* 播放栏 */
