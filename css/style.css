@@ -866,7 +866,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .ov-lyrics.lyrics-previewing .ly-line:not(.active) { opacity: 1; }
 
 /* 窄屏底部播放器：收起次要按钮，防控件越界；适配刘海安全区 */
-@media (max-width: 700px) {
+@media (max-width: 1300px) {
   #playerbar {
     left: calc(10px + env(safe-area-inset-left));
     right: calc(10px + env(safe-area-inset-right));
