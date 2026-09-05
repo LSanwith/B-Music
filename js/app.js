@@ -1933,8 +1933,8 @@
     _ensureLyricMeasured(force) {
       const wrap = $('.ov-lyrics');
       const drift = wrap
-        ? Math.abs(wrap.clientHeight - (this._wrapClientH || 0)) > 40 ||
-          Math.abs(wrap.scrollHeight - (this._wrapScrollH || 0)) > 80
+        ? Math.abs(wrap.clientHeight - (this._wrapClientH || 0)) > 60 ||
+          Math.abs(wrap.scrollHeight - (this._wrapScrollH || 0)) > 150
         : false;
       if (force || !this._lyricM || !this._lyricM.length || drift ||
         performance.now() - (this._lyricMeasuredAt || 0) > 1500) {
@@ -2107,10 +2107,8 @@
       }
     },
 
-    /** 活动行应处的滚动目标：以【主歌词块上边缘】为基准动态定位。
-     *  单行：上边缘按整块中心对齐（同旧行为）；多行（含译文，行块较高）：
-     *  上边缘锁定在可视区约 38% 处向下铺开，保证第一行永远完整可见，
-     *  不会被滚动/羽化区裁掉顶部。 */
+    /** 活动行应处的滚动目标：块中心对齐可视区中心（时间-位置关系稳定），
+     *  多行时叠加顶部安全线（第一行下探不低于可视区 22%，永不裁剪顶部）。 */
     _lyricTargetFor(li, p) {
       const wrap = $('.ov-lyrics');
       const el = this._lyricEls && this._lyricEls[li];
@@ -2121,10 +2119,10 @@
       const scrollH = this._wrapScrollH || wrap.scrollHeight;
       const lineH = m ? m.h : (el.offsetHeight || 42);
       const base = m ? m.top : el.offsetTop;
-      const effH = Math.min(lineH, wrapH * 0.62);              // 行块占用可视区上限
-      const topTarget = Math.max(wrapH * 0.12, (wrapH - effH) / 2); // 上边缘目标：中心对齐且不低于安全区
-      return Math.max(0, Math.min(Math.max(0, scrollH - wrapH),
-        base - topTarget + 10 + (p || 0) * travel));
+      let target = base + lineH / 2 - wrapH / 2 + 10 + (p || 0) * travel;
+      const minTop = base - wrapH * 0.22; // 块顶安全线：第一行不会被羽化/裁切区吃掉
+      if (target < minTop) target = minTop;
+      return Math.max(0, Math.min(Math.max(0, scrollH - wrapH), target));
     },
 
     /** 立即把活动行定格到居中位置（翻译/原文本切换后消除滚动追赶动画） */
@@ -2265,16 +2263,22 @@
           ob.classList.add('lyrics-hidden');
           const tb = $('#ly-toggle');
           if (tb) tb.classList.remove('on');
-          this._wrapClientH = 0;
-          this._wrapScrollH = 0;
         } else {        // 变为宽屏：恢复 左封面+右歌词 布局
           this._lyricsVisible = true;
           ob.classList.remove('lyrics-hidden');
           const tb = $('#ly-toggle');
           if (tb) tb.classList.add('on');
-          this._measureLyrics();
-          this._snapActiveLyric();
         }
+        // 等 CSS 布局稳定后再强制重测+定格（250ms），时间-位置关系不因切换漂移
+        setTimeout(() => {
+          const ob2 = $('#ov-body');
+          if (!ob2) return;
+          this._wrapClientH = 0;
+          this._wrapScrollH = 0;
+          this._measureLyrics();
+          this._redrawActiveLyric();
+          this._snapActiveLyric();
+        }, 250);
       };
       if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);
       else if (typeof mq.addListener === 'function') mq.addListener(onChange);
