@@ -1256,3 +1256,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .notice-list li::before { margin-right: 10px; }
 /* notice v1.1 final alignment */
 .notice-body { padding: 0; }
+/* lyric blur gradient: per-line --ly-blur set by JS (closer = sharper, 0.5px..4px) */
+#ov-lyrics-inner .ly-line:not(.active) { filter: blur(var(--ly-blur, 4px)) !important; }

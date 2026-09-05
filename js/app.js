@@ -2029,9 +2029,15 @@
         if (st.li >= 0) this._resetLyricLine(st.li);
         if (els[li]) els[li].classList.add('active');
         st.li = li;
-        // 模糊窗口：仅活动行附近 ±10 行保留模糊（远处行关闭滤镜，节省 GPU）
+        // 非活动行模糊度随距离渐变：越靠近主行越清晰（d=1 → 0.5px），
+        // 越远越模糊（d>=7 → 4px，上限 4px / 下限 0.5px）
         for (let i = 0; i < els.length; i++) {
-          const far = Math.abs(i - li) > 10;
+          if (i === li) continue;
+          const d = Math.abs(i - li);
+          const blur = d <= 1 ? 0.5 : Math.min(4, 0.5 + (d - 1) * (3.5 / 6));
+          els[i].style.setProperty('--ly-blur', blur.toFixed(2) + 'px');
+          // 模糊窗口：仅活动行附近 ±10 行保留模糊（远处行关闭滤镜，节省 GPU）
+          const far = d > 10;
           if (els[i].classList.contains('ly-far') !== far) els[i].classList.toggle('ly-far', far);
         }
       }
