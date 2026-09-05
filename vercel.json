@@ -6,6 +6,8 @@
     { "source": "/api/login", "destination": "/api/account?r=login" },
     { "source": "/api/logout", "destination": "/api/account?r=logout" },
     { "source": "/api/data", "destination": "/api/account?r=data" },
-    { "source": "/api/account/delete", "destination": "/api/account?r=delete" }
+    { "source": "/api/account/delete", "destination": "/api/account?r=delete" },
+    { "source": "/api/account/avatar", "destination": "/api/account?r=avatar" },
+    { "source": "/api/account/password", "destination": "/api/account?r=password" }
   ]
 }

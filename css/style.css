@@ -1009,3 +1009,71 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   .detail-head .dt-desc { text-align: left; margin-left: 0; }
   .detail-head .dt-actions { justify-content: flex-start; text-align: left; }
 }
+
+/* ============ Avatar / Account section (appended) ============ */
+/* Circular avatar: 28px in sidebar, 64px (.lg) in settings dialog */
+.usr-avatar {
+  width: 28px; height: 28px; border-radius: 50%;
+  flex: none; position: relative; overflow: hidden;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, rgba(250,45,60,.34), rgba(250,45,60,.15));
+  border: 1px solid var(--border); color: #fff;
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+  transition: box-shadow .15s var(--ease);
+}
+.usr-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.usr-avatar b {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 100%; height: 100%; border-radius: 50%;
+  font-size: 13px; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #fa2d3c, #ff5a6a);
+}
+.usr-avatar:hover { box-shadow: 0 0 0 3px rgba(250,45,60,.32); }
+.usr-avatar.lg { width: 64px; height: 64px; }
+.usr-avatar.lg b { font-size: 26px; }
+.usr-avatar .cam {
+  position: absolute; inset: auto 0 0 0; height: 34%;
+  display: grid; place-items: center;
+  background: rgba(0,0,0,.52); opacity: 0;
+  transition: opacity .15s var(--ease); pointer-events: none;
+}
+.usr-avatar:hover .cam { opacity: 1; }
+.usr-avatar .cam svg { width: 46%; height: auto; fill: #fff; }
+#side-user .usr-avatar { width: 28px; height: 28px; }
+#side-user .usr-avatar b { font-size: 13px; }
+
+/* Settings dialog: category blocks + group titles */
+.set-cat { margin-bottom: 26px; }
+.set-cat:last-child { margin-bottom: 0; }
+#settings .set-cat .set-group { margin-bottom: 16px; }
+#settings .set-cat .set-group:last-child { margin-bottom: 0; }
+.set-head {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 14px; padding-bottom: 8px;
+  font-size: 13px; font-weight: 700; color: #fff;
+  letter-spacing: .6px; border-bottom: 1px solid var(--border);
+}
+.set-head::before {
+  content: ''; width: 3px; height: 14px; border-radius: 2px;
+  background: var(--accent); flex: none;
+}
+
+/* Account section (login prompt / profile + password form) */
+#set-account.set-group { margin-bottom: 0; }
+.set-acc-tip { font-size: 13px; color: var(--sub); line-height: 1.7; margin: 2px 0 14px; }
+.set-acc-btns { display: flex; gap: 12px; flex-wrap: wrap; }
+.set-acc-btns .btn { min-width: 130px; justify-content: center; }
+.set-acc-top { display: flex; align-items: center; gap: 18px; margin-bottom: 20px; }
+.set-acc-info { min-width: 0; flex: 1; }
+.set-acc-mail { font-size: 15px; font-weight: 600; color: var(--text); word-break: break-all; }
+.set-acc-sub { font-size: 12px; color: var(--sub); margin-top: 4px; }
+.set-acc-pw { border-top: 1px solid var(--border); padding-top: 18px; }
+.set-acc-pw .set-label { margin-bottom: 12px; }
+.set-acc-pw .auth-input { display: block; max-width: 440px; }
+.set-acc-pw .auth-err { max-width: 440px; }
+.set-acc-pw-btns { display: flex; margin-top: 4px; }
+.set-acc-pw-btns .btn { justify-content: center; min-width: 150px; }
+@media (max-width: 560px) {
+  .set-acc-top { gap: 14px; }
+  .set-acc-mail { font-size: 14px; }
+}

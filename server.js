@@ -63,7 +63,8 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** 账号 + 数据同步 API（设置/收藏上传下载；最近播放仅存本地） */
 async function handleApi(req, res, urlPath) {
   const API_PATHS = ['/api/register', '/api/captcha', '/api/login',
-    '/api/logout', '/api/account/delete', '/api/data'];
+    '/api/logout', '/api/account/delete', '/api/data',
+    '/api/account/avatar', '/api/account/password'];
   if (API_PATHS.indexOf(urlPath) < 0) return false;
   const method = req.method;
   try {
@@ -89,7 +90,7 @@ async function handleApi(req, res, urlPath) {
           const token = newToken();
           DB.sessions[token] = existing.id;
           saveDb(DB);
-          return sendJson(res, 200, { token, email, existing: true });
+          return sendJson(res, 200, { token, email, existing: true, avatar: existing.avatar || '' });
         }
         return sendJson(res, 409, { msg: '该邮箱已注册，密码不正确；请返回登录' });
       }
@@ -110,7 +111,7 @@ async function handleApi(req, res, urlPath) {
       const token = newToken();
       DB.sessions[token] = id;
       saveDb(DB);
-      return sendJson(res, 200, { token, email });
+      return sendJson(res, 200, { token, email, avatar: '' });
     }
     if (urlPath === '/api/login' && method === 'POST') {
       const b = await readBody(req);
@@ -122,10 +123,38 @@ async function handleApi(req, res, urlPath) {
       const token = newToken();
       DB.sessions[token] = user.id;
       saveDb(DB);
-      return sendJson(res, 200, { token, email: user.email });
+      return sendJson(res, 200, { token, email: user.email, avatar: user.avatar || '' });
     }
     const user = authUser(req);
     if (!user) return sendJson(res, 401, { msg: '未登录或登录已过期' });
+    if (urlPath === '/api/account/avatar' && method === 'POST') {
+      const b = await readBody(req);
+      const avatar = String(b.avatar || '').trim();
+      if (avatar && !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(avatar)) {
+        return sendJson(res, 400, { msg: '头像格式不正确' });
+      }
+      if (avatar.length > 400000) {
+        return sendJson(res, 400, { msg: '头像数据过大' });
+      }
+      user.avatar = avatar; // '' 表示清除头像
+      saveDb(DB);
+      return sendJson(res, 200, { ok: true });
+    }
+    if (urlPath === '/api/account/password' && method === 'POST') {
+      const b = await readBody(req);
+      const oldPw = String(b.old || '');
+      const nextPw = String(b.next || '');
+      if (hashPass(oldPw, user.salt) !== user.passHash) {
+        return sendJson(res, 400, { msg: '原密码不正确' });
+      }
+      if (nextPw.length < 6) {
+        return sendJson(res, 400, { msg: '新密码至少 6 位' });
+      }
+      user.salt = crypto.randomBytes(16).toString('hex');
+      user.passHash = hashPass(nextPw, user.salt);
+      saveDb(DB);
+      return sendJson(res, 200, { ok: true });
+    }
     if (urlPath === '/api/logout' && method === 'POST') {
       const h = req.headers['authorization'] || '';
       const m = /^Bearer\s+(\S+)$/.exec(h);

@@ -147,11 +147,18 @@
    * 最近播放仅保存在本机，不同步。
    * 未登录时一切照旧（localStorage）；登录后数据自动云端同步。
    * ============================================================ */
-  let session = read('session', null); // { token, email }
+  let session = read('session', null); // { token, email, avatar }
   const Session = {
     get token() { return session ? session.token : null; },
     get email() { return session ? session.email : null; },
+    // 旧数据兼容：无 avatar 字段一律按 '' 处理
+    get avatar() { return session && session.avatar ? session.avatar : ''; },
     get loggedIn() { return !!session; },
+
+    _setSession(data) {
+      session = data ? { token: data.token, email: data.email, avatar: data.avatar || '' } : null;
+      write('session', session);
+    },
 
     _api(path, opts) {
       let base = '';
@@ -174,8 +181,7 @@
 
     async login(email, password) {
       const j = await Session._api('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-      session = { token: j.token, email: j.email };
-      write('session', session);
+      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '' });
       document.dispatchEvent(new CustomEvent('ym:session'));
       await Session.pull(); // 登录成功：以云端数据为准
       return j;
@@ -186,8 +192,7 @@
         method: 'POST',
         body: JSON.stringify({ email, password, captchaId, pos, duration }),
       });
-      session = { token: j.token, email: j.email };
-      write('session', session);
+      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '' });
       document.dispatchEvent(new CustomEvent('ym:session'));
       // 新账号云端从空开始，不导入本机残留数据（避免多人共用电脑时数据混淆）
       return j;
@@ -203,6 +208,27 @@
       try { await Session._api('/logout', { method: 'POST' }); } catch (e) { /* 忽略 */ }
       session = null;
       write('session', null);
+      document.dispatchEvent(new CustomEvent('ym:session'));
+    },
+
+    /** 修改密码（POST /api/account/password {old,next}）；失败时 _api 会 reject 并带服务端 msg */
+    async changePassword(oldPassword, nextPassword) {
+      return Session._api('/account/password', {
+        method: 'POST',
+        body: JSON.stringify({ old: oldPassword, next: nextPassword }),
+      });
+    },
+
+    /** 上传头像（POST /api/account/avatar {avatar: dataURL}）；成功后更新本地并派发事件刷新 UI */
+    async setAvatar(dataURL) {
+      await Session._api('/account/avatar', {
+        method: 'POST',
+        body: JSON.stringify({ avatar: dataURL || '' }),
+      });
+      if (session) {
+        session.avatar = dataURL || '';
+        write('session', session);
+      }
       document.dispatchEvent(new CustomEvent('ym:session'));
     },
 

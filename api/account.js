@@ -8,6 +8,8 @@
  *   /api/logout         → /api/account?r=logout         (POST)
  *   /api/account/delete → /api/account?r=delete         (POST)
  *   /api/data           → /api/account?r=data           (GET/POST)
+ *   /api/account/avatar → /api/account?r=avatar         (POST)
+ *   /api/account/password → /api/account?r=password     (POST)
  *
  * 持久化：
  *  - 推荐：Vercel KV（Redis）—— 控制台 Storage → KV → 创建并连接到本项目，
@@ -92,7 +94,7 @@ export default async function handler(req, res) {
           const token = crypto.randomBytes(24).toString('hex');
           db.sessions[token] = existing.id;
           await saveDb(db);
-          return res.status(200).json({ token, email, existing: true });
+          return res.status(200).json({ token, email, existing: true, avatar: existing.avatar || '' });
         }
         return res.status(409).json({ msg: '该邮箱已注册，密码不正确；请返回登录' });
       }
@@ -112,7 +114,7 @@ export default async function handler(req, res) {
       const token = crypto.randomBytes(24).toString('hex');
       db.sessions[token] = id;
       await saveDb(db);
-      return res.status(200).json({ token, email });
+      return res.status(200).json({ token, email, avatar: '' });
     }
     if (r === 'login' && method === 'POST') {
       const b = await readBody(req);
@@ -124,10 +126,38 @@ export default async function handler(req, res) {
       const token = crypto.randomBytes(24).toString('hex');
       db.sessions[token] = user.id;
       await saveDb(db);
-      return res.status(200).json({ token, email: user.email });
+      return res.status(200).json({ token, email: user.email, avatar: user.avatar || '' });
     }
     const user = authUser(db, req);
     if (!user) return res.status(401).json({ msg: '未登录或登录已过期' });
+    if (r === 'avatar' && method === 'POST') {
+      const b = await readBody(req);
+      const avatar = String(b.avatar || '').trim();
+      if (avatar && !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(avatar)) {
+        return res.status(400).json({ msg: '头像格式不正确' });
+      }
+      if (avatar.length > 400000) {
+        return res.status(400).json({ msg: '头像数据过大' });
+      }
+      user.avatar = avatar; // '' 表示清除头像
+      await saveDb(db);
+      return res.status(200).json({ ok: true });
+    }
+    if (r === 'password' && method === 'POST') {
+      const b = await readBody(req);
+      const oldPw = String(b.old || '');
+      const nextPw = String(b.next || '');
+      if (hashPass(oldPw, user.salt) !== user.passHash) {
+        return res.status(400).json({ msg: '原密码不正确' });
+      }
+      if (nextPw.length < 6) {
+        return res.status(400).json({ msg: '新密码至少 6 位' });
+      }
+      user.salt = crypto.randomBytes(16).toString('hex');
+      user.passHash = hashPass(nextPw, user.salt);
+      await saveDb(db);
+      return res.status(200).json({ ok: true });
+    }
     if (r === 'logout' && method === 'POST') {
       const m = /^Bearer\s+(\S+)$/.exec(req.headers.authorization || '');
       if (m) delete db.sessions[m[1]];

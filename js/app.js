@@ -8,6 +8,9 @@
 
   const PLACEHOLDER = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 80 80\'%3E%3Crect width=\'80\' height=\'80\' fill=\'%23222\'/%3E%3Ctext x=\'40\' y=\'48\' font-size=\'30\' text-anchor=\'middle\' fill=\'%23555\'%3E♪%3C/text%3E%3C/svg%3E';
 
+  /* 相机小图标（头像悬停时提示“可更换”，viewBox 1024，内联 SVG，无 title/tooltip） */
+  const CAM_ICON = '<svg viewBox="0 0 1024 1024"><path d="M928 288H768l-56-64H312l-56 64H96c-17.7 0-32 14.3-32 32v480c0 17.7 14.3 32 32 32h832c17.7 0 32-14.3 32-32V320c0-17.7-14.3-32-32-32zM512 768c-97.2 0-176-78.8-176-176s78.8-176 176-176 176 78.8 176 176-78.8 176-176 176z m0-288c-61.9 0-112 50.1-112 112s50.1 112 112 112 112-50.1 112-112-50.1-112-112-112z"/></svg>';
+
   const App = {
     _ctx: { songs: [], banners: [] },
     _lyricLines: [],
@@ -907,6 +910,9 @@
         await Store.Session.logout();
         toast('已退出登录');
       });
+      /* 侧栏头像：点击更换（未登录时随 #side-user 隐藏） */
+      const sideAvatar = $('#side-user-avatar');
+      if (sideAvatar) sideAvatar.addEventListener('click', () => this._changeAvatar());
       document.addEventListener('ym:session', () => this._syncAuthUI());
       /* 侧栏抽屉开合：手机端伴随灰色遮罩，点遮罩/点导航/点收藏歌单均可收起 */
       const setSide = (open) => {
@@ -1603,6 +1609,7 @@
       $('#settings').classList.remove('hidden');
       document.body.classList.add('no-scroll');
       this._applySettingsToUI();
+      this._renderSettingsAccount();
     },
     closeSettings() {
       $('#settings').classList.add('hidden');
@@ -1716,7 +1723,7 @@
       thumb.addEventListener('pointerup', finish);
       thumb.addEventListener('pointercancel', finish);
     },
-    /** 侧栏账号区：未登录显示 登录/注册，已登录显示邮箱 + 退出 */
+    /** 侧栏账号区：未登录显示 登录/注册，已登录显示头像 + 邮箱 + 退出 */
     _syncAuthUI() {
       const logged = Store.Session.loggedIn;
       const btns = $('#side-auth-btns');
@@ -1725,6 +1732,171 @@
       if (btns) btns.classList.toggle('hidden', logged);
       if (user) user.classList.toggle('hidden', !logged);
       if (mail) mail.textContent = Store.Session.email || '';
+      this._renderSidebarAvatar();
+      this._renderSettingsAccount();
+    },
+
+    /* ============================================================
+     * 头像（侧栏 + 设置弹窗账号分区）
+     * ============================================================ */
+    /** 头像圆形内层内容：有头像 → <img>，无头像 → 邮箱首字母 */
+    _avatarInner(email, avatar) {
+      if (avatar) return '<img src="' + esc(avatar) + '" alt="">';
+      const ch = String(email || '?').trim().charAt(0) || '?';
+      return '<b>' + esc(ch.toUpperCase()) + '</b>';
+    },
+    /** 刷新主页侧栏的头像（邮箱右侧） */
+    _renderSidebarAvatar() {
+      const el = $('#side-user-avatar');
+      if (!el) return;
+      if (!Store.Session.loggedIn) { el.classList.add('hidden'); return; }
+      el.classList.remove('hidden');
+      el.innerHTML = this._avatarInner(Store.Session.email || '', Store.Session.avatar || '');
+    },
+    /** 刷新设置弹窗「账号设置」分区内容；登录/退出/换头像（ym:session）后都会调用 */
+    _renderSettingsAccount() {
+      const box = $('#set-account');
+      if (!box) return;
+      if (!Store.Session.loggedIn) {
+        box.innerHTML =
+          '<div class="set-account">' +
+          '<div class="set-acc-tip">登录后可用：头像云端同步、修改密码等账号功能</div>' +
+          '<div class="set-acc-btns">' +
+          '<button type="button" class="btn" id="set-acc-login">登录</button>' +
+          '<button type="button" class="btn primary" id="set-acc-register">注册</button>' +
+          '</div>' +
+          '</div>';
+        const lb = $('#set-acc-login');
+        const rb = $('#set-acc-register');
+        if (lb) lb.addEventListener('click', () => this.openAuth('login'));
+        if (rb) rb.addEventListener('click', () => this.openAuth('register'));
+        return;
+      }
+      const email = Store.Session.email || '';
+      box.innerHTML =
+        '<div class="set-account">' +
+        '<div class="set-acc-top">' +
+        '<span class="usr-avatar lg chg" id="set-acc-avatar" role="button" aria-label="更换头像">' +
+        this._avatarInner(email, Store.Session.avatar || '') + '<i class="cam">' + CAM_ICON + '</i>' +
+        '</span>' +
+        '<div class="set-acc-info">' +
+        '<div class="set-acc-mail">' + esc(email) + '</div>' +
+        '<div class="set-acc-sub">点击头像更换 · 云端同步</div>' +
+        '</div>' +
+        '</div>' +
+        '<div class="set-acc-pw">' +
+        '<div class="set-label">修改密码</div>' +
+        '<div class="auth-err hidden" id="set-pw-err"></div>' +
+        '<input class="auth-input" id="set-pw-old" type="password" placeholder="原密码" autocomplete="current-password">' +
+        '<input class="auth-input" id="set-pw-new" type="password" placeholder="新密码（至少 6 位）" autocomplete="new-password">' +
+        '<input class="auth-input" id="set-pw-new2" type="password" placeholder="再次输入新密码" autocomplete="new-password">' +
+        '<div class="set-acc-pw-btns"><button type="button" class="btn primary" id="set-pw-submit">确认修改</button></div>' +
+        '</div>' +
+        '</div>';
+      const av = $('#set-acc-avatar');
+      if (av) av.addEventListener('click', () => this._changeAvatar());
+      const pwBtn = $('#set-pw-submit');
+      if (pwBtn) pwBtn.addEventListener('click', () => this._submitChangePassword());
+      /* 回车快捷提交改密 */
+      ['#set-pw-old', '#set-pw-new', '#set-pw-new2'].forEach(sel => {
+        const inp = $(sel);
+        if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') this._submitChangePassword(); });
+      });
+    },
+    /** 修改密码：原密码/新密码/确认 校验（一致且 ≥6 位）后提交 */
+    async _submitChangePassword() {
+      const err = $('#set-pw-err');
+      const showErr = (msg) => {
+        if (!err) return;
+        err.textContent = msg;
+        err.classList.remove('hidden');
+      };
+      const oldPw = $('#set-pw-old').value;
+      const next = $('#set-pw-new').value;
+      const next2 = $('#set-pw-new2').value;
+      if (!oldPw) { showErr('请输入原密码'); return; }
+      if (!next) { showErr('请输入新密码'); return; }
+      if (next.length < 6) { showErr('新密码至少 6 位'); return; }
+      if (next !== next2) { showErr('两次输入的新密码不一致'); return; }
+      const btn = $('#set-pw-submit');
+      if (btn) { btn.disabled = true; btn.style.opacity = .6; }
+      try {
+        await Store.Session.changePassword(oldPw, next);
+        if (err) err.classList.add('hidden');
+        $('#set-pw-old').value = '';
+        $('#set-pw-new').value = '';
+        $('#set-pw-new2').value = '';
+        toast('密码修改成功');
+      } catch (e) {
+        showErr((e && e.message) || '修改失败，请重试');
+      } finally {
+        if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      }
+    },
+    /** 弹起文件选择框（侧栏/设置内头像点击共用） */
+    _changeAvatar() {
+      if (!Store.Session.loggedIn) return;
+      if (!this._avatarFile) {
+        const inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = 'image/*';
+        inp.style.display = 'none';
+        inp.addEventListener('change', () => this._onAvatarFile(inp.files && inp.files[0]));
+        document.body.appendChild(inp);
+        this._avatarFile = inp;
+      }
+      this._avatarFile.value = '';
+      this._avatarFile.click();
+    },
+    /** 读取文件 → canvas 压缩（最长边 256 / JPEG 0.82 / >200KB 再降质）→ 上传并刷新 UI */
+    async _onAvatarFile(file) {
+      if (!file) return;
+      try {
+        const dataURL = await this._compressAvatar(file);
+        await Store.Session.setAvatar(dataURL); // 成功会派发 ym:session → 刷新侧栏与设置头像
+        toast('头像已更新');
+      } catch (e) {
+        toast((e && e.message) || '头像更新失败', 'warn');
+      }
+    },
+    _compressAvatar(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('读取图片失败'));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error('不支持的图片格式'));
+          img.onload = () => {
+            try {
+              const MAX = 256;
+              const w0 = img.naturalWidth || img.width || 1;
+              const h0 = img.naturalHeight || img.height || 1;
+              const scale = Math.min(1, MAX / Math.max(w0, h0));
+              const w = Math.max(1, Math.round(w0 * scale));
+              const h = Math.max(1, Math.round(h0 * scale));
+              const cv = document.createElement('canvas');
+              cv.width = w; cv.height = h;
+              const ctx = cv.getContext('2d');
+              if (ctx) {
+                ctx.fillStyle = '#15151a'; // JPEG 无透明通道：深色底垫底（与界面一致）
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+              }
+              const bytesOf = (s) => Math.floor((s.length - (s.indexOf(',') + 1)) * 3 / 4);
+              let q = 0.82;
+              let out = cv.toDataURL('image/jpeg', q);
+              while (bytesOf(out) > 200 * 1024 && q > 0.18) {
+                q = +(q - 0.06).toFixed(2);
+                out = cv.toDataURL('image/jpeg', q);
+              }
+              if (!out || out.length < 30) reject(new Error('图片压缩失败'));
+              else resolve(out);
+            } catch (e) { reject(e); }
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
     },
     /** 提交登录/注册表单（注册：滑动验证通过后直接注册并登录，无需邮箱验证码） */
     async _submitAuth() {
