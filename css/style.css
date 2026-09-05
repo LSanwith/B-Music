@@ -1137,3 +1137,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 /* 最终高斯模糊参数：4px，无泛光 */
 .lyric-blur-inner { filter: blur(4px); opacity: 1; color: rgba(245, 245, 247, .75); }
 @media (max-width: 720px) { .lyric-blur-inner { filter: blur(4px); } }
+
+/* 预览(浏览)歌词时：清晰层全部行可见，模糊层隐藏 */
+#ov-lyrics.lyrics-previewing #ov-lyrics-inner .ly-line:not(.active) { opacity: 1 !important; }
+#ov-lyrics.lyrics-previewing #ov-lyrics-inner .ly-line.active { opacity: 1 !important; }

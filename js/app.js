@@ -140,7 +140,7 @@
           // 尝试附带封面图片（歌曲封面/歌单图等），让接收方看到缩略图
           if (imageUrl && navigator.canShare) {
             try {
-              const res = await fetch(imageUrl, { mode: 'cors' });
+              const res = await fetch(imageUrl, { mode: 'cors', signal: AbortSignal.timeout(3000) });
               if (res.ok) {
                 const blob = await res.blob();
                 const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
