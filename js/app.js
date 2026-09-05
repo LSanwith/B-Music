@@ -600,11 +600,29 @@
         if (offset === 0) {
           wrap.innerHTML = html + (hasMore ? '<div class="more-wrap"><button class="mini-btn" data-more="search">加载更多</button></div>' : '');
         } else {
-          // 追加内容插到“加载更多”按钮之前，按钮保持置底
-          const mw = $('[data-more="search"]');
-          if (mw) mw.parentElement.insertAdjacentHTML('beforebegin', html);
-          else wrap.insertAdjacentHTML('beforeend', html);
-          if (!hasMore) { const b = $('[data-more="search"]'); if (b) b.parentElement.remove(); }
+          // 追加：把新内容【并入已有容器】（歌曲列表/专辑/歌手/歌单网格），
+          // 而不是再插入一个独立容器——否则网格会在上一行未满时强制换行
+          const tmp = document.createElement('div');
+          tmp.innerHTML = html;
+          const cardHtml = tmp.firstElementChild ? tmp.firstElementChild.innerHTML : html;
+          const target = wrap.querySelector('.song-list') || wrap.querySelector('.album-grid') ||
+            wrap.querySelector('.artist-grid') || wrap.querySelector('.pl-grid');
+          if (target && cardHtml) {
+            target.insertAdjacentHTML('beforeend', cardHtml);
+          } else {
+            const mw = $('[data-more="search"]');
+            if (mw) mw.parentElement.insertAdjacentHTML('beforebegin', html);
+            else wrap.insertAdjacentHTML('beforeend', html);
+          }
+          if (!hasMore) {
+            const b = $('[data-more="search"]');
+            if (b) {
+              b.textContent = '已全部加载（共 ' + (data.total || offset + 20) + ' 条）';
+              b.disabled = true;
+              b.style.opacity = .55;
+              b.style.cursor = 'default';
+            }
+          }
         }
       } catch (e) {
         if (seq !== this._searchSeq) return;
