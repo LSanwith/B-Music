@@ -2179,6 +2179,15 @@
       const ov = $('#overlay');
       ov.classList.remove('hidden');
       document.body.classList.add('no-scroll');
+      // 窄屏（≤720px）默认“封面大图模式”（Apple Music 式），歌词点右下角按钮手动打开；
+      // 用户手动切换过后（_lyricsVisible 已定）尊重其选择；宽屏保持歌词为主
+      if (window.matchMedia && window.matchMedia('(max-width: 720px)').matches) {
+        if (this._lyricsVisible === undefined) this._lyricsVisible = false;
+        const ob = $('#ov-body');
+        if (ob) ob.classList.toggle('lyrics-hidden', !this._lyricsVisible);
+        const tb = $('#ly-toggle');
+        if (tb) tb.classList.toggle('on', this._lyricsVisible);
+      }
       this.startLyricLoop();
       this._syncLyric(Player.curTime);
       // 等自定义字体就绪后重测行高（字体加载会改变行高，缓存的 offsetTop 会失效）

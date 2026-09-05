@@ -1279,3 +1279,24 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 }
 /* lyric preview: clear blur on non-active lines while scrolling (readable) */
 #ov-lyrics.lyrics-previewing #ov-lyrics-inner .ly-line:not(.active) { filter: none !important; }
+/* mobile player: default cover-big mode (Apple Music style), lyrics via toggle */
+@media (max-width: 720px) {
+  #ov-body.lyrics-hidden { justify-content: center; align-items: center; overflow: hidden; }
+  #ov-body.lyrics-hidden .ov-left {
+    flex-direction: column; align-items: center; text-align: center;
+    width: 100%; gap: 8px; padding: 0 22px;
+  }
+  #ov-body.lyrics-hidden .ov-disc {
+    width: min(64vw, 44vh); height: min(64vw, 44vh);
+    margin: 0 auto 12px; flex: none;
+  }
+  #ov-body.lyrics-hidden .ov-progress,
+  #ov-body.lyrics-hidden .ov-quality,
+  #ov-body.lyrics-hidden .ov-btns,
+  #ov-body.lyrics-hidden .ov-vol {
+    width: min(380px, 86vw); max-width: 380px; margin-left: auto; margin-right: auto;
+  }
+  #ov-body.lyrics-hidden .ov-progress { margin-top: 4px; }
+  #ov-body.lyrics-hidden .ov-btns { margin-top: 10px; }
+  #ov-body.lyrics-hidden .ly-toolbar { display: none; }
+}
