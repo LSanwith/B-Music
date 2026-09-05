@@ -2068,6 +2068,14 @@
         if (st.li >= 0) this._resetLyricLine(st.li);
         if (els[li]) els[li].classList.add('active');
         st.li = li;
+        // 【换句时实时实测】主句行位置/高度与容器高度（仅此处一次强制回流，
+        // 帧跟随全部用缓存——任何布局/断点变化，下一句自动纠正，杜绝 y 坐标错位）
+        const elNow = els[li];
+        if (elNow) {
+          this._lineTop = elNow.offsetTop;
+          this._lineH = elNow.offsetHeight || 42;
+          this._wrapH = wrap.clientHeight || 320;
+        }
         // 非活动行模糊度随距离渐变：越靠近主行越清晰（d=1 → 0.5px），
         // 越远越模糊（d>=7 → 4px，上限 4px / 下限 0.5px）
         for (let i = 0; i < els.length; i++) {
@@ -2093,8 +2101,6 @@
         if (now - (this._userScrollAt || 0) < 4000 || now - (this._lyricAnimT || 0) < 420) {
           // 用户预览中 / 译原平滑切换过渡中：保持当前滚动位置
         } else {
-          // 注意：clientHeight 已包含上下 padding，直接以其一半作为可视中心；
-          // offsetTop 已相对轨道顶边（含其 padding），不再加 padTop
           const target = this._lyricTargetFor(li, p);
           const diff = target - (this._lyricScroll || 0);
           if (Math.abs(diff) > 0.5) {
@@ -2106,22 +2112,18 @@
       }
     },
 
-    /** 活动行应处的滚动目标：块中心对齐可视区中心（时间-位置关系稳定），
-     *  多行时叠加顶部安全线（第一行下探不低于可视区 22%，永不裁剪顶部）。 */
+    /** 活动行应处的滚动目标（帧跟随全部使用【换句时实测缓存】：
+     *  this._lineTop / this._lineH / this._wrapH，无逐帧回流）：
+     *  块中心对齐可视区中心，多行时叠加顶部安全线（第一行下探不低于可视区 15%）。 */
     _lyricTargetFor(li, p) {
-      const wrap = $('.ov-lyrics');
-      const el = this._lyricEls && this._lyricEls[li];
-      if (!wrap || !el) return this._lyricScroll || 0;
-      const m = this._lyricM && this._lyricM[li];
+      const wrapH = this._wrapH || 320;
+      const lineH = this._lineH || 42;
+      const base = this._lineTop || 0;
       const travel = 20; // 随唱上滑行程 px
-      const wrapH = this._wrapClientH || wrap.clientHeight;
-      const scrollH = this._wrapScrollH || wrap.scrollHeight;
-      const lineH = m ? m.h : (el.offsetHeight || 42);
-      const base = m ? m.top : el.offsetTop;
       let target = base + lineH / 2 - wrapH / 2 + 10 + (p || 0) * travel;
-      const minTop = base - wrapH * 0.22; // 块顶安全线：第一行不会被羽化/裁切区吃掉
+      const minTop = base - wrapH * 0.15; // 块顶安全线：第一行不会被羽化/裁切区吃掉
       if (target < minTop) target = minTop;
-      return Math.max(0, Math.min(Math.max(0, scrollH - wrapH), target));
+      return Math.max(0, Math.min(wrapH * 6, target));
     },
 
     /** 立即把活动行定格到居中位置（翻译/原文本切换后消除滚动追赶动画） */
@@ -2129,8 +2131,19 @@
       const st = this._lyricState;
       const li = st && st.li;
       if (li == null || li < 0) return;
+      this._remetActiveLine(li);
       this._lyricScroll = this._lyricTargetFor(li, 0);
       this._applyLyricScroll();
+    },
+
+    /** 实时实测当前活动行（换句/切换/断点变化后调用，供帧跟随使用） */
+    _remetActiveLine(li) {
+      const el = this._lyricEls && this._lyricEls[li];
+      const wrap = $('.ov-lyrics');
+      if (!el) return;
+      this._lineTop = el.offsetTop;
+      this._lineH = el.offsetHeight || 42;
+      this._wrapH = wrap ? wrap.clientHeight : (this._wrapH || 320);
     },
 
     /** 重新点亮活动行并重算全部行的距离模糊（歌词/布局切换后的兜底重绘） */
@@ -2139,6 +2152,7 @@
       if (!els.length) return;
       const st = this._lyricState;
       const li = (st && st.li >= 0) ? st.li : -1;
+      if (li >= 0) this._remetActiveLine(li);
       els.forEach((el, i) => {
         el.classList.toggle('active', i === li);
         if (i !== li) {
