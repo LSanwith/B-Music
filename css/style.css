@@ -1356,3 +1356,8 @@ html.narrow-debug #ov-body.lyrics-hidden .ov-progress,
 html.narrow-debug #ov-body.lyrics-hidden .ov-quality,
 html.narrow-debug #ov-body.lyrics-hidden .ov-btns,
 html.narrow-debug #ov-body.lyrics-hidden .ov-vol { width: min(380px, 86vw); max-width: 380px; margin-left: auto; margin-right: auto; }
+/* lyrics area vertical buffer: enough to center active line in narrow mode */
+@media (max-width: 720px) {
+  #ov-lyrics-inner { padding: 28vh 22px 32vh; }
+}
+html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
