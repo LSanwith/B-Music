@@ -1150,3 +1150,6 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 #ov-lyrics-inner .ly-line:not(.active) { opacity: .6 !important; }
 #ov-lyrics-inner .ly-line.ly-far { opacity: .6 !important; }
 #ov-lyrics.lyrics-previewing .lyric-blur-inner { opacity: 0 !important; }
+
+/* 非主歌词：60% 透明度 + 4px 高斯模糊，其余不变 */
+#ov-lyrics-inner .ly-line:not(.active) { filter: blur(4px) !important; }
