@@ -1219,3 +1219,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .sr-pladd { color: #8ab4ff !important; }
 /* add-to-playlist button: same muted gray as neighbor actions */
 .sr-pladd { color: var(--sub) !important; }
+/* add-to-playlist button hover: same as share (white + bg highlight) */
+.sr-pladd:hover { color: #fff !important; }
