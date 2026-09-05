@@ -1648,6 +1648,7 @@
           const box = $('.ov-lyrics');
           if (!box) return;
           this._cacheLyricEls(box);
+          this._syncLyric(Player.curTime); // 立即按当前时间锁定活动行+高亮+定位
         }, 80);
       });
       $('#ly-share').addEventListener('click', () => {
@@ -2273,6 +2274,7 @@
           const box = $('.ov-lyrics');
           if (!box) return;
           this._cacheLyricEls(box);
+          this._syncLyric(Player.curTime); // 立即按当前时间锁定活动行+高亮+定位
         }, 250);
       };
       if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);

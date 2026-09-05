@@ -1501,3 +1501,6 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
     mask-image: none !important;
   }
 }
+@media (max-width: 1300px) {
+  #ov-body:not(.lyrics-hidden) .ov-lyrics { overflow: hidden; }
+}
