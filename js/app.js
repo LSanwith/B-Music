@@ -1927,9 +1927,16 @@
         this._wrapScrollH = wrap.scrollHeight;
       }
     },
-    /** 懒重测：行数变化 / 字体加载 / 缩放断点改变后调用 */
+    /** 懒重测：行数变化 / 字体加载 / 缩放断点改变后调用；
+     *  每帧检测歌词容器尺寸漂移（横竖屏/断点切换可能发生在两次定时重测之间），
+     *  漂移超过阈值立即重测——保证横竖屏往返后 y 坐标不再错位。 */
     _ensureLyricMeasured(force) {
-      if (force || !this._lyricM || !this._lyricM.length ||
+      const wrap = $('.ov-lyrics');
+      const drift = wrap
+        ? Math.abs(wrap.clientHeight - (this._wrapClientH || 0)) > 40 ||
+          Math.abs(wrap.scrollHeight - (this._wrapScrollH || 0)) > 80
+        : false;
+      if (force || !this._lyricM || !this._lyricM.length || drift ||
         performance.now() - (this._lyricMeasuredAt || 0) > 1500) {
         this._measureLyrics();
       }
