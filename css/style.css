@@ -1217,3 +1217,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .mp-cover-edit:hover { background: var(--accent); }
 /* add-to-playlist row button accent */
 .sr-pladd { color: #8ab4ff !important; }
+/* add-to-playlist button: same muted gray as neighbor actions */
+.sr-pladd { color: var(--sub) !important; }

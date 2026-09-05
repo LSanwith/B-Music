@@ -1,78 +1,78 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0b0e">
-<title>B·Music · 网页版</title>
+<title>B路Music 路 缃戦〉鐗?/title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='%23fa2d3c' d='M728.6 96.4c-9.4 1.8-236 48.2-244.4 49.8-8.4 1.6-16.2 7.2-16.2 16v510.2c0 3.2-0.2 14.4-4.8 23.4-6.2 11.8-17 20.4-32.2 25.4-6.6 2.2-15.6 4.2-26.2 6.6-48.2 10.8-128.8 29.2-128.8 103.6 0 60.2 43.4 89 70 94.2 10 2 22 2 27.6 2 16.4 0 72-6.6 102.4-26.4 22-14.4 48.2-42.8 48.2-95.6V346.2c0-7.6 5.4-14.2 12.8-15.6l185.6-38c14.8-3 25.6-16.2 25.6-31.4V111.6c-0.2-8.6-7.6-17.6-19.6-15.2z'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=3">
+<link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
 <div id="app">
 
-  <!-- ===== 侧边栏 ===== -->
+  <!-- ===== 渚ц竟鏍?===== -->
   <aside id="sidebar">
     <div class="side-logo" onclick="App.nav('discover')">
       <span class="logo-badge"><svg viewBox="0 0 1024 1024"><path d="M728.6 96.4c-9.4 1.8-236 48.2-244.4 49.8-8.4 1.6-16.2 7.2-16.2 16v510.2c0 3.2-0.2 14.4-4.8 23.4-6.2 11.8-17 20.4-32.2 25.4-6.6 2.2-15.6 4.2-26.2 6.6-48.2 10.8-128.8 29.2-128.8 103.6 0 60.2 43.4 89 70 94.2 10 2 22 2 27.6 2 16.4 0 72-6.6 102.4-26.4 22-14.4 48.2-42.8 48.2-95.6V346.2c0-7.6 5.4-14.2 12.8-15.6l185.6-38c14.8-3 25.6-16.2 25.6-31.4V111.6c-0.2-8.6-7.6-17.6-19.6-15.2z"/></svg></span>
-      <span class="logo-text">B·Music<em>网页版</em></span>
+      <span class="logo-text">B路Music<em>缃戦〉鐗?/em></span>
     </div>
     <nav class="side-nav">
-      <a href="#/discover" class="nav-item" data-nav="discover"><svg viewBox="0 0 1024 1024"><path d="M561 561l-98-98c-1.8-1.8-5-1.4-6.4 0.8l-99 197c-2.2 3.6 2 7.8 5.6 5.6l197-99c2.2-1.4 2.6-4.6 0.8-6.4zM512 96C282.2 96 96 282.2 96 512s186.2 416 416 416 416-186.2 416-416S741.8 96 512 96z m81.2 498.6L274 755.6c-3.6 2.2-7.8-2-5.6-5.6l161.2-319.2c0.4-0.6 0.8-1 1.4-1.4L750 268.4c3.6-2.2 7.8 2 5.6 5.6l-161.2 319.2c-0.2 0.6-0.6 1-1.2 1.4z"/></svg>发现音乐</a>
-      <a href="#/leaderboard" class="nav-item" data-nav="leaderboard"><svg viewBox="0 0 1024 1024"><path d="M128 399.8v416.4c0 8.8 7 15.8 15.8 15.8h192.4c8.8 0 15.8-7 15.8-15.8V399.8c0-8.8-7-15.8-15.8-15.8H143.8c-8.8 0-15.8 7-15.8 15.8zM399.8 192c-8.8 0-15.8 7-15.8 15.8V832h240.2c8.8 0 15.8-7 15.8-15.8V207.8c0-8.8-7-15.8-15.8-15.8H399.8z m480.4 320h-192.4c-8.8 0-15.8 7-15.8 15.8v288.4c0 8.8 7 15.8 15.8 15.8h192.4c8.8 0 15.8-7 15.8-15.8V527.8c0-8.8-7-15.8-15.8-15.8z"/></svg>排行榜</a>
-      <a href="#/playlists" class="nav-item" data-nav="playlists"><svg viewBox="0 0 1024 1024"><path d="M921.8 322H102.2C63.6 322 32 353.6 32 392.2V856c0 38.6 31.6 70.2 70.2 70.2H922c38.6 0 70.2-31.6 70.2-70.2V392.2c-0.2-38.6-31.8-70.2-70.4-70.2zM868 266H156c-15.4 0-28-12.6-28-28s12.6-28 28-28h712c15.4 0 28 12.6 28 28s-12.6 28-28 28z m-61.6-112H217.6c-14 0-25.6-11.6-25.6-25.6v-4.8c0-14 11.6-25.6 25.6-25.6h588.8c14 0 25.6 11.6 25.6 25.6v4.8c0 14-11.6 25.6-25.6 25.6z"/></svg>歌单广场</a>
-      <a href="#/search" class="nav-item" data-nav="search"><svg viewBox="0 0 1024 1024"><path d="M887 840.4L673.4 624.8c41.8-52.4 67-118.8 67-191 0-169-137-306-306.2-306S128 265 128 434s137 306 306.2 306c73.2 0 140.2-25.6 193-68.4l212.2 214.2c6.4 6.8 15.2 10.2 23.8 10.2 8.2 0 16.4-3 22.6-9 13.2-12.6 13.6-33.4 1.2-46.6z m-452.8-166.2c-64.2 0-124.6-25-170-70.4-45.4-45.4-70.4-105.8-70.4-169.8 0-64.2 25-124.6 70.4-169.8 45.4-45.4 105.8-70.4 170-70.4s124.6 25 170 70.4c45.4 45.4 70.4 105.8 70.4 169.8 0 64.2-25 124.6-70.4 169.8-45.4 45.4-105.8 70.4-170 70.4z"/></svg>搜索</a>
-      <a href="#/favorites" class="nav-item" data-nav="favorites"><svg viewBox="0 0 1024 1024"><path d="M704 112h-2c-79.4 0-149.6 42-190 104-40.4-62-110.6-104-190-104h-2c-123.8 1.2-224 101.8-224 226 0 74 32.4 179 95.6 265.4C312 768 512 912 512 912s200-144 320.4-308.6C895.6 517 928 412 928 338c0-124.2-100.2-224.8-224-226z m83.2 458.4C702 687 572.2 794.6 512 841.6c-60.2-47-190-154.8-275.2-271.4C178.2 490.2 152 396 152 338c0-45.2 17.6-87.6 49.2-119.6 31.8-32 74-49.8 119.2-50.2h1.8c28.6 0 57 7.4 82.2 21.6 24.4 13.8 45.6 33.4 60.8 57 10.4 15.8 28 25.4 47 25.4s36.6-9.6 47-25.4c15.4-23.6 36.4-43.2 60.8-57 25.2-14.2 53.6-21.6 82.2-21.6h1.8c45 0.4 87.4 18.2 119.2 50.2 31.8 32 49.2 74.6 49.2 119.6-0.4 58-26.6 152.2-85.2 232.4z"/></svg>我的收藏</a>
+      <a href="#/discover" class="nav-item" data-nav="discover"><svg viewBox="0 0 1024 1024"><path d="M561 561l-98-98c-1.8-1.8-5-1.4-6.4 0.8l-99 197c-2.2 3.6 2 7.8 5.6 5.6l197-99c2.2-1.4 2.6-4.6 0.8-6.4zM512 96C282.2 96 96 282.2 96 512s186.2 416 416 416 416-186.2 416-416S741.8 96 512 96z m81.2 498.6L274 755.6c-3.6 2.2-7.8-2-5.6-5.6l161.2-319.2c0.4-0.6 0.8-1 1.4-1.4L750 268.4c3.6-2.2 7.8 2 5.6 5.6l-161.2 319.2c-0.2 0.6-0.6 1-1.2 1.4z"/></svg>鍙戠幇闊充箰</a>
+      <a href="#/leaderboard" class="nav-item" data-nav="leaderboard"><svg viewBox="0 0 1024 1024"><path d="M128 399.8v416.4c0 8.8 7 15.8 15.8 15.8h192.4c8.8 0 15.8-7 15.8-15.8V399.8c0-8.8-7-15.8-15.8-15.8H143.8c-8.8 0-15.8 7-15.8 15.8zM399.8 192c-8.8 0-15.8 7-15.8 15.8V832h240.2c8.8 0 15.8-7 15.8-15.8V207.8c0-8.8-7-15.8-15.8-15.8H399.8z m480.4 320h-192.4c-8.8 0-15.8 7-15.8 15.8v288.4c0 8.8 7 15.8 15.8 15.8h192.4c8.8 0 15.8-7 15.8-15.8V527.8c0-8.8-7-15.8-15.8-15.8z"/></svg>鎺掕姒?/a>
+      <a href="#/playlists" class="nav-item" data-nav="playlists"><svg viewBox="0 0 1024 1024"><path d="M921.8 322H102.2C63.6 322 32 353.6 32 392.2V856c0 38.6 31.6 70.2 70.2 70.2H922c38.6 0 70.2-31.6 70.2-70.2V392.2c-0.2-38.6-31.8-70.2-70.4-70.2zM868 266H156c-15.4 0-28-12.6-28-28s12.6-28 28-28h712c15.4 0 28 12.6 28 28s-12.6 28-28 28z m-61.6-112H217.6c-14 0-25.6-11.6-25.6-25.6v-4.8c0-14 11.6-25.6 25.6-25.6h588.8c14 0 25.6 11.6 25.6 25.6v4.8c0 14-11.6 25.6-25.6 25.6z"/></svg>姝屽崟骞垮満</a>
+      <a href="#/search" class="nav-item" data-nav="search"><svg viewBox="0 0 1024 1024"><path d="M887 840.4L673.4 624.8c41.8-52.4 67-118.8 67-191 0-169-137-306-306.2-306S128 265 128 434s137 306 306.2 306c73.2 0 140.2-25.6 193-68.4l212.2 214.2c6.4 6.8 15.2 10.2 23.8 10.2 8.2 0 16.4-3 22.6-9 13.2-12.6 13.6-33.4 1.2-46.6z m-452.8-166.2c-64.2 0-124.6-25-170-70.4-45.4-45.4-70.4-105.8-70.4-169.8 0-64.2 25-124.6 70.4-169.8 45.4-45.4 105.8-70.4 170-70.4s124.6 25 170 70.4c45.4 45.4 70.4 105.8 70.4 169.8 0 64.2-25 124.6-70.4 169.8-45.4 45.4-105.8 70.4-170 70.4z"/></svg>鎼滅储</a>
+      <a href="#/favorites" class="nav-item" data-nav="favorites"><svg viewBox="0 0 1024 1024"><path d="M704 112h-2c-79.4 0-149.6 42-190 104-40.4-62-110.6-104-190-104h-2c-123.8 1.2-224 101.8-224 226 0 74 32.4 179 95.6 265.4C312 768 512 912 512 912s200-144 320.4-308.6C895.6 517 928 412 928 338c0-124.2-100.2-224.8-224-226z m83.2 458.4C702 687 572.2 794.6 512 841.6c-60.2-47-190-154.8-275.2-271.4C178.2 490.2 152 396 152 338c0-45.2 17.6-87.6 49.2-119.6 31.8-32 74-49.8 119.2-50.2h1.8c28.6 0 57 7.4 82.2 21.6 24.4 13.8 45.6 33.4 60.8 57 10.4 15.8 28 25.4 47 25.4s36.6-9.6 47-25.4c15.4-23.6 36.4-43.2 60.8-57 25.2-14.2 53.6-21.6 82.2-21.6h1.8c45 0.4 87.4 18.2 119.2 50.2 31.8 32 49.2 74.6 49.2 119.6-0.4 58-26.6 152.2-85.2 232.4z"/></svg>鎴戠殑鏀惰棌</a>
     </nav>
-    <div class="side-title">收藏的歌单</div>
+    <div class="side-title">鏀惰棌鐨勬瓕鍗?/div>
     <div id="side-playlists" class="side-pls"></div>
     <div class="side-footer">
-      <!-- 登录/注册（设置上方）：云端同步设置与收藏 -->
+      <!-- 鐧诲綍/娉ㄥ唽锛堣缃笂鏂癸級锛氫簯绔悓姝ヨ缃笌鏀惰棌 -->
       <div class="side-account" id="side-account">
         <div class="side-auth-btns" id="side-auth-btns">
-          <button class="side-auth-btn" id="btn-login">登录</button>
-          <button class="side-auth-btn primary" id="btn-register">注册</button>
+          <button class="side-auth-btn" id="btn-login">鐧诲綍</button>
+          <button class="side-auth-btn primary" id="btn-register">娉ㄥ唽</button>
         </div>
         <div class="side-user hidden" id="side-user">
           <span class="side-user-mail" id="side-user-mail"></span>
-          <span class="usr-avatar" id="side-user-avatar" role="button" aria-label="更换头像"></span>
-          <button class="side-auth-btn" id="btn-logout">退出</button>
+          <span class="usr-avatar" id="side-user-avatar" role="button" aria-label="鏇存崲澶村儚"></span>
+          <button class="side-auth-btn" id="btn-logout">閫€鍑?/button>
         </div>
       </div>
       <button class="side-btn" id="btn-settings">
         <svg viewBox="0 0 1024 1024"><path d="M832.6 512c0-42 26.2-77.8 63.4-92.2-9.8-41-26-79.4-47.4-114.2-12.8 5.6-26.4 8.6-40.2 8.6-25.2 0-50.4-9.6-69.8-28.8-29.8-29.8-36.4-73.6-20.4-110-34.6-21.4-73.2-37.6-114-47.4C590 165 554 191.4 512 191.4S434 165 419.8 128c-41 9.8-79.4 26-114.2 47.4 16.2 36.2 9.4 80.2-20.4 110-19.2 19.2-44.6 28.8-69.8 28.8-13.8 0-27.4-2.8-40.2-8.6C154 340.6 137.8 379 128 420c37 14.2 63.4 50 63.4 92.2 0 42-26.2 77.8-63.2 92.2 9.8 41 26 79.4 47.4 114.2 12.8-5.6 26.4-8.4 40-8.4 25.2 0 50.4 9.6 69.8 28.8 29.6 29.6 36.4 73.6 20.4 109.8 34.8 21.4 73.4 37.6 114.2 47.4 14.2-37 50-63.2 92-63.2s77.8 26.2 92 63.2c41-9.8 79.4-26 114.2-47.4-16-36.2-9.2-80 20.4-109.8 19.2-19.2 44.4-28.8 69.8-28.8 13.6 0 27.4 2.8 40 8.4 21.4-34.8 37.6-73.4 47.4-114.2-36.8-14.4-63.2-50.2-63.2-92.4z m-318.8 159.8c-88.6 0-160-71.8-160-160s71.4-160 160-160 160 71.8 160 160-71.4 160-160 160z"/></svg>
-        <span>设置</span>
+        <span>璁剧疆</span>
       </button>
-      <div class="side-ver">B·Music 网页版 · v1.0</div>
+      <div class="side-ver">B路Music 缃戦〉鐗?路 v1.0</div>
     </div>
   </aside>
 
-  <!-- ===== 主内容 ===== -->
+  <!-- ===== 涓诲唴瀹?===== -->
   <main id="main">
     <header id="topbar">
       <button id="btn-menu" class="icon-btn"><svg viewBox="0 0 1024 1024"><path d="M864 352H160c-17.6 0-32-14.4-32-32s14.4-32 32-32h704c17.6 0 32 14.4 32 32s-14.4 32-32 32z m0 192H160c-17.6 0-32-14.4-32-32s14.4-32 32-32h704c17.6 0 32 14.4 32 32s-14.4 32-32 32z m0 192H160c-17.6 0-32-14.4-32-32s14.4-32 32-32h704c17.6 0 32 14.4 32 32s-14.4 32-32 32z"/></svg></button>
-      <button class="topbar-back hidden" id="btn-topback" aria-label="返回">
+      <button class="topbar-back hidden" id="btn-topback" aria-label="杩斿洖">
         <svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg>
-        <span>返回</span>
+        <span>杩斿洖</span>
       </button>
-      <h1 class="topbar-title" id="page-title">发现</h1>
+      <h1 class="topbar-title" id="page-title">鍙戠幇</h1>
     </header>
     <div id="view"></div>
     <div id="view-bottom-space"></div>
   </main>
 
-  <!-- 侧栏抽屉遮罩（手机端：点击灰色区域收起菜单） -->
+  <!-- 渚ф爮鎶藉眽閬僵锛堟墜鏈虹锛氱偣鍑荤伆鑹插尯鍩熸敹璧疯彍鍗曪級 -->
   <div id="side-mask" class="hidden"></div>
 
-  <!-- ===== 底部播放栏 ===== -->
+  <!-- ===== 搴曢儴鎾斁鏍?===== -->
   <footer id="playerbar" class="hidden">
     <div class="pb-left" id="pb-left">
       <div class="pb-cover" id="pb-cover-wrap">
-        <img id="pb-cover" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23222'/%3E%3Ctext x='40' y='48' font-size='30' text-anchor='middle' fill='%23555'%3E♪%3C/text%3E%3C/svg%3E">
+        <img id="pb-cover" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23222'/%3E%3Ctext x='40' y='48' font-size='30' text-anchor='middle' fill='%23555'%3E鈾?3C/text%3E%3C/svg%3E">
         <span class="pb-playing-dot" id="pb-dot"></span>
       </div>
       <div class="pb-info">
-        <div class="pb-title" id="pb-title">未在播放</div>
+        <div class="pb-title" id="pb-title">鏈湪鎾斁</div>
         <div class="pb-artist" id="pb-artist"></div>
       </div>
     </div>
@@ -94,7 +94,7 @@
       </div>
     </div>
     <div class="pb-right">
-      <span class="quality-badge" id="pb-quality">无损</span>
+      <span class="quality-badge" id="pb-quality">鏃犳崯</span>
       <div class="pb-vol">
         <button class="vol-icon" id="pb-mute">
           <svg class="ic-vol" viewBox="0 0 1024 1024"><path d="M557.8 291.2c-4.4-2.2-9.2-3.2-13.8-3.2-7.2 0-14.2 2.4-20 7L393.6 400H288c-17.6 0-32 14.4-32 32v160c0 17.6 14.4 32 32 32h105.6l130.4 105c5.8 4.6 13 7 20 7 4.6 0 9.4-1 13.8-3.2 11.2-5.4 18.2-16.6 18.2-28.8V320c0-12.4-7-23.6-18.2-28.8z m151 74c-9.2-9.4-24.2-9.6-33.6-0.2-9.4 9.4-9.4 24.6-0.2 34 29.4 30 45.6 70.2 45.6 113.2 0 42.8-16.2 83-45.6 113.2-9.2 9.4-9.2 24.6 0.2 34 4.6 4.6 10.6 7 16.6 7 6.2 0 12.2-2.4 17-7.2C747 620 768 568 768 512.4h-0.4c0-56-20.6-108.2-58.8-147.2z"/></svg>
@@ -107,7 +107,7 @@
     </div>
   </footer>
 
-  <!-- ===== 全屏播放页（Now Playing · Apple Music 布局） ===== -->
+  <!-- ===== 鍏ㄥ睆鎾斁椤碉紙Now Playing 路 Apple Music 甯冨眬锛?===== -->
   <div id="overlay" class="hidden">
     <div id="ov-bg"></div>
     <div id="ov-glow"></div>
@@ -117,10 +117,10 @@
     <div class="ov-body" id="ov-body">
       <div class="ov-left">
         <div class="ov-disc" id="ov-disc">
-          <img id="ov-cover" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23222'/%3E%3Ctext x='40' y='48' font-size='30' text-anchor='middle' fill='%23555'%3E♪%3C/text%3E%3C/svg%3E">
+          <img id="ov-cover" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 80 80'%3E%3Crect width='80' height='80' fill='%23222'/%3E%3Ctext x='40' y='48' font-size='30' text-anchor='middle' fill='%23555'%3E鈾?3C/text%3E%3C/svg%3E">
         </div>
         <div class="ov-song">
-          <div class="ov-title" id="ov-title">未在播放</div>
+          <div class="ov-title" id="ov-title">鏈湪鎾斁</div>
           <div class="ov-artist" id="ov-artist"></div>
         </div>
         <div class="ov-progress">
@@ -128,7 +128,7 @@
           <input type="range" id="ov-bar" min="0" max="1000" value="0" step="1">
           <span class="pb-time" id="ov-dur">00:00</span>
         </div>
-        <div class="ov-quality" id="ov-quality">无损音质</div>
+        <div class="ov-quality" id="ov-quality">鏃犳崯闊宠川</div>
         <div class="ov-btns">
           <button class="icon-btn" id="ov-mode"><svg viewBox="0 0 1024 1024"><path d="M673.2 315L606 248.2c-7-7-17-9.8-27.2-7.2-2.4 0.6-4.8 1.6-7 3-9.4 5.8-14.4 15.6-13.6 26.2 0.4 6.8 3.8 13.2 8.6 18.2l32 31.8H284c-41.6 0-80.6 16.2-110.2 45.8C144.2 395.4 128 434.4 128 476v32c0 15.4 12.6 28 28 28s28-12.6 28-28v-32c0-26.6 10.4-51.6 29.4-70.6 19-19 44-29.4 70.6-29.4h310.8l-32 31.8c-4.8 4.8-8 10.8-8.6 17.4-0.8 8.4 2.2 16.6 8.2 22.6 5.2 5.2 12.4 8.2 19.8 8.2s14.4-2.8 19.8-8.2l71.2-70.8c8.4-8.2 13-19.4 13-31-0.2-11.8-4.8-22.8-13-31zM868 488c-15.4 0-28 12.6-28 28v32c0 26.6-10.4 51.6-29.4 70.6-19 19-44 29.4-70.6 29.4H429.2l32-31.8c4.8-4.8 8-10.8 8.6-17.6 0.8-8.4-2.2-16.6-8.2-22.6-5.2-5.2-12.4-8.2-19.8-8.2s-14.4 2.8-19.8 8.2l-71.2 70.8c-8.4 8.2-13 19.4-13 31 0 11.8 4.6 22.8 13 31l67.2 66.8c7 7 17 9.8 27.2 7.2 2.4-0.6 4.8-1.6 7-3 9.4-5.8 14.4-15.6 13.6-26.2-0.4-6.8-3.8-13.2-8.6-18.2l-32-31.8H740c86 0 156-70 156-156v-32c0-15-12.6-27.6-28-27.6z"/></svg></button>
           <button class="icon-btn" id="ov-prev"><svg viewBox="0 0 1024 1024"><path d="M350 200v275.6L807.8 196.2c10.6-6.2 24.2 1.4 24.2 13.8v604c0 12.4-13.4 20-24.2 13.8L350 548.4V824c0 4.4-3.6 8-8 8h-142c-4.4 0-8-3.6-8-8V200c0-4.4 3.6-8 8-8h142c4.4 0 8 3.6 8 8z"/></svg></button>
@@ -156,19 +156,19 @@
         </div>
       </div>
     </div>
-    <!-- 固定右下角工具栏（不随歌词隐藏/滚动）：翻译(译/原) / 歌单列表 / 歌词显示 -->
+    <!-- 鍥哄畾鍙充笅瑙掑伐鍏锋爮锛堜笉闅忔瓕璇嶉殣钘?婊氬姩锛夛細缈昏瘧(璇?鍘? / 姝屽崟鍒楄〃 / 姝岃瘝鏄剧ず -->
     <div class="ly-toolbar">
-      <button class="ly-tool txt" id="ly-trans-toggle">原</button>
+      <button class="ly-tool txt" id="ly-trans-toggle">鍘?/button>
       <button class="ly-tool" id="ly-queue"><svg viewBox="0 0 1024 1024"><path d="M184 512m-56 0a56 56 0 1 0 112 0 56 56 0 1 0-112 0ZM184 264m-56 0a56 56 0 1 0 112 0 56 56 0 1 0-112 0ZM184 760m-56 0a56 56 0 1 0 112 0 56 56 0 1 0-112 0ZM864 480H383c-17.6 0-32 14.4-32 32s14.4 32 32 32H864c17.6 0 32-14.4 32-32s-14.4-32-32-32z m0 248H383c-17.6 0-32 14.4-32 32s14.4 32 32 32H864c17.6 0 32-14.4 32-32s-14.4-32-32-32zM383 296H864c17.6 0 32-14.4 32-32s-14.4-32-32-32H383c-17.6 0-32 14.4-32 32s14.4 32 32 32z"/></svg></button>
       <button class="ly-tool on" id="ly-toggle"><svg viewBox="0 0 1024 1024"><path d="M728.6 96.4c-9.4 1.8-236 48.2-244.4 49.8-8.4 1.6-16.2 7.2-16.2 16v510.2c0 3.2-0.2 14.4-4.8 23.4-6.2 11.8-17 20.4-32.2 25.4-6.6 2.2-15.6 4.2-26.2 6.6-48.2 10.8-128.8 29.2-128.8 103.6 0 60.2 43.4 89 70 94.2 10 2 22 2 27.6 2 16.4 0 72-6.6 102.4-26.4 22-14.4 48.2-42.8 48.2-95.6V346.2c0-7.6 5.4-14.2 12.8-15.6l185.6-38c14.8-3 25.6-16.2 25.6-31.4V111.6c-0.2-8.6-7.6-17.6-19.6-15.2z"/></svg></button>
-      <button class="ly-tool" id="ly-share" aria-label="分享当前歌曲"><svg viewBox="0 0 1024 1024"><path d="M807 588c-36 0-68 14-93 36L416 486c1-7 1-13 0-20l298-138c25 22 57 36 93 36 75 0 136-61 136-136S882 92 807 92 671 153 671 228c0 7 0 13 1 20L374 386c-25-22-57-36-93-36-75 0-136 61-136 136s61 136 136 136c36 0 68-14 93-36l298 138c-1 7-1 13 0 20-1 75 60 136 135 136s136-61 136-136-61-136-136-136z"/></svg></button>
+      <button class="ly-tool" id="ly-share" aria-label="鍒嗕韩褰撳墠姝屾洸"><svg viewBox="0 0 1024 1024"><path d="M807 588c-36 0-68 14-93 36L416 486c1-7 1-13 0-20l298-138c25 22 57 36 93 36 75 0 136-61 136-136S882 92 807 92 671 153 671 228c0 7 0 13 1 20L374 386c-25-22-57-36-93-36-75 0-136 61-136 136s61 136 136 136c36 0 68-14 93-36l298 138c-1 7-1 13 0 20-1 75 60 136 135 136s136-61 136-136-61-136-136-136z"/></svg></button>
     </div>
   </div>
 
-  <!-- ===== 播放队列抽屉 ===== -->
+  <!-- ===== 鎾斁闃熷垪鎶藉眽 ===== -->
   <div id="queue-drawer" class="hidden">
     <div class="qd-head">
-      <span>播放队列</span>
+      <span>鎾斁闃熷垪</span>
       <em id="qd-count"></em>
       <button class="icon-btn" id="qd-close"><svg viewBox="0 0 1024 1024"><path d="M557.2 512l136.4-136.4c12.4-12.4 12.4-32.8 0-45.2-12.4-12.4-32.8-12.4-45.2 0L512 466.8l-136.4-136.4c-12.4-12.4-32.8-12.4-45.2 0-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6l136.4 136.4-136.4 136.4c-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6 12.4 12.4 32.8 12.4 45.2 0l136.4-136.4 136.4 136.4c12.4 12.4 32.8 12.4 45.2 0 12.4-12.4 12.4-32.8 0-45.2L557.2 512z"/></svg></button>
     </div>
@@ -176,104 +176,104 @@
   </div>
   <div id="queue-mask" class="hidden"></div>
 
-  <!-- ===== 设置弹窗 ===== -->
+  <!-- ===== 璁剧疆寮圭獥 ===== -->
   <div id="settings" class="modal hidden">
     <div class="modal-mask" data-close="settings"></div>
     <div class="modal-panel">
       <div class="modal-head">
-        <span>设置</span>
+        <span>璁剧疆</span>
         <button class="icon-btn" data-close="settings"><svg viewBox="0 0 1024 1024"><path d="M557.2 512l136.4-136.4c12.4-12.4 12.4-32.8 0-45.2-12.4-12.4-32.8-12.4-45.2 0L512 466.8l-136.4-136.4c-12.4-12.4-32.8-12.4-45.2 0-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6l136.4 136.4-136.4 136.4c-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6 12.4 12.4 32.8 12.4 45.2 0l136.4-136.4 136.4 136.4c12.4 12.4 32.8 12.4 45.2 0 12.4-12.4 12.4-32.8 0-45.2L557.2 512z"/></svg></button>
       </div>
       <div class="modal-body">
-        <!-- ===== 一级页：设置菜单（打开设置默认显示；其余设置收纳进二级页） ===== -->
+        <!-- ===== 涓€绾ч〉锛氳缃彍鍗曪紙鎵撳紑璁剧疆榛樿鏄剧ず锛涘叾浣欒缃敹绾宠繘浜岀骇椤碉級 ===== -->
         <div id="set-page-main">
           <div id="set-menu">
-            <!-- 账号：副标题 = 头像缩略 + 邮箱/未登录 -->
+            <!-- 璐﹀彿锛氬壇鏍囬 = 澶村儚缂╃暐 + 閭/鏈櫥褰?-->
             <div class="set-menu-row" data-setpage="account">
               <div class="set-menu-tx">
-                <div class="set-menu-name">账号</div>
-                <div class="set-menu-sub"><span class="usr-avatar" id="set-menu-acc-av" aria-hidden="true"></span><span id="set-menu-acc-sub">未登录</span></div>
+                <div class="set-menu-name">璐﹀彿</div>
+                <div class="set-menu-sub"><span class="usr-avatar" id="set-menu-acc-av" aria-hidden="true"></span><span id="set-menu-acc-sub">鏈櫥褰?/span></div>
               </div>
               <svg class="set-menu-arrow" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M384 224v576l288-288z"/></svg>
             </div>
-            <!-- 偏好 -->
+            <!-- 鍋忓ソ -->
             <div class="set-menu-row" data-setpage="prefs">
               <div class="set-menu-tx">
-                <div class="set-menu-name">偏好</div>
-                <div class="set-menu-sub">音质 · 歌词样式</div>
+                <div class="set-menu-name">鍋忓ソ</div>
+                <div class="set-menu-sub">闊宠川 路 姝岃瘝鏍峰紡</div>
               </div>
               <svg class="set-menu-arrow" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M384 224v576l288-288z"/></svg>
             </div>
-            <!-- 缓存 -->
+            <!-- 缂撳瓨 -->
             <div class="set-menu-row" data-setpage="cache">
               <div class="set-menu-tx">
-                <div class="set-menu-name">缓存</div>
-                <div class="set-menu-sub">音频缓存开关/上限/已用</div>
+                <div class="set-menu-name">缂撳瓨</div>
+                <div class="set-menu-sub">闊抽缂撳瓨寮€鍏?涓婇檺/宸茬敤</div>
               </div>
               <svg class="set-menu-arrow" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M384 224v576l288-288z"/></svg>
             </div>
           </div>
-          <!-- 数据管理（保持直显，不算设置项） -->
+          <!-- 鏁版嵁绠＄悊锛堜繚鎸佺洿鏄撅紝涓嶇畻璁剧疆椤癸級 -->
           <div class="set-group">
-            <div class="set-label">数据管理</div>
+            <div class="set-label">鏁版嵁绠＄悊</div>
             <div class="set-btns">
-              <button class="mini-btn" id="set-notice">更新公告</button>
-              <button class="mini-btn danger" id="set-clear-fav">清空收藏</button>
-              <button class="mini-btn danger" id="set-clear-recent">清空最近播放</button>
-              <button class="mini-btn danger" id="set-clear-all">清空全部数据</button>
+              <button class="mini-btn" id="set-notice">鏇存柊鍏憡</button>
+              <button class="mini-btn danger" id="set-clear-fav">娓呯┖鏀惰棌</button>
+              <button class="mini-btn danger" id="set-clear-recent">娓呯┖鏈€杩戞挱鏀?/button>
+              <button class="mini-btn danger" id="set-clear-all">娓呯┖鍏ㄩ儴鏁版嵁</button>
             </div>
           </div>
-          <!-- 鸣谢（保持直显，不算设置项） -->
+          <!-- 楦ｈ阿锛堜繚鎸佺洿鏄撅紝涓嶇畻璁剧疆椤癸級 -->
           <div class="set-group">
-            <div class="set-label">鸣谢：Silence，ApiNexus，NT，落七七</div>
-            <div class="set-hint">网站自用，请勿传播网址链接</div>
+            <div class="set-label">楦ｈ阿锛歋ilence锛孉piNexus锛孨T锛岃惤涓冧竷</div>
+            <div class="set-hint">缃戠珯鑷敤锛岃鍕夸紶鎾綉鍧€閾炬帴</div>
           </div>
         </div>
 
-        <!-- ===== 二级页：账号（头像修改区在首屏，#set-account 内容由 app.js 动态渲染） ===== -->
+        <!-- ===== 浜岀骇椤碉細璐﹀彿锛堝ご鍍忎慨鏀瑰尯鍦ㄩ灞忥紝#set-account 鍐呭鐢?app.js 鍔ㄦ€佹覆鏌擄級 ===== -->
         <div class="set-page hidden" id="set-page-account">
           <div class="set-page-head">
-            <button type="button" class="view-back" data-setback><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>设置</span></button>
+            <button type="button" class="view-back" data-setback><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>璁剧疆</span></button>
           </div>
           <div class="set-cat">
-            <div class="set-head">账号设置</div>
+            <div class="set-head">璐﹀彿璁剧疆</div>
             <div class="set-group" id="set-account"></div>
           </div>
         </div>
 
-        <!-- ===== 二级页：偏好（音质 + 歌词样式，整体搬入） ===== -->
+        <!-- ===== 浜岀骇椤碉細鍋忓ソ锛堥煶璐?+ 姝岃瘝鏍峰紡锛屾暣浣撴惉鍏ワ級 ===== -->
         <div class="set-page hidden" id="set-page-prefs">
           <div class="set-page-head">
-            <button type="button" class="view-back" data-setback><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>设置</span></button>
+            <button type="button" class="view-back" data-setback><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>璁剧疆</span></button>
           </div>
           <div class="set-cat">
-            <div class="set-head">偏好设置</div>
+            <div class="set-head">鍋忓ソ璁剧疆</div>
             <div class="set-group">
-              <div class="set-label">音质（播放栏与播放页仅显示当前音质，切换在此进行）</div>
+              <div class="set-label">闊宠川锛堟挱鏀炬爮涓庢挱鏀鹃〉浠呮樉绀哄綋鍓嶉煶璐紝鍒囨崲鍦ㄦ杩涜锛?/div>
               <div class="set-quality" id="set-quality"></div>
             </div>
             <div class="set-group">
-              <div class="set-label">歌词样式</div>
-              <div class="set-row"><span class="set-sub">字号</span><div class="set-quality" id="set-lyric-size"></div></div>
-              <div class="set-row"><span class="set-sub">粗细</span><div class="set-quality" id="set-lyric-weight"></div></div>
-              <div class="set-row"><span class="set-sub">行距</span><div class="set-quality" id="set-lyric-lh"></div></div>
+              <div class="set-label">姝岃瘝鏍峰紡</div>
+              <div class="set-row"><span class="set-sub">瀛楀彿</span><div class="set-quality" id="set-lyric-size"></div></div>
+              <div class="set-row"><span class="set-sub">绮楃粏</span><div class="set-quality" id="set-lyric-weight"></div></div>
+              <div class="set-row"><span class="set-sub">琛岃窛</span><div class="set-quality" id="set-lyric-lh"></div></div>
             </div>
           </div>
         </div>
 
-        <!-- ===== 二级页：缓存（音频缓存组，整体搬入） ===== -->
+        <!-- ===== 浜岀骇椤碉細缂撳瓨锛堥煶棰戠紦瀛樼粍锛屾暣浣撴惉鍏ワ級 ===== -->
         <div class="set-page hidden" id="set-page-cache">
           <div class="set-page-head">
-            <button type="button" class="view-back" data-setback><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>设置</span></button>
+            <button type="button" class="view-back" data-setback><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>璁剧疆</span></button>
           </div>
           <div class="set-cat">
-            <div class="set-head">缓存管理</div>
+            <div class="set-head">缂撳瓨绠＄悊</div>
             <div class="set-group">
-              <div class="set-label">音频缓存（播放过的歌曲整曲存本机：重播免等待、链接过期也能播；自动按上限淘汰最旧）</div>
-              <div class="set-row col"><span class="set-sub">缓存开关</span><div class="set-quality" id="set-cache-on"></div></div>
-              <div class="set-row col"><span class="set-sub">容量上限（自动淘汰最旧）</span><div class="set-quality" id="set-cache-cap"></div></div>
-              <div class="set-row col"><span class="set-sub" id="set-cache-used">已用 0 MB</span>
-                <div class="set-btns"><button class="mini-btn danger" id="set-clear-cache">清空缓存</button></div></div>
+              <div class="set-label">闊抽缂撳瓨锛堟挱鏀捐繃鐨勬瓕鏇叉暣鏇插瓨鏈満锛氶噸鎾厤绛夊緟銆侀摼鎺ヨ繃鏈熶篃鑳芥挱锛涜嚜鍔ㄦ寜涓婇檺娣樻卑鏈€鏃э級</div>
+              <div class="set-row col"><span class="set-sub">缂撳瓨寮€鍏?/span><div class="set-quality" id="set-cache-on"></div></div>
+              <div class="set-row col"><span class="set-sub">瀹归噺涓婇檺锛堣嚜鍔ㄦ窐姹版渶鏃э級</span><div class="set-quality" id="set-cache-cap"></div></div>
+              <div class="set-row col"><span class="set-sub" id="set-cache-used">宸茬敤 0 MB</span>
+                <div class="set-btns"><button class="mini-btn danger" id="set-clear-cache">娓呯┖缂撳瓨</button></div></div>
             </div>
           </div>
         </div>
@@ -281,49 +281,49 @@
     </div>
   </div>
 
-  <!-- ===== 登录 / 注册弹窗（QQ 邮箱等任意邮箱账号，云端同步设置与收藏） ===== -->
+  <!-- ===== 鐧诲綍 / 娉ㄥ唽寮圭獥锛圦Q 閭绛変换鎰忛偖绠辫处鍙凤紝浜戠鍚屾璁剧疆涓庢敹钘忥級 ===== -->
   <div id="auth" class="modal hidden">
     <div class="modal-mask" data-close="auth"></div>
     <div class="modal-panel auth-panel">
       <div class="modal-head">
-        <span id="auth-title">登录</span>
+        <span id="auth-title">鐧诲綍</span>
         <button class="icon-btn" data-close="auth"><svg viewBox="0 0 1024 1024"><path d="M557.2 512l136.4-136.4c12.4-12.4 12.4-32.8 0-45.2-12.4-12.4-32.8-12.4-45.2 0L512 466.8l-136.4-136.4c-12.4-12.4-32.8-12.4-45.2 0-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6l136.4 136.4-136.4 136.4c-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6 12.4 12.4 32.8 12.4 45.2 0l136.4-136.4 136.4 136.4c12.4 12.4 32.8 12.4 45.2 0 12.4-12.4 12.4-32.8 0-45.2L557.2 512z"/></svg></button>
       </div>
       <div class="modal-body">
-        <div class="auth-tip">支持 QQ 邮箱等任意邮箱账号；登录后「设置 + 收藏歌曲 + 收藏歌单」自动云端同步（最近播放仅保存在本机）</div>
-        <!-- 第 1 步：账号信息 + 滑动验证 -->
+        <div class="auth-tip">鏀寔 QQ 閭绛変换鎰忛偖绠辫处鍙凤紱鐧诲綍鍚庛€岃缃?+ 鏀惰棌姝屾洸 + 鏀惰棌姝屽崟銆嶈嚜鍔ㄤ簯绔悓姝ワ紙鏈€杩戞挱鏀句粎淇濆瓨鍦ㄦ湰鏈猴級</div>
+        <!-- 绗?1 姝ワ細璐﹀彿淇℃伅 + 婊戝姩楠岃瘉 -->
         <div class="auth-step" id="auth-step1">
-          <input class="auth-input" id="auth-email" type="email" placeholder="QQ 邮箱 / 任意邮箱" spellcheck="false" autocomplete="email">
-          <input class="auth-input" id="auth-pass" type="password" placeholder="密码（至少 6 位）" autocomplete="new-password">
-          <input class="auth-input" id="auth-pass2" type="password" placeholder="再次输入密码确认" autocomplete="new-password">
+          <input class="auth-input" id="auth-email" type="email" placeholder="QQ 閭 / 浠绘剰閭" spellcheck="false" autocomplete="email">
+          <input class="auth-input" id="auth-pass" type="password" placeholder="瀵嗙爜锛堣嚦灏?6 浣嶏級" autocomplete="new-password">
+          <input class="auth-input" id="auth-pass2" type="password" placeholder="鍐嶆杈撳叆瀵嗙爜纭" autocomplete="new-password">
           <div class="auth-slider" id="auth-slider">
             <div class="auth-slider-track" id="auth-slider-track">
               <span class="auth-slider-notch" id="auth-slider-notch"></span>
               <div class="auth-slider-fill" id="auth-slider-fill"></div>
               <div class="auth-slider-thumb" id="auth-slider-thumb"><svg viewBox="0 0 1024 1024"><path d="M384 224v576l288-288z"/></svg></div>
             </div>
-            <div class="auth-slider-hint" id="auth-slider-hint">按住滑块拖动到缺口位置完成验证</div>
+            <div class="auth-slider-hint" id="auth-slider-hint">鎸変綇婊戝潡鎷栧姩鍒扮己鍙ｄ綅缃畬鎴愰獙璇?/div>
           </div>
           <div class="auth-err hidden" id="auth-err"></div>
-          <button class="btn primary auth-submit" id="auth-submit">登 录</button>
-          <div class="auth-switch" id="auth-switch">没有账号？<a id="auth-toggle">立即注册</a></div>
+          <button class="btn primary auth-submit" id="auth-submit">鐧?褰?/button>
+          <div class="auth-switch" id="auth-switch">娌℃湁璐﹀彿锛?a id="auth-toggle">绔嬪嵆娉ㄥ唽</a></div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ===== 更新公告弹窗 ===== -->
+  <!-- ===== 鏇存柊鍏憡寮圭獥 ===== -->
   <div id="notice" class="modal hidden">
     <div class="modal-mask" data-close="notice"></div>
     <div class="modal-panel notice-panel">
       <div class="modal-head">
-        <span id="notice-title">更新公告</span>
+        <span id="notice-title">鏇存柊鍏憡</span>
         <button class="icon-btn" data-close="notice"><svg viewBox="0 0 1024 1024"><path d="M557.2 512l136.4-136.4c12.4-12.4 12.4-32.8 0-45.2-12.4-12.4-32.8-12.4-45.2 0L512 466.8l-136.4-136.4c-12.4-12.4-32.8-12.4-45.2 0-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6l136.4 136.4-136.4 136.4c-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6 12.4 12.4 32.8 12.4 45.2 0l136.4-136.4 136.4 136.4c12.4 12.4 32.8 12.4 45.2 0 12.4-12.4 12.4-32.8 0-45.2L557.2 512z"/></svg></button>
       </div>
       <div class="modal-body">
         <div class="notice-ver" id="notice-ver"></div>
         <ul class="notice-list" id="notice-list"></ul>
-        <button class="btn primary auth-submit" data-close="notice">知道了</button>
+        <button class="btn primary auth-submit" data-close="notice">鐭ラ亾浜?/button>
       </div>
     </div>
   </div>
@@ -331,15 +331,16 @@
   <div id="toast"></div>
 </div>
 
-<script src="js/config.js?v=3"></script>
-<script src="js/icons.js?v=3"></script>
-<script src="js/notice.js?v=3"></script>
-<script src="js/lrc.js?v=3"></script>
-<script src="js/store.js?v=3"></script>
-<script src="js/cache.js?v=3"></script>
-<script src="js/ui.js?v=3"></script>
-<script src="js/api.js?v=3"></script>
-<script src="js/player.js?v=3"></script>
-<script src="js/app.js?v=3"></script>
+<script src="js/config.js?v=4"></script>
+<script src="js/icons.js?v=4"></script>
+<script src="js/notice.js?v=4"></script>
+<script src="js/lrc.js?v=4"></script>
+<script src="js/store.js?v=4"></script>
+<script src="js/cache.js?v=4"></script>
+<script src="js/ui.js?v=4"></script>
+<script src="js/api.js?v=4"></script>
+<script src="js/player.js?v=4"></script>
+<script src="js/app.js?v=4"></script>
 </body>
 </html>
+

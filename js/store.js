@@ -259,6 +259,27 @@
   };
 
   /* ---------- 清空 ---------- */
+  /** 登录后：把「登录前本地数据」与「云端数据」按 id 合并（本地保留，去重） */
+  function mergeLocal(local) {
+    const mergeArr = (cur, extra) => {
+      const out = cur.slice();
+      extra.forEach((it) => {
+        if (it == null || it.id == null) return;
+        if (!out.some(x => x && idEq(x.id, it.id))) out.push(it);
+      });
+      return out;
+    };
+    favSongs = mergeArr(favSongs, local.favSongs || []);
+    favPlaylists = mergeArr(favPlaylists, local.favPlaylists || []);
+    myPlaylists = mergeArr(myPlaylists, local.myPlaylists || []);
+    write('favSongs', favSongs);
+    write('favPlaylists', favPlaylists);
+    write('myPlaylists', myPlaylists);
+    document.dispatchEvent(new CustomEvent('ym:favsongs', {}));
+    document.dispatchEvent(new CustomEvent('ym:favpls'));
+    document.dispatchEvent(new CustomEvent('ym:mypls'));
+  }
+
   function clearAll() {
     favSongs = []; favPlaylists = []; recent = []; myPlaylists = []; searchHistory = [];
     write('favSongs', favSongs); write('favPlaylists', favPlaylists); write('recent', recent);
@@ -312,7 +333,16 @@
       const j = await Session._api('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
       Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '' });
       document.dispatchEvent(new CustomEvent('ym:session'));
+      // 未登录期间本机产生的收藏/自建歌单：先备份，登录拉取云端后再合并上传，
+      // 避免「云端覆盖本地 → 本地数据丢失且云端也没有」的漏同步问题
+      const local = {
+        favSongs: favSongs.slice(),
+        favPlaylists: favPlaylists.slice(),
+        myPlaylists: myPlaylists.slice(),
+      };
       await Session.pull(); // 登录成功：以云端数据为准
+      mergeLocal(local);
+      await Session.push().catch(() => {}); // 合并结果上传云端，其它设备可见
       return j;
     },
 
