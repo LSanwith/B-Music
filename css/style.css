@@ -1126,3 +1126,10 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 /* 高斯模糊平衡：半径适中、文字更实，保持模糊质感又可辨认 */
 .lyric-blur-inner { filter: blur(8px); opacity: 1; color: rgba(245, 245, 247, .8); }
 @media (max-width: 720px) { .lyric-blur-inner { filter: blur(7px); } }
+
+/* 修正：透明度规则只作用于清晰层，模糊层歌词恒可见 */
+#ov-lyrics-inner .ly-line:not(.active):not(.ly-far) { opacity: 0; }
+#ov-lyrics-inner .ly-line.ly-far { opacity: 0; }
+#ov-lyrics-inner .ly-line.active { opacity: 1; }
+.lyric-blur-inner .ly-line { opacity: 1 !important; }
+.ov-lyrics.lyrics-previewing .lyric-blur-inner .ly-line { opacity: 1; }
