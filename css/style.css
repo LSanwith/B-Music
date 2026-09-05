@@ -1468,3 +1468,8 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
     mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 18%, rgba(0,0,0,1) 84%, transparent 100%);
   }
 }
+/* v9: no native scrollbar & no extra bottom padding in narrow player */
+@media (max-width: 720px) {
+  #ov-body:not(.lyrics-hidden), #ov-body.lyrics-hidden { overflow: hidden; }
+  #ov-body:not(.lyrics-hidden) { padding-bottom: 0; }
+}
