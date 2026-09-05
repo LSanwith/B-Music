@@ -6,7 +6,6 @@
  * Secrets：HONGYUN_KEY（红云点歌密钥；不设则 hk=1 返回 500，红云兜底不可用）
  *          NT18_KEY（落七七密钥；不设则 nt=1 返回 500，落七七辅助源不可用） */
 const PROXY_ALLOWED = [
-  'https://www.sanwith.cc.cd',
   'https://silence-music-api.cc.cd',
   'https://api.xunjinlu.fun',
   'https://api.18years.ink',
@@ -36,13 +35,8 @@ export default async function handler(req, res) {
   }
   let upstream;
   try {
-    // sanwith 站点启用 SKey 鉴权后需带 x-skey 头（值由部署环境 SANWITH_SKEY 提供，浏览器不可见）
-    const headers = { 'User-Agent': 'BMusicWeb/1.0' };
-    if (dest.origin === 'https://www.sanwith.cc.cd' && process.env.SANWITH_SKEY) {
-      headers['x-skey'] = process.env.SANWITH_SKEY;
-    }
     upstream = await fetch(dest, {
-      headers,
+      headers: { 'User-Agent': 'BMusicWeb/1.0' },
       signal: AbortSignal.timeout(25000),
     });
   } catch (e) {

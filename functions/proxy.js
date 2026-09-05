@@ -5,7 +5,6 @@
  * 依赖 Secret：HONGYUN_KEY（红云点歌密钥；不设则 hk=1 返回 500，红云兜底不可用）
  *              NT18_KEY（落七七密钥；不设则 nt=1 返回 500，落七七辅助源不可用） */
 const PROXY_ALLOWED = [
-  'https://www.sanwith.cc.cd',
   'https://silence-music-api.cc.cd',
   'https://api.xunjinlu.fun',
   'https://api.18years.ink',

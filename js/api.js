@@ -1,9 +1,8 @@
 /* ============================================================
  * API 层
- *  主接口: www.sanwith.cc.cd      (网易云音乐API增强版)
- *  备用接口: silence-music-api.cc.cd
+ *  镜像源: silence-music-api.cc.cd  (网易云音乐API)
  *  兜底/辅助源: 红云点歌v4 + 落七七(18years 网易云整合源)
- *          (仅用于播放地址/歌词；两者密钥仅发往各自的代理，
+ *          (仅用于播放地址/歌词；后两者密钥仅发往各自的代理，
  *          浏览器 URL 不携带密钥)
  * ============================================================ */
 (function () {
@@ -11,7 +10,6 @@
 
   const CFG = window.APP_CONFIG;
   const PRIMARY = CFG.API_PRIMARY;
-  const SECONDARY = CFG.API_SECONDARY;
 
   /* ---------- 基础请求 ---------- */
   function buildApiUrl(base, path, params) {
@@ -39,8 +37,8 @@
   }
 
   /*
-   * 上游接口（sanwith / silence / 红云）的 CORS 响应头不可靠：
-   *  - sanwith/silence：CDN 共享缓存导致 Access-Control-Allow-Origin 偶尔是别的 origin；
+   * 上游接口（silence / 红云 / 落七七）的 CORS 响应头不可靠：
+   *  - silence：CDN 共享缓存导致 Access-Control-Allow-Origin 偶尔是别的 origin；
    *  - 红云点歌：返回格式错误的 "*,*"。
    * 因此 http(s) 页面优先走同源代理 /proxy（server.js 提供）；
    * file:// 双击打开时，若本机 8899 服务器在运行则自动探测并走它的代理/API
@@ -151,44 +149,24 @@
     }
   }
 
-  /* 双接口并行竞速：主/备同时请求，第一个有效响应即胜出（不等待慢的那一个，保证流畅）
-   * 默认 12s 超时：任一镜像挂起/缓慢时不阻塞页面与其它操作（更快切到可用镜像）。
-   * 主接口健康熔断：连续失败 ≥5 次后暂停使用 10 分钟（页面不再重复打必败请求），
-   * 期间只用备用镜像；超时/备用也失败时自动解封重试主接口。 */
-  let _primaryFails = 0;
-  let _primaryDownSince = 0;
-  const markPrimaryResult = (ok0) => {
-    if (ok0) { _primaryFails = 0; _primaryDownSince = 0; }
-    else if (++_primaryFails >= 3) _primaryDownSince = Date.now(); // 连续 3 次失败即熔断（主接口故障期减少 404 噪音）
-  };
-  const primarySkipped = () => !!_primaryDownSince && Date.now() - _primaryDownSince < 10 * 60 * 1000;
-
+  /* 单一镜像源请求：首次失败后 400ms 重试一次（单源模式下比双源竞速稳定；
+   * 播放地址另有红云/落七七竞速，不依赖此函数）。默认 12s 超时，
+   * 镜像挂起/缓慢时不阻塞页面与其它操作。 */
   async function requestNetease(path, params, timeoutMs) {
     const tmo = timeoutMs || 12000;
     const ok = (j) => !!(j && (j.code === undefined || j.code === 200 || j.code === 0 ||
       (j.result || j.playlist || j.banners || j.list)));
-    return await new Promise((resolve, reject) => {
-      let pending = primarySkipped() ? 1 : 2, done = false;
-      const fail = (e) => {
-        if (!done && --pending === 0) { done = true; reject(e); }
-      };
-      const tryResolve = (j) => {
-        if (!done && ok(j)) { done = true; resolve(j); return true; }
-        return false;
-      };
-      if (!primarySkipped()) {
-        request(PRIMARY, path, params, tmo).then((j) => {
-          markPrimaryResult(true);
-          if (!tryResolve(j)) fail(new Error('bad response'));
-        }).catch((e) => { markPrimaryResult(false); fail(e); });
-      }
-      request(SECONDARY, path, params, tmo).then((j) => {
-        if (!tryResolve(j)) fail(new Error('bad response'));
-      }).catch((e) => {
-        if (primarySkipped()) _primaryDownSince = 0; // 备用也挂：解封主接口下次再试
-        fail(e);
-      });
-    });
+    const attempt = async () => {
+      const j = await request(PRIMARY, path, params, tmo);
+      if (ok(j)) return j;
+      throw new Error('bad response');
+    };
+    try {
+      return await attempt();
+    } catch (e1) {
+      await new Promise((r) => setTimeout(r, 400));
+      return await attempt(); // 重试仍失败则抛出，交由调用方处理
+    }
   }
 
   /* ---------- 数据归一化 ---------- */
@@ -407,22 +385,19 @@
      * 从网易云接口拿【完整】直链：
      *   1) /song/download/url/v1 —— 客户端下载直链（完整音频，免费歌可达 Hi-Res）
      *   2) /song/url/v1 —— 播放直链，但非会员返回的是试听片段（freeTrialInfo），一律拒绝
-     * 抛出的错误带 .trial 标记，供降级链判断是否直接走红云完整源。
+     * 抛出的错误带 .trial 标记，供降级链判断是否直接走第三方完整源。
      */
-    async neteaseUrl(base, id, level, opts) {
-      opts = opts || {};
-      // 1) 下载直链（完整音频）；解锁模式跳过此步（解锁只走播放直链）
-      if (!opts.unblock) {
-        try {
-          const j = await request(base, '/song/download/url/v1', { id: id, level: level, realIP: REAL_IP }, 15000);
-          const d = (j.data || [])[0];
-          if (d && d.url && !isTrial(d)) {
-            return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
-          }
-        } catch (e) { /* 继续尝试播放直链 */ }
-      }
-      // 2) 播放直链：仅接受完整音频（unblock=true 时走 sanwith 的解锁通道）
-      const q = opts.unblock ? { id: id, level: level, realIP: REAL_IP, unblock: 'true' } : { id: id, level: level, realIP: REAL_IP };
+    async neteaseUrl(base, id, level) {
+      // 1) 下载直链（完整音频）
+      try {
+        const j = await request(base, '/song/download/url/v1', { id: id, level: level, realIP: REAL_IP }, 15000);
+        const d = (j.data || [])[0];
+        if (d && d.url && !isTrial(d)) {
+          return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
+        }
+      } catch (e) { /* 继续尝试播放直链 */ }
+      // 2) 播放直链：仅接受完整音频
+      const q = { id: id, level: level, realIP: REAL_IP };
       const j = await request(base, '/song/url/v1', q, 20000);
       const d = (j.data || [])[0];
       if (d && d.url && !isTrial(d)) {
@@ -523,10 +498,10 @@
     },
 
     /**
-     * 解析【完整】播放地址 —— 四个数据源【同时并发请求】，先成功者胜出：
-     *   主接口 / 备用接口 / 红云点歌v4 / 落七七(18years) 并行竞速，谁快用谁，加载流畅不卡顿；
-     *   官方镜像（主/备）先到直接胜出；第三方源（红云/落七七）先返回时，
-     *   给官方源 300ms 优先窗口，窗口内官方源成功则改选官方源。
+     * 解析【完整】播放地址 —— 三个数据源【同时并发请求】，先成功者胜出：
+     *   镜像接口(silence) / 红云点歌v4 / 落七七(18years) 并行竞速，谁快用谁，加载流畅不卡顿；
+     *   镜像接口先到直接胜出；第三方源（红云/落七七）先返回时，
+     *   给镜像源 300ms 优先窗口，窗口内镜像成功则改选镜像。
      * 结果按 (id, level) 缓存 10 分钟。
      */
     _urlCache: new Map(),
@@ -539,8 +514,7 @@
       const errors = [];
       await new Promise((done) => {
         const tasks = [
-          API.neteaseUrl(PRIMARY, song.id, lv).then(r => { r.source = '主接口'; return r; }),
-          API.neteaseUrl(SECONDARY, song.id, lv).then(r => { r.source = '备用接口'; return r; }),
+          API.neteaseUrl(PRIMARY, song.id, lv).then(r => { r.source = '镜像接口'; return r; }),
           API.hongyunUrl(song.id, lv).then(r => { r.source = '红云点歌'; return r; }),
           API.nt18Url(song.id, lv).then(r => { r.source = '落七七'; return r; }),
         ];
@@ -548,8 +522,8 @@
         tasks.forEach((p) => {
           p.then((r) => {
             if (result) return;
-            if (r.source === '主接口' || r.source === '备用接口') { result = r; done(); return; }
-            // 第三方源先到：给官方源 300ms 优先窗口
+            if (r.source === '镜像接口') { result = r; done(); return; }
+            // 第三方源先到：给镜像源 300ms 优先窗口
             setTimeout(() => { if (!result) { result = r; done(); } }, 300);
           }).catch((e) => {
             errors.push(e.message);
@@ -564,21 +538,7 @@
         API._urlCache.set(key, { t: Date.now(), v: result });
         return result;
       }
-      // 兜底：普通四源全挂（VIP/版权歌常见）时，走主接口(sanwith)的 unblock 解锁通道。
-      // sanwith 别名迁移期会在多个实例间随机分发（旧实例 SKey 快照不同 → 偶发 403），
-      // 因此最多重试 3 次。
-      for (let a = 0; a < 3; a++) {
-        try {
-          const r = await API.neteaseUrl(PRIMARY, song.id, lv, { unblock: true });
-          r.source = '解锁源';
-          if (location.protocol === 'https:' && r.url.startsWith('http://')) r.url = 'https://' + r.url.slice(7);
-          API._urlCache.set(key, { t: Date.now(), v: r });
-          return r;
-        } catch (e) {
-          errors.push(e.message);
-          if (a < 2) await new Promise((res) => setTimeout(res, 400 + a * 300));
-        }
-      }
+      // 三源全挂：VIP/版权歌多由落七七/红云解锁，全挂则报错并列出各源原因
       throw new Error('无法获取播放地址（' + errors.join('；') + '）');
     },
 

@@ -6,8 +6,8 @@
  * 路由由 vercel.json rewrite 映射：
  *   /s/:type/:id  →  /api/preview?type=:type&id=:id
  *
- * 元数据来源：备用镜像 https://silence-music-api.cc.cd （与 js/config.js
- * API_SECONDARY 一致），一律带 realIP（同 js/api.js REAL_IP），超时 10s。
+ * 元数据来源：镜像 https://silence-music-api.cc.cd （与 js/config.js
+ * API_PRIMARY 一致），一律带 realIP（同 js/api.js REAL_IP），超时 10s。
  * 图片链接 http:// 一律转 https://；取不到图则省略 og:image（仍可预览标题）。
  */
 const MIRROR = 'https://silence-music-api.cc.cd';

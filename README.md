@@ -37,11 +37,11 @@ PORT=8080 node server.js
 
 | 用途 | 接口 | 说明 |
 | --- | --- | --- |
-| 搜索/歌单/歌词/详情 | `www.sanwith.cc.cd` | 网易云音乐 API 增强版（主） |
-| 同上（容灾） | `silence-music-api.cc.cd` | 主接口失败自动切换 |
-| 播放地址兜底 / 下载 | `api.xunjinlu.fun/apis/wymusicv4`（红云点歌v4） | 前两者拿不到直链时兜底 |
+| 搜索/歌单/歌词/详情 | `silence-music-api.cc.cd` | 网易云音乐 API（镜像，唯一官方镜像源） |
+| 播放地址兜底 / 解锁 | `api.xunjinlu.fun/apis/wymusicv4`（红云点歌v4） | 镜像拿不到直链时兜底 |
+| 播放地址竞速 / 解锁 | `api.18years.ink/Interface/Netease/`（落七七） | 与红云并行竞速，VIP 歌常用此源解锁 |
 
-播放地址解析顺序：**主接口（下载直链 → 播放直链）→ 备用接口 → 红云点歌v4**，全部失败才提示无法播放。
+播放地址解析顺序（**并行竞速**）：**镜像接口（下载直链 → 播放直链）→ 红云点歌v4 → 落七七**，全部失败才提示无法播放。
 
 ### 完整音频（拒绝试听片段）
 
@@ -55,7 +55,7 @@ PORT=8080 node server.js
 
 ### 关于跨域（CORS）与本地代理
 
-三个上游接口的 CORS 响应头并不可靠（sanwith/silence 的 CDN 共享缓存会偶发返回
+三个上游接口的 CORS 响应头并不可靠（silence 的 CDN 共享缓存会偶发返回
 错误的 `Access-Control-Allow-Origin`；红云点歌返回格式错误的 `*,*`），因此：
 
 - 通过 `start.bat` / `node server.js` 启动时，页面**自动走同源代理**

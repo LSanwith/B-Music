@@ -12,11 +12,8 @@
  * URL 中不携带密钥。
  * ============================================================ */
 window.APP_CONFIG = {
-  /* 网易云音乐 API（增强版）主接口 */
-  API_PRIMARY: 'https://www.sanwith.cc.cd',
-
-  /* 网易云音乐 API 备用接口 */
-  API_SECONDARY: 'https://silence-music-api.cc.cd',
+  /* 网易云音乐 API 接口（唯一镜像源；原 sanwith 主接口已停用） */
+  API_PRIMARY: 'https://silence-music-api.cc.cd',
 
   /* 红云点歌v4（备用下载源） */
   HONGYUN_ENDPOINT: 'https://api.xunjinlu.fun/apis/wymusicv4',

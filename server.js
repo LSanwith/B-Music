@@ -214,7 +214,6 @@ const MIME = {
 
 /* 仅允许代理以下上游（防止开放代理滥用） */
 const PROXY_ALLOWED = [
-  'https://www.sanwith.cc.cd',
   'https://silence-music-api.cc.cd',
   'https://api.xunjinlu.fun',
   'https://api.18years.ink',
@@ -245,17 +244,6 @@ const NT18_KEY = (function () {
   return '';
 })();
 
-/* sanwith 站点 SKey（API 鉴权，供 /proxy 转发时注入 x-skey 头）：
- * 优先级：环境变量 SANWITH_SKEY → 仓库根目录 ./skey.local（被 gitignore） */
-const SANWITH_SKEY = (function () {
-  if (process.env.SANWITH_SKEY) return process.env.SANWITH_SKEY;
-  try {
-    const p = require('path').join(__dirname, 'skey.local');
-    const v = require('fs').readFileSync(p, 'utf8').trim();
-    if (v) return v;
-  } catch (e) { /* 无 skey.local */ }
-  return '';
-})();
 async function handleProxy(req, res, urlPath) {
   if (urlPath !== '/proxy') return false;
   const u = new URL(req.url, 'http://localhost');
@@ -297,8 +285,6 @@ async function handleProxy(req, res, urlPath) {
   try {
     const ctrl = AbortSignal.timeout(25000);
     const headers = { 'User-Agent': 'BMusicWeb/1.0' };
-    // sanwith 站点的 SKey 鉴权：由本地 skey.local（gitignore）或环境变量提供，浏览器不可见
-    if (dest.origin === 'https://www.sanwith.cc.cd' && SANWITH_SKEY) headers['x-skey'] = SANWITH_SKEY;
     const upstream = await fetch(dest, { signal: ctrl, headers });
     const ctype = upstream.headers.get('content-type') || 'application/json';
     res.writeHead(upstream.status, {
