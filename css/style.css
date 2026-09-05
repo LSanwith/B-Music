@@ -1410,3 +1410,22 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body.lyrics-hidden .ov-disc { width: min(62vw, 40vh); height: min(62vw, 40vh); margin: 0 auto 14px; flex: none; }
   #ov-body.lyrics-hidden .ly-toolbar { display: none; }
 }
+/* ===== narrow player v4: cover-mode whole group centered (controls inside), lyrics stable ===== */
+@media (max-width: 720px) {
+  /* ???????????????????????????????/???? */
+  #ov-lyrics-inner { padding: 48vh 24px 52vh; }
+  #ov-body:not(.lyrics-hidden) > .ov-right { flex: none; height: calc(100vh - 330px); min-height: 0; }
+
+  /* ??????????????????+??+??+??+????????? */
+  #ov-body.lyrics-hidden { justify-content: center; align-items: center; overflow: hidden; padding-bottom: 10px; }
+  #ov-body.lyrics-hidden .ov-progress,
+  #ov-body.lyrics-hidden .ov-quality,
+  #ov-body.lyrics-hidden .ov-btns,
+  #ov-body.lyrics-hidden .ov-vol {
+    position: static; transform: none;
+    width: min(340px, 82vw); max-width: 340px;
+    margin-left: auto; margin-right: auto; z-index: auto;
+  }
+  #ov-body.lyrics-hidden .ov-left { flex: 1 1 auto; justify-content: center; }
+  #ov-body.lyrics-hidden .ly-toolbar { display: none; }
+}
