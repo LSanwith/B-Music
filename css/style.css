@@ -1277,3 +1277,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   from { transform: translateY(4px); }
   to { transform: none; }
 }
+/* lyric preview: clear blur on non-active lines while scrolling (readable) */
+#ov-lyrics.lyrics-previewing #ov-lyrics-inner .ly-line:not(.active) { filter: none !important; }
