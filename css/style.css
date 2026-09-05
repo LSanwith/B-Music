@@ -1270,3 +1270,10 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   from { opacity: 1; transform: none; }
   to { opacity: 0; transform: translateY(-4px); }
 }
+/* lyric line harmony animation for translation toggle (no-opacity flicker) */
+.ly-line { transition: opacity .25s ease, transform .25s ease, filter .25s ease; }
+.ly-line.ly-swap { animation: lyLineSwap .28s ease; }
+@keyframes lyLineSwap {
+  from { transform: translateY(4px); }
+  to { transform: none; }
+}

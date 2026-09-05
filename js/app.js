@@ -1622,6 +1622,7 @@
         const tb = $('#ly-trans-toggle');
         tb.textContent = this._lyricTrans ? '译' : '原';
         tb.classList.toggle('on', this._lyricTrans);
+        this._swingLyricLines(); // 原文行协调动画：与译文出现/消失同拍，避免闪烁
         // 行高变化后：立即重测度量并【定格】活动行位置（消除“先上下滚动再归位”的延迟）
         setTimeout(() => {
           this._measureLyrics();
@@ -2107,6 +2108,27 @@
       if (li == null || li < 0) return;
       this._lyricScroll = this._lyricTargetFor(li, 0);
       this._applyLyricScroll();
+    },
+
+    /** 原文行协调动画：活动行附近 ±12 行轻微上浮归位一次（与译文淡入/淡出同拍，防止闪烁） */
+    _swingLyricLines() {
+      const els = this._lyricEls || [];
+      if (!els.length) return;
+      const st = this._lyricState;
+      const li = (st && st.li >= 0) ? st.li : Math.floor(els.length / 2);
+      const from = Math.max(0, li - 12);
+      const to = Math.min(els.length, li + 13);
+      for (let j = from; j < to; j++) {
+        els[j].classList.remove('ly-swap');
+        void els[j].offsetWidth; // 重新触发动画
+        els[j].classList.add('ly-swap');
+      }
+      setTimeout(() => {
+        for (let j = from; j < to; j++) {
+          const el = els[j];
+          if (el) el.classList.remove('ly-swap');
+        }
+      }, 320);
     },
 
     /** 应用歌词轨道平移（GPU 合成滚动；同时清零容器原生 scrollTop 防双重偏移） */
