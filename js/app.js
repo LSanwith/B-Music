@@ -1641,16 +1641,6 @@
         const ob = $('#ov-body');
         if (ob) ob.classList.toggle('lyrics-hidden', !this._lyricsVisible);
         $('#ly-toggle').classList.toggle('on', this._lyricsVisible);
-        // 布局类切换后【全量重锁】歌词状态：重新缓存行引用 + 重测度量 + 滚动归零，
-        // 下一帧 _lyricUpdate 按当前时间从零重新锁定活动行并平滑归位（杜绝错位残留）
-        setTimeout(() => {
-          const box = $('.ov-lyrics');
-          if (!box) return;
-          this._cacheLyricEls(box);
-          if (!this._lyricLines || !this._lyricLines.length) this._rebuildLinesFromDom();
-          this._syncLyric(Player.curTime); // 立即按当前时间锁定活动行+高亮+定位
-          this._lyricUpdate(performance.now()); // 再跑一帧确保点亮与模糊就位
-        }, 80);
       });
       $('#ly-share').addEventListener('click', () => {
         const s = Player.current();
@@ -1928,16 +1918,9 @@
         this._wrapScrollH = wrap.scrollHeight;
       }
     },
-    /** 懒重测：行数变化 / 字体加载 / 缩放断点改变后调用；
-     *  每帧检测歌词容器尺寸漂移（横竖屏/断点切换可能发生在两次定时重测之间），
-     *  漂移超过阈值立即重测——保证横竖屏往返后 y 坐标不再错位。 */
+    /** 懒重测：行数变化 / 字体加载 / 缩放断点改变后调用 */
     _ensureLyricMeasured(force) {
-      const wrap = $('.ov-lyrics');
-      const drift = wrap
-        ? Math.abs(wrap.clientHeight - (this._wrapClientH || 0)) > 60 ||
-          Math.abs(wrap.scrollHeight - (this._wrapScrollH || 0)) > 150
-        : false;
-      if (force || !this._lyricM || !this._lyricM.length || drift ||
+      if (force || !this._lyricM || !this._lyricM.length ||
         performance.now() - (this._lyricMeasuredAt || 0) > 1500) {
         this._measureLyrics();
       }
@@ -2065,20 +2048,11 @@
         return;
       }
 
-      // 1) 活动行锁定（自愈式）：换句 或 当前时间行未点亮（状态不同步/缓存重置后）
-      //    都立即点亮+重算距离模糊——显示/隐藏/断点切换后首帧即恢复高亮，绝无“不亮”
-      if (li !== st.li || !els[li] || !els[li].classList.contains('active')) {
-        if (st.li >= 0 && st.li !== li) this._resetLyricLine(st.li);
+      // 1) 活动行切换（仅变化时操作 DOM；离开的行必须熄灭）
+      if (li !== st.li) {
+        if (st.li >= 0) this._resetLyricLine(st.li);
         if (els[li]) els[li].classList.add('active');
-        if (st.li !== li) st.li = li;
-        // 【换句时实时实测】主句行位置/高度与容器高度（仅此处一次强制回流，
-        // 帧跟随全部用缓存——任何布局/断点变化，下一句自动纠正，杜绝 y 坐标错位）
-        const elNow = els[li];
-        if (elNow) {
-          this._lineTop = elNow.offsetTop;
-          this._lineH = elNow.offsetHeight || 42;
-          this._wrapH = wrap.clientHeight || 320;
-        }
+        st.li = li;
         // 非活动行模糊度随距离渐变：越靠近主行越清晰（d=1 → 0.5px），
         // 越远越模糊（d>=7 → 4px，上限 4px / 下限 0.5px）
         for (let i = 0; i < els.length; i++) {
@@ -2104,6 +2078,8 @@
         if (now - (this._userScrollAt || 0) < 4000 || now - (this._lyricAnimT || 0) < 420) {
           // 用户预览中 / 译原平滑切换过渡中：保持当前滚动位置
         } else {
+          // 注意：clientHeight 已包含上下 padding，直接以其一半作为可视中心；
+          // offsetTop 已相对轨道顶边（含其 padding），不再加 padTop
           const target = this._lyricTargetFor(li, p);
           const diff = target - (this._lyricScroll || 0);
           if (Math.abs(diff) > 0.5) {
@@ -2115,16 +2091,19 @@
       }
     },
 
-    /** 活动行应处的滚动目标：主句【上边缘】恒定对齐封面中心水平线（≈可视区 38%）：
-     *  - 单行/多行统一——上边缘恒在此线上，多行自然向下展开，顶部永不被裁
-     *  - 帧跟随全部使用【换句时实测缓存】（this._lineTop/_lineH/_wrapH），无逐帧回流 */
+    /** 活动行应处的滚动目标（base + 行高/2 居中 + 随唱上滑 travel） */
     _lyricTargetFor(li, p) {
-      const wrapH = Math.max(this._wrapH || 0, 320);
-      const lineH = this._lineH || 42;
-      const base = this._lineTop || 0;
+      const wrap = $('.ov-lyrics');
+      const el = this._lyricEls && this._lyricEls[li];
+      if (!wrap || !el) return this._lyricScroll || 0;
+      const m = this._lyricM && this._lyricM[li];
       const travel = 20; // 随唱上滑行程 px
-      return Math.max(0, Math.min(wrapH * 6,
-        base - wrapH * 0.38 + 6 + (p || 0) * travel));
+      const wrapH = this._wrapClientH || wrap.clientHeight;
+      const scrollH = this._wrapScrollH || wrap.scrollHeight;
+      const lineH = m ? m.h : (el.offsetHeight || 42);
+      const base = m ? m.top : el.offsetTop;
+      return Math.max(0, Math.min(Math.max(0, scrollH - wrapH),
+        base + lineH - wrapH / 2 + 10 + (p || 0) * travel));
     },
 
     /** 立即把活动行定格到居中位置（翻译/原文本切换后消除滚动追赶动画） */
@@ -2132,48 +2111,8 @@
       const st = this._lyricState;
       const li = st && st.li;
       if (li == null || li < 0) return;
-      this._remetActiveLine(li);
       this._lyricScroll = this._lyricTargetFor(li, 0);
       this._applyLyricScroll();
-    },
-
-    /** 实时实测当前活动行（换句/切换/断点变化后调用，供帧跟随使用） */
-    _remetActiveLine(li) {
-      const el = this._lyricEls && this._lyricEls[li];
-      const wrap = $('.ov-lyrics');
-      if (!el) return;
-      this._lineTop = el.offsetTop;
-      this._lineH = el.offsetHeight || 42;
-      this._wrapH = wrap ? wrap.clientHeight : (this._wrapH || 320);
-    },
-
-    /** 从 DOM 行重建歌词时间轴（第二次显示时 _lyricLines 可能已丢失） */
-    _rebuildLinesFromDom() {
-      const els = this._lyricEls || [];
-      if (!els.length) return;
-      this._lyricLines = els.map((el) => {
-        const t = parseFloat(el.dataset.t) || 0;
-        const d = parseFloat(el.dataset.d) || 5;
-        const txt = el.querySelector('.ly-text');
-        return { t: t, d: d, t1: t + d, text: txt ? txt.textContent : '' };
-      });
-    },
-
-    /** 重新点亮活动行并重算全部行的距离模糊（歌词/布局切换后的兜底重绘） */
-    _redrawActiveLyric() {
-      const els = this._lyricEls || [];
-      if (!els.length) return;
-      const st = this._lyricState;
-      const li = (st && st.li >= 0) ? st.li : -1;
-      if (li >= 0) this._remetActiveLine(li);
-      els.forEach((el, i) => {
-        el.classList.toggle('active', i === li);
-        if (i !== li) {
-          const d = Math.abs(i - li);
-          const blur = d <= 1 ? 0.5 : Math.min(4, 0.5 + (d - 1) * (3.5 / 6));
-          el.style.setProperty('--ly-blur', blur.toFixed(2) + 'px');
-        }
-      });
     },
 
     /** 平滑滑动歌词轨道到目标位置（切换译/原时使用，Apple Music 式过渡） */
@@ -2240,18 +2179,7 @@
       const ov = $('#overlay');
       ov.classList.remove('hidden');
       document.body.classList.add('no-scroll');
-      // 窄屏（≤720px）每次打开都默认“封面大图模式”（Apple Music 式）：歌手下移、
-      // 封面居中放大；需要歌词时点右下角歌词按钮切换；宽屏保持歌词为主
-      if (this._isNarrowLayout()) {
-        this._lyricsVisible = false;
-        const ob = $('#ov-body');
-        if (ob) ob.classList.add('lyrics-hidden');
-        const tb = $('#ly-toggle');
-        if (tb) tb.classList.remove('on');
-      }
-      this._bindOverlayResize();
       this.startLyricLoop();
-      this._lyricScroll = 0; // 每次打开重置滚动位置（避免换歌/切模式后主句丢失）
       this._syncLyric(Player.curTime);
       // 等自定义字体就绪后重测行高（字体加载会改变行高，缓存的 offsetTop 会失效）
       this._measureLyrics();
@@ -2266,47 +2194,6 @@
       this.stopLyricLoop();
       if (!$('#queue-drawer').classList.contains('hidden')) this.closeQueue();
       document.body.classList.remove('no-scroll');
-    },
-
-    /** 是否窄屏布局（≤800px 断点，与播放器 CSS 一致） */
-    _isNarrowLayout() {
-      return window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
-    },
-
-    /** 窗口宽度跨 720px 断点时，实时还原/切换两种布局（避免拖动窗口后布局残留错乱） */
-    _bindOverlayResize() {
-      if (this._ovResizeBound) return;
-      this._ovResizeBound = true;
-      const mq = window.matchMedia && window.matchMedia('(max-width: 800px)');
-      if (!mq) return;
-      const onChange = (e) => {
-        const ov = $('#overlay');
-        if (!ov || ov.classList.contains('hidden')) return;
-        const ob = $('#ov-body');
-        if (!ob) return;
-        if (e.matches) { // 变为窄屏：默认封面大图模式
-          this._lyricsVisible = false;
-          ob.classList.add('lyrics-hidden');
-          const tb = $('#ly-toggle');
-          if (tb) tb.classList.remove('on');
-        } else {        // 变为宽屏：恢复 左封面+右歌词 布局
-          this._lyricsVisible = true;
-          ob.classList.remove('lyrics-hidden');
-          const tb = $('#ly-toggle');
-          if (tb) tb.classList.add('on');
-        }
-        // 等 CSS 布局稳定后【全量重锁】歌词状态（重新缓存行+度量+滚动归零，下帧按时间重锁活动行）
-        setTimeout(() => {
-          const box = $('.ov-lyrics');
-          if (!box) return;
-          this._cacheLyricEls(box);
-          if (!this._lyricLines || !this._lyricLines.length) this._rebuildLinesFromDom();
-          this._syncLyric(Player.curTime); // 立即按当前时间锁定活动行+高亮+定位
-          this._lyricUpdate(performance.now());
-        }, 250);
-      };
-      if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);
-      else if (typeof mq.addListener === 'function') mq.addListener(onChange);
     },
 
     /* ---------------- 音质（仅设置弹窗内切换） ---------------- */
