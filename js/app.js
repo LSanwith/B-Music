@@ -2091,18 +2091,18 @@
         }
       }
 
-      // 2) 逐字（YRC）：活动行内词级卡拉OK高亮；无词数据则整段显示（活动行纯白）
+      // 2) 逐字（YRC）：活动行内词级卡拉OK——词亮度随演唱进度线性变亮
+      //    （词开始 ~30% 亮 → 唱完 100% 亮）；无词数据则整段显示（活动行纯白）
       const el = els[li];
       if (el) {
         const ws = el.querySelectorAll('.ly-w');
         if (ws && ws.length) {
-          let wi = -1;
           for (let k = 0; k < ws.length; k++) {
-            if (parseFloat(ws[k].dataset.t) <= cur) wi = k;
-            else break;
-          }
-          for (let k = 0; k < ws.length; k++) {
-            ws[k].classList.toggle('on', k <= wi);
+            const wt = parseFloat(ws[k].dataset.t);
+            const wd = parseFloat(ws[k].dataset.d) || 0.2;
+            const p = cur >= wt ? Math.min(1, (cur - wt) / wd) : 0; // 词演唱进度 0..1
+            ws[k].style.setProperty('--wp', p.toFixed(3));
+            ws[k].classList.toggle('on', p >= 1);
           }
         }
         const d = parseFloat(el.dataset.d) || 5;

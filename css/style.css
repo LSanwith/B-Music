@@ -1287,3 +1287,6 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .ly-line.active .ly-w { color: rgba(255,255,255,.34); transition: color .12s linear; }
 .ly-line.active .ly-w.on { color: #fff; }
 .ly-line:not(.active) .ly-w { color: inherit; }
+/* YRC word brightness follows singing progress: start ~30% -> 100% at word end */
+.ly-line.active .ly-w { color: #fff; opacity: calc(.3 + .7 * var(--wp, 0)); transition: opacity .08s linear; }
+.ly-line.active .ly-w.on { opacity: 1; }
