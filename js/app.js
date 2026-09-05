@@ -802,9 +802,8 @@
       };
       btn.addEventListener('click', doImport);
       $('#mp-import-form').addEventListener('submit', (e) => { e.preventDefault(); doImport(); });
-      toast('MP HOOKS OK'); // DEBUG PROBE - remove
       } catch (e) {
-        toast('MP ERR: ' + (e && e.message)); // DEBUG PROBE - remove
+        console.error('vMyPlaylist bind error', e);
       }
     },
 
@@ -817,7 +816,6 @@
       btn.textContent = label + '（再点确认）';
       clearTimeout(btn._t);
       btn._t = setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; }, 5000);
-      toast('ARMED ' + label); // DEBUG PROBE - remove
     },
 
     /** 按类型拉取歌单/专辑/歌曲全部歌曲（供自建歌单导入），分页上限 1500 首 */
