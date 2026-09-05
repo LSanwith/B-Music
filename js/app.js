@@ -803,7 +803,7 @@
       $('#mp-import-form').addEventListener('submit', (e) => { e.preventDefault(); doImport(); });
     },
 
-    /** 两段式确认按钮（再点一次才执行） */
+    /** 两段式确认按钮（再点一次才执行），5 秒内未确认自动复位 */
     _twoStep(btn, label, fn) {
       if (!btn) return;
       if (btn.dataset.armed) { delete btn.dataset.armed; fn(); return; }
@@ -811,7 +811,7 @@
       const old = btn.textContent;
       btn.textContent = label + '（再点确认）';
       clearTimeout(btn._t);
-      btn._t = setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; }, 3000);
+      btn._t = setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; }, 5000);
     },
 
     /** 按类型拉取歌单/专辑/歌曲全部歌曲（供自建歌单导入），分页上限 1500 首 */
