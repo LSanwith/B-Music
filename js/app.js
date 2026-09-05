@@ -11,8 +11,8 @@
   /* 相机小图标（头像悬停时提示“可更换”，viewBox 1024，内联 SVG，无 title/tooltip） */
   const CAM_ICON = '<svg viewBox="0 0 1024 1024"><path d="M928 288H768l-56-64H312l-56 64H96c-17.7 0-32 14.3-32 32v480c0 17.7 14.3 32 32 32h832c17.7 0 32-14.3 32-32V320c0-17.7-14.3-32-32-32zM512 768c-97.2 0-176-78.8-176-176s78.8-176 176-176 176 78.8 176 176-78.8 176-176 176z m0-288c-61.9 0-112 50.1-112 112s50.1 112 112 112 112-50.1 112-112-50.1-112-112-112z"/></svg>';
 
-  /* 自建歌单默认封面：灰底人像占位图（与默认用户头像一致，内联 SVG） */
-  const DEFAULT_PL_COVER = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 200\'%3E%3Ccircle cx=\'100\' cy=\'100\' r=\'100\' fill=\'%23e2e3e5\'/%3E%3Ccircle cx=\'100\' cy=\'80\' r=\'33\' fill=\'%23f7f8fa\'/%3E%3Cpath d=\'M100 128c-36 0-60 20-68 44a100 100 0 0 0 136 0c-8-24-32-44-68-44z\' fill=\'%23f7f8fa\'/%3E%3C/svg%3E';
+  /* 自建歌单默认封面：灰底音符占位图（内联 SVG） */
+  const DEFAULT_PL_COVER = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 200\'%3E%3Ccircle cx=\'100\' cy=\'100\' r=\'100\' fill=\'%23e2e3e5\'/%3E%3Cpath transform=\'translate(100,104) scale(5.4) translate(-12,-12)\' fill=\'%23f7f8fa\' d=\'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z\'/%3E%3C/svg%3E';
 
   const App = {
     _ctx: { songs: [], banners: [] },
