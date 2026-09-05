@@ -144,13 +144,23 @@
   }
 
   /* 双接口并行竞速：主/备同时请求，第一个有效响应即胜出（不等待慢的那一个，保证流畅）
-   * 默认 12s 超时：任一镜像挂起/缓慢时不阻塞页面与其它操作（更快切到可用镜像） */
+   * 默认 12s 超时：任一镜像挂起/缓慢时不阻塞页面与其它操作（更快切到可用镜像）。
+   * 主接口健康熔断：连续失败 ≥5 次后暂停使用 10 分钟（页面不再重复打必败请求），
+   * 期间只用备用镜像；超时/备用也失败时自动解封重试主接口。 */
+  let _primaryFails = 0;
+  let _primaryDownSince = 0;
+  const markPrimaryResult = (ok0) => {
+    if (ok0) { _primaryFails = 0; _primaryDownSince = 0; }
+    else if (++_primaryFails >= 5) _primaryDownSince = Date.now();
+  };
+  const primarySkipped = () => !!_primaryDownSince && Date.now() - _primaryDownSince < 10 * 60 * 1000;
+
   async function requestNetease(path, params, timeoutMs) {
     const tmo = timeoutMs || 12000;
     const ok = (j) => !!(j && (j.code === undefined || j.code === 200 || j.code === 0 ||
       (j.result || j.playlist || j.banners || j.list)));
     return await new Promise((resolve, reject) => {
-      let pending = 2, done = false;
+      let pending = primarySkipped() ? 1 : 2, done = false;
       const fail = (e) => {
         if (!done && --pending === 0) { done = true; reject(e); }
       };
@@ -158,12 +168,18 @@
         if (!done && ok(j)) { done = true; resolve(j); return true; }
         return false;
       };
-      request(PRIMARY, path, params, tmo).then((j) => {
-        if (!tryResolve(j)) fail(new Error('bad response'));
-      }).catch(fail);
+      if (!primarySkipped()) {
+        request(PRIMARY, path, params, tmo).then((j) => {
+          markPrimaryResult(true);
+          if (!tryResolve(j)) fail(new Error('bad response'));
+        }).catch((e) => { markPrimaryResult(false); fail(e); });
+      }
       request(SECONDARY, path, params, tmo).then((j) => {
         if (!tryResolve(j)) fail(new Error('bad response'));
-      }).catch(fail);
+      }).catch((e) => {
+        if (primarySkipped()) _primaryDownSince = 0; // 备用也挂：解封主接口下次再试
+        fail(e);
+      });
     });
   }
 
