@@ -465,7 +465,39 @@
         Session.push().catch((e) => { console.warn('[bmusic-sync] push failed:', e && e.message); });
       }, 800);
     },
+
+    /* ---------- 自动双向同步（跨设备实时） ----------
+     * 此前只有"改动→上传"；另一台设备的改动要退出重登才可见。
+     * 现在：每 2 分钟（后台标签页 5 分钟）自动【拉取】云端并应用，
+     * 窗口重新聚焦/回到前台也立即拉取一次；上传仍由每次改动的
+     * 800ms 防抖负责（轮询不做上传，避免全量旧快照覆盖别的设备）。 */
+    _pollTimer: null,
+    _polling: false,
+    _lastPollAt: 0,
+    _startPollOnce() {
+      if (Session._pollTimer) return;
+      Session._pollTimer = setInterval(Session._pollSafe, 2 * 60 * 1000);
+      if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) Session._pollSafe();
+        });
+      }
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+        window.addEventListener('focus', () => Session._pollSafe());
+      }
+    },
+    _pollSafe() {
+      if (!Session.loggedIn || Session._polling) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden' &&
+          Date.now() - Session._lastPollAt < 5 * 60 * 1000) return;
+      Session._lastPollAt = Date.now();
+      Session._polling = true;
+      Session.pull()
+        .catch(() => {}) // 拉取失败下轮重试
+        .finally(() => { Session._polling = false; });
+    },
   };
 
+  Session._startPollOnce();
   window.Store = { Settings, FavSongs, FavPlaylists, Recent, MyPlaylists, SearchHistory, Session, clearAll };
 })();
