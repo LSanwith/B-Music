@@ -1144,3 +1144,9 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 
 /* 彻底去除泛光/高光：模糊层与清晰层文字均无阴影 */
 .lyric-blur-inner, .lyric-blur-inner .ly-text, .lyric-blur-inner .ly-trans, #ov-lyrics-inner .ly-text, #ov-lyrics-inner .ly-trans { text-shadow: none !important; }
+
+/* 自动滚动模式：关闭模糊层，非主歌词统一 60% 清晰显示（无泛光） */
+.lyric-blur-inner { opacity: 0 !important; }
+#ov-lyrics-inner .ly-line:not(.active) { opacity: .6 !important; }
+#ov-lyrics-inner .ly-line.ly-far { opacity: .6 !important; }
+#ov-lyrics.lyrics-previewing .lyric-blur-inner { opacity: 0 !important; }
