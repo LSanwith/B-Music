@@ -1641,14 +1641,12 @@
         const ob = $('#ov-body');
         if (ob) ob.classList.toggle('lyrics-hidden', !this._lyricsVisible);
         $('#ly-toggle').classList.toggle('on', this._lyricsVisible);
-        // 布局类切换后强制重测歌词度量（窗口/模式变化会改变歌词区高度），
-        // 防止滚动定位用了过期缓存导致“剧烈上移/无法回正”
+        // 布局类切换后【全量重锁】歌词状态：重新缓存行引用 + 重测度量 + 滚动归零，
+        // 下一帧 _lyricUpdate 按当前时间从零重新锁定活动行并平滑归位（杜绝错位残留）
         setTimeout(() => {
-          this._wrapClientH = 0;
-          this._wrapScrollH = 0;
-          this._measureLyrics();
-          this._redrawActiveLyric(); // 重新点亮活动行并重算各行为 blur（防止全部同模糊）
-          this._snapActiveLyric();
+          const box = $('.ov-lyrics');
+          if (!box) return;
+          this._cacheLyricEls(box);
         }, 80);
       });
       $('#ly-share').addEventListener('click', () => {
@@ -2269,15 +2267,11 @@
           const tb = $('#ly-toggle');
           if (tb) tb.classList.add('on');
         }
-        // 等 CSS 布局稳定后再强制重测+定格（250ms），时间-位置关系不因切换漂移
+        // 等 CSS 布局稳定后【全量重锁】歌词状态（重新缓存行+度量+滚动归零，下帧按时间重锁活动行）
         setTimeout(() => {
-          const ob2 = $('#ov-body');
-          if (!ob2) return;
-          this._wrapClientH = 0;
-          this._wrapScrollH = 0;
-          this._measureLyrics();
-          this._redrawActiveLyric();
-          this._snapActiveLyric();
+          const box = $('.ov-lyrics');
+          if (!box) return;
+          this._cacheLyricEls(box);
         }, 250);
       };
       if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);
