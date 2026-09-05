@@ -461,7 +461,9 @@
     sync() {
       if (!Session.loggedIn) return;
       clearTimeout(Session._syncT);
-      Session._syncT = setTimeout(() => { Session.push().catch(() => {}); }, 800);
+      Session._syncT = setTimeout(() => {
+        Session.push().catch((e) => { console.warn('[bmusic-sync] push failed:', e && e.message); });
+      }, 800);
     },
   };
 

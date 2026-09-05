@@ -39,7 +39,7 @@ async function loadDb() {
       });
       const j = await r.json();
       if (j && j.result) return JSON.parse(j.result);
-    } catch (e) { /* 降级内存 */ }
+    } catch (e) { console.error('[bmusic-kv] loadDb failed:', e && e.message); /* 降级内存 */ }
   }
   return MEM || { users: {}, sessions: {}, data: {}, captchas: {} };
 }
@@ -47,7 +47,7 @@ async function saveDb(db) {
   MEM = db;
   if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
     try {
-      await fetch(process.env.KV_REST_API_URL + '/set/db', {
+      const r = await fetch(process.env.KV_REST_API_URL + '/set/db', {
         method: 'POST',
         body: JSON.stringify(db),
         headers: {
@@ -55,7 +55,8 @@ async function saveDb(db) {
           'Content-Type': 'application/json',
         },
       });
-    } catch (e) { /* 内存兜底 */ }
+      if (!r.ok) console.error('[bmusic-kv] saveDb status', r.status, '(data kept in memory only)');
+    } catch (e) { console.error('[bmusic-kv] saveDb failed:', e && e.message); /* 内存兜底 */ }
   }
 }
 function hashPass(password, salt) {
