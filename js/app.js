@@ -749,6 +749,7 @@
         '</section>');
       const pa = $('#mp-play-all');
       if (pa) pa.addEventListener('click', () => Player.playQueue(pl.songs, 0));
+      try {
       $('#mp-rename').addEventListener('click', () => {
         const input = document.createElement('input');
         input.className = 'mp-edit-input';
@@ -802,6 +803,9 @@
       btn.addEventListener('click', doImport);
       $('#mp-import-form').addEventListener('submit', (e) => { e.preventDefault(); doImport(); });
       toast('MP HOOKS OK'); // DEBUG PROBE - remove
+      } catch (e) {
+        toast('MP ERR: ' + (e && e.message)); // DEBUG PROBE - remove
+      }
     },
 
     /** 两段式确认按钮（再点一次才执行），5 秒内未确认自动复位 */
