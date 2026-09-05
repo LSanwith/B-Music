@@ -1300,3 +1300,26 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   #ov-body.lyrics-hidden .ov-btns { margin-top: 10px; }
   #ov-body.lyrics-hidden .ly-toolbar { display: none; }
 }
+/* narrow lyrics mode: header row (mini cover + title), lyrics, controls at bottom */
+@media (max-width: 720px) {
+  .ov-head {
+    display: flex; align-items: center; gap: 12px;
+    width: 100%; padding: 2px 22px 8px; flex: none;
+  }
+  .ov-head .ov-disc { width: 56px; height: 56px; margin: 0; flex: none; }
+  .ov-head .ov-disc img { border-radius: 10px; }
+  .ov-head .ov-song { flex: 1; min-width: 0; text-align: left; }
+  .ov-head .ov-song .ov-title { font-size: 15px; }
+  .ov-head .ov-song .ov-artist { font-size: 12px; margin-top: 2px; }
+  #ov-body > .ov-progress,
+  #ov-body > .ov-quality,
+  #ov-body > .ov-btns,
+  #ov-body > .ov-vol {
+    width: min(380px, 86vw); max-width: 380px; margin-left: auto; margin-right: auto; flex: none;
+  }
+  #ov-body > .ov-progress { margin-top: 8px; }
+  #ov-body > .ov-btns { margin-top: 8px; }
+  #ov-body > .ov-quality { margin-top: 4px; }
+  #ov-body.lyrics-hidden .ov-left { flex-direction: column; align-items: center; text-align: center; width: 100%; gap: 8px; padding: 0 22px; }
+  #ov-body.lyrics-hidden .ov-disc { width: min(64vw, 44vh); height: min(64vw, 44vh); margin: 0 auto 12px; flex: none; }
+}
