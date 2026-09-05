@@ -701,9 +701,12 @@
         '<button class="mini-btn danger" data-mp-clear="' + p.id + '">清空</button></div></div>';
     },
 
-    /** 自建歌单封面来源优先级：自定义封面 → 首曲封面 → 默认人像占位 */
+    /** 自建歌单封面来源优先级：自定义封面 → 首曲封面 → 默认音符占位。
+     *  防御：封面字段里若混入 SVG dataURL（旧版占位图残留），一律忽略，
+     *  保证清空后的歌单显示新版音符占位。 */
     _mpCoverSrc(p) {
-      return p.cover || (p.songs[0] && p.songs[0].cover ? coverUrl(p.songs[0].cover) : '') || DEFAULT_PL_COVER;
+      const custom = p.cover && p.cover.indexOf('data:image/svg+xml') !== 0 ? p.cover : '';
+      return custom || (p.songs[0] && p.songs[0].cover ? coverUrl(p.songs[0].cover) : '') || DEFAULT_PL_COVER;
     },
 
     /* ---------- 自建歌单自定义封面（≤10MB，本地压缩后存储） ---------- */
