@@ -295,6 +295,137 @@ async function handleProxy(req, res, urlPath) {
   return true;
 }
 
+/* ---------------- 短链预览页 /s/<type>/<id> ----------------
+ * 与 api/preview.js（Vercel）行为一致：服务端直接 fetch 备用镜像取元数据，
+ * 渲染仅含 og 元信息的最小 HTML（微信/QQ 卡片预览用），并带 meta refresh
+ * 自动跳回应用落地页 /index.html#/<type>/<id>；镜像不可用时返回简化 HTML
+ * 仍带跳转（/proxy、/api 等既有逻辑不受影响）。 */
+const SHORT_LABEL = { song: '歌曲', playlist: '歌单', album: '专辑', artist: '歌手' };
+
+function _previewHtml(title, desc, img, hash) {
+  const t = String(title || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const d = String(desc || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const imgHref = img ? String(img).replace(/&/g, '&amp;').replace(/"/g, '&quot;') : '';
+  const imgMeta = imgHref ? '\n    <meta property="og:image" content="' + imgHref + '">' : '';
+  const jsHash = JSON.stringify(hash).replace(/</g, '\\u003c');
+  const imgBody = imgHref
+    ? '\n    <img src="' + imgHref + '" alt="" style="width:168px;height:168px;border-radius:12px;object-fit:cover;box-shadow:0 8px 24px rgba(0,0,0,.16);">'
+    : '';
+  return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n' +
+    '<meta charset="utf-8">\n' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1">\n' +
+    '<meta name="referrer" content="no-referrer">\n' +
+    '<title>' + t + ' · B·Music</title>\n' +
+    '<meta property="og:title" content="' + t + '">\n' +
+    '<meta property="og:description" content="' + d + '">\n' +
+    '<meta property="og:site_name" content="B·Music">' + imgMeta + '\n' +
+    '<meta name="twitter:card" content="summary_large_image">\n' +
+    '<meta http-equiv="refresh" content="0;url=\'' + hash + '\'">\n' +
+    '<script>location.replace(' + jsHash + ');</script>\n' +
+    '</head>\n' +
+    '<body style="margin:0;background:#f5f6f8;color:#1f2329;font-family:-apple-system,BlinkMacSystemFont,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;text-align:center;padding:48px 16px;">\n' +
+    '  <a href="' + hash + '" style="text-decoration:none;color:inherit;">' + imgBody +
+    '\n    <div style="margin-top:18px;font-size:19px;font-weight:600;line-height:1.4;">' + t + '</div>\n' +
+    (d ? '    <div style="margin-top:6px;font-size:13px;color:#8a9099;line-height:1.6;">' + d + '</div>' : '') +
+    '\n  </a>\n' +
+    '  <p style="margin-top:28px;font-size:12px;color:#a6adb5;">正在打开 B·Music…</p>\n' +
+    '</body>\n</html>\n';
+}
+function _previewFallback(hash, label) {
+  const jsHash = JSON.stringify(hash).replace(/</g, '\\u003c');
+  const t = String(label || '预览不可用');
+  return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n' +
+    '<meta charset="utf-8">\n' +
+    '<title>' + t + ' · B·Music</title>\n' +
+    '<meta http-equiv="refresh" content="0;url=\'' + hash + '\'">\n' +
+    '<script>location.replace(' + jsHash + ');</script>\n' +
+    '</head>\n' +
+    '<body style="margin:0;background:#f5f6f8;color:#1f2329;font-family:-apple-system,BlinkMacSystemFont,\'PingFang SC\',\'Microsoft YaHei\',sans-serif;text-align:center;padding:48px 16px;">\n' +
+    '  <p style="font-size:15px;">' + t + '</p>\n' +
+    '  <p style="margin-top:16px;font-size:12px;color:#a6adb5;">正在打开 B·Music…</p>\n' +
+    '</body>\n</html>\n';
+}
+function sendPreviewHtml(res, code, body) {
+  res.writeHead(code, {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    'Access-Control-Allow-Origin': '*',
+  });
+  res.end(body);
+  return true;
+}
+/** 从备用镜像拉元数据：图片一律转 https；失败抛错由调用方兜底 */
+async function handleShortLink(res, type, id) {
+  const label = SHORT_LABEL[type];
+  const hash = '/index.html#/' + type + '/' + id;
+  if (!label || !/^\d+$/.test(id)) return sendPreviewHtml(res, 404, _previewFallback('/index.html', '无效链接'));
+  const base = 'https://silence-music-api.cc.cd';
+  const realIP = '116.25.146.177';
+  const buildUrl = (path, params) => {
+    const u = new URL(path, base);
+    u.searchParams.set('realIP', realIP);
+    for (const k of Object.keys(params)) u.searchParams.set(k, params[k]);
+    return u.toString();
+  };
+  const toHttps = (u) => {
+    if (!u) return '';
+    if (/^http:\/\//i.test(u)) return 'https://' + u.slice(7);
+    if (/^\/\//.test(u)) return 'https:' + u;
+    return u;
+  };
+  try {
+    const fetchJson = async (url) => {
+      const r = await fetch(url, {
+        signal: AbortSignal.timeout(10000),
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; BMusicPreview/1.0)' },
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    };
+    let j, title = '', desc = '', img = '';
+    if (type === 'song') {
+      j = await fetchJson(buildUrl('/song/detail', { ids: id }));
+      const s = (j.songs || [])[0];
+      if (!s || !s.name) throw new Error('no song');
+      const ar = s.ar || s.artists || [];
+      const artists = ar.map(a => a && a.name).filter(Boolean).join(' / ');
+      const al = s.al || s.album || {};
+      title = s.name;
+      desc = '歌曲《' + s.name + '》' + (artists ? ' — ' + artists : '');
+      img = toHttps(al.picUrl || al.coverImgUrl || '');
+    } else if (type === 'playlist') {
+      j = await fetchJson(buildUrl('/playlist/detail', { id: id }));
+      const p = (j.playlist) || {};
+      if (!p.name) throw new Error('no playlist');
+      const creator = (p.creator && p.creator.nickname) ? p.creator.nickname : '';
+      title = p.name;
+      desc = '歌单《' + p.name + '》' + (creator ? ' · 创建者：' + creator : '') + (p.trackCount ? ' · 共 ' + p.trackCount + ' 首' : '');
+      img = toHttps(p.coverImgUrl || '');
+    } else if (type === 'album') {
+      j = await fetchJson(buildUrl('/album', { id: id }));
+      const a = (j.album) || {};
+      if (!a.name) throw new Error('no album');
+      title = a.name;
+      desc = '专辑《' + a.name + '》' + ((a.artist && a.artist.name) ? ' — ' + a.artist.name : '');
+      img = toHttps(a.picUrl || a.coverImgUrl || '');
+    } else { // artist
+      j = await fetchJson(buildUrl('/artist/detail', { id: id }));
+      const d = (j.data) || {};
+      const a = d.artist || d;
+      if (!a || !a.name) throw new Error('no artist');
+      title = a.name;
+      desc = '歌手：' + a.name;
+      img = toHttps(a.img1v1Url || a.picUrl || a.cover || a.avatar || '');
+    }
+    return sendPreviewHtml(res, 200, _previewHtml(title, desc, img, hash));
+  } catch (e) {
+    // 镜像不可用：返回简单 HTML，仍带 meta refresh 跳回应用
+    return sendPreviewHtml(res, 200, _previewFallback(hash, label + '内容暂不可获取'));
+  }
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     // CORS 预检（file:// 页面跨域访问本机服务器时需要）
@@ -310,6 +441,12 @@ const server = http.createServer(async (req, res) => {
     let urlPath = decodeURIComponent(req.url.split('?')[0]);
     if (await handleApi(req, res, urlPath)) return;
     if (await handleProxy(req, res, urlPath)) return;
+    // 短链预览页 /s/<type>/<id>（行为同 api/preview.js；须在静态文件分发前）
+    const shortLink = /^\/s\/(song|playlist|album|artist)\/(\d+)$/.exec(urlPath);
+    if (shortLink) {
+      await handleShortLink(res, shortLink[1], shortLink[2]);
+      return;
+    }
     if (urlPath === '/') urlPath = '/index.html';
     const filePath = path.normalize(path.join(ROOT, urlPath));
     if (!filePath.startsWith(ROOT)) {

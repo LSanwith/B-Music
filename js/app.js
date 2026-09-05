@@ -116,10 +116,19 @@
     },
 
     /* ============ 分享 ============ */
-    /** 生成可分享链接（当前协议/域名 + 路由 hash） */
+    /** 生成可分享链接
+     *  - #/song|playlist|album|artist/<id> 深链（无查询串）：http(s) 部署下返回短链
+     *    /s/<type>/<id>——微信/QQ 等外部 App 的爬虫不带 hash，短链由服务端
+     *    （vercel.json rewrite / server.js）渲染 og 卡片并跳回本 hash 落地页；
+     *  - 其它 hash 或 file:// 打开（无短链服务）时退回原逻辑：当前 URL(去 hash) + hash */
     shareUrl(hash) {
+      hash = hash || location.hash || '#/discover';
+      const m = /^#\/(song|playlist|album|artist)\/([^\/?#]+)(?:[?#].*)?$/.exec(hash);
+      if (m && (location.protocol === 'http:' || location.protocol === 'https:')) {
+        return location.origin + '/s/' + m[1] + '/' + m[2];
+      }
       const base = location.href.split('#')[0];
-      return base + (hash || location.hash || '#/discover');
+      return base + hash;
     },
     /** 分享：优先系统分享面板（可携带封面图片文件），否则复制链接 */
     async _doShare(title, hash, imageUrl) {
