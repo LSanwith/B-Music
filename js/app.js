@@ -121,13 +121,27 @@
       const base = location.href.split('#')[0];
       return base + (hash || location.hash || '#/discover');
     },
-    /** 分享：优先系统分享面板，否则复制链接 */
-    async _doShare(title, hash) {
+    /** 分享：优先系统分享面板（可携带封面图片文件），否则复制链接 */
+    async _doShare(title, hash, imageUrl) {
       const url = this.shareUrl(hash);
       try { window.__lastShareUrl = url; } catch (e) {}
       try {
         if (navigator.share) {
-          await navigator.share({ title: title || '', text: title || '', url: url });
+          const payload = { title: title || '', text: title || '', url: url };
+          // 尝试附带封面图片（歌曲封面/歌单图等），让接收方看到缩略图
+          if (imageUrl && navigator.canShare) {
+            try {
+              const res = await fetch(imageUrl, { mode: 'cors' });
+              if (res.ok) {
+                const blob = await res.blob();
+                const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+                const file = new File([blob], 'cover.' + ext, { type: blob.type || 'image/jpeg' });
+                const withFile = { ...payload, files: [file] };
+                if (navigator.canShare(withFile)) payload.files = [file];
+              }
+            } catch (e) { /* 图片拉取失败则纯文本分享 */ }
+          }
+          await navigator.share(payload);
           toast('已唤起系统分享');
           return;
         }
@@ -159,15 +173,16 @@
     _artistText(song) {
       return (song.artists || []).map(a => a.name).join(' / ') || '未知歌手';
     },
-    /** 分享单曲：链接为独立歌曲页（打开自动播放） */
+    /** 分享单曲：链接为独立歌曲页（打开自动播放），携带歌曲封面 */
     _shareSong(song) {
       if (!song || !song.id) return;
-      this._doShare(song.name + ' - ' + this._artistText(song), '#/song/' + song.id);
+      const cover = song.cover || (song.album && song.album.cover) || '';
+      this._doShare(song.name + ' - ' + this._artistText(song), '#/song/' + song.id, coverUrl(cover));
     },
-    /** 分享歌单/专辑/歌手等页面：链接即原页面，打开回到原位置 */
-    _sharePage(route, id, label, name) {
+    /** 分享歌单/专辑/歌手等页面：链接即原页面，携带自身封面 */
+    _sharePage(route, id, label, name, cover) {
       if (!id) return;
-      this._doShare((name || '') + ' · ' + label, '#/' + route + '/' + id);
+      this._doShare((name || '') + ' · ' + label, '#/' + route + '/' + id, cover ? coverUrl(cover) : '');
     },
 
     /* ============================================================
@@ -645,7 +660,7 @@
           b.lastChild.textContent = on ? '已收藏' : '收藏歌单';
           toast(on ? '已收藏歌单' : '已取消收藏');
         });
-        $('#dt-share').addEventListener('click', () => this._sharePage('playlist', id, '歌单', info.name));
+        $('#dt-share').addEventListener('click', () => this._sharePage('playlist', id, '歌单', info.name, info.cover));
       } catch (e) {
         this._viewError('歌单加载失败：' + e.message, 'App.vPlaylist(\'' + id + '\')');
       }
@@ -691,7 +706,7 @@
           this._songListHtml(songs, { album: false }) + '</section>';
         this._setView(html);
         $('#dt-playall').addEventListener('click', () => Player.playQueue(this._ctx.songs, 0));
-        $('#dt-share').addEventListener('click', () => this._sharePage('album', id, '专辑', album.name));
+        $('#dt-share').addEventListener('click', () => this._sharePage('album', id, '专辑', album.name, album.cover));
       } catch (e) {
         this._viewError('专辑加载失败：' + e.message, 'App.vAlbum(\'' + id + '\')');
       }
@@ -721,7 +736,7 @@
           this._songListHtml(data.songs, { album: true }) + '</section>';
         this._setView(html);
         $('#dt-playall').addEventListener('click', () => Player.playQueue(this._ctx.songs, 0));
-        $('#dt-share').addEventListener('click', () => this._sharePage('artist', id, '歌手', info.name));
+        $('#dt-share').addEventListener('click', () => this._sharePage('artist', id, '歌手', info.name, info.cover));
       } catch (e) {
         this._viewError('歌手加载失败：' + e.message, 'App.vArtist(\'' + id + '\')');
       }
