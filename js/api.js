@@ -159,7 +159,7 @@
   let _primaryDownSince = 0;
   const markPrimaryResult = (ok0) => {
     if (ok0) { _primaryFails = 0; _primaryDownSince = 0; }
-    else if (++_primaryFails >= 5) _primaryDownSince = Date.now();
+    else if (++_primaryFails >= 3) _primaryDownSince = Date.now(); // 连续 3 次失败即熔断（主接口故障期减少 404 噪音）
   };
   const primarySkipped = () => !!_primaryDownSince && Date.now() - _primaryDownSince < 10 * 60 * 1000;
 
