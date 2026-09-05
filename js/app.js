@@ -2065,11 +2065,12 @@
         return;
       }
 
-      // 1) 活动行切换（仅变化时操作 DOM；离开的行必须熄灭）
-      if (li !== st.li) {
-        if (st.li >= 0) this._resetLyricLine(st.li);
+      // 1) 活动行锁定（自愈式）：换句 或 当前时间行未点亮（状态不同步/缓存重置后）
+      //    都立即点亮+重算距离模糊——显示/隐藏/断点切换后首帧即恢复高亮，绝无“不亮”
+      if (li !== st.li || !els[li] || !els[li].classList.contains('active')) {
+        if (st.li >= 0 && st.li !== li) this._resetLyricLine(st.li);
         if (els[li]) els[li].classList.add('active');
-        st.li = li;
+        if (st.li !== li) st.li = li;
         // 【换句时实时实测】主句行位置/高度与容器高度（仅此处一次强制回流，
         // 帧跟随全部用缓存——任何布局/断点变化，下一句自动纠正，杜绝 y 坐标错位）
         const elNow = els[li];
