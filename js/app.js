@@ -2242,16 +2242,16 @@
       document.body.classList.remove('no-scroll');
     },
 
-    /** 是否窄屏布局（真机 720px 断点） */
+    /** 是否窄屏布局（≤800px 断点，与播放器 CSS 一致） */
     _isNarrowLayout() {
-      return window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+      return window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
     },
 
     /** 窗口宽度跨 720px 断点时，实时还原/切换两种布局（避免拖动窗口后布局残留错乱） */
     _bindOverlayResize() {
       if (this._ovResizeBound) return;
       this._ovResizeBound = true;
-      const mq = window.matchMedia && window.matchMedia('(max-width: 720px)');
+      const mq = window.matchMedia && window.matchMedia('(max-width: 800px)');
       if (!mq) return;
       const onChange = (e) => {
         const ov = $('#overlay');

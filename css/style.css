@@ -1371,7 +1371,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   .ly-toolbar { bottom: 8px; }
 }
 /* ===== narrow player v3: controls fixed & centered, lyrics left-aligned, no DOM moves ===== */
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   /* ??????????????/???????????? & ????????????? */
   #ov-body .ov-progress, #ov-body.lyrics-hidden .ov-progress {
     position: fixed; bottom: 196px; left: 50%; transform: translateX(-50%);
@@ -1411,7 +1411,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body.lyrics-hidden .ly-toolbar { display: none; }
 }
 /* ===== narrow player v4: cover-mode whole group centered (controls inside), lyrics stable ===== */
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   /* ???????????????????????????????/???? */
   #ov-lyrics-inner { padding: 48vh 24px 52vh; }
   #ov-body:not(.lyrics-hidden) > .ov-right { flex: none; height: calc(100vh - 330px); min-height: 0; }
@@ -1430,18 +1430,18 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body.lyrics-hidden .ly-toolbar { display: none; }
 }
 /* narrow v5: cover-mode group center shifted to true screen center; lyric remeasure safe */
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   #ov-body.lyrics-hidden { padding-top: 6vh; }
 }
 /* v6: hard true-center for cover mode; button row centered with progress (justify-center) */
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   #ov-body .ov-btns { justify-content: center; }
   #ov-body.lyrics-hidden { padding: 0; }
   #ov-body.lyrics-hidden .ov-left { height: calc(100vh - 70px); }
   #ov-body.lyrics-hidden .ov-vol { justify-content: center; }
 }
 /* v7: cover-mode group ABSOLUTELY centered (translate -50%/-50%), immune to flex quirks */
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   #ov-body.lyrics-hidden { position: relative; display: block; padding: 0; overflow: hidden; }
   #ov-body.lyrics-hidden .ov-left {
     position: absolute; top: 50%; left: 50%;
@@ -1461,7 +1461,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body.lyrics-hidden .ov-btns { justify-content: center; }
 }
 /* v8: lyrics area fade-out mask (sharp center, faded edges) ? narrow lyrics mode only */
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   #ov-body:not(.lyrics-hidden) .ov-lyrics {
     overflow: hidden;
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 18%, rgba(0,0,0,1) 84%, transparent 100%);
@@ -1469,12 +1469,12 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   }
 }
 /* v9: no native scrollbar & no extra bottom padding in narrow player */
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   #ov-body:not(.lyrics-hidden), #ov-body.lyrics-hidden { overflow: hidden; }
   #ov-body:not(.lyrics-hidden) { padding-bottom: 0; }
 }
 /* v10: lyrics viewport = red-box area (52vh), anything beyond is cropped with soft fade edges */
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   #ov-body:not(.lyrics-hidden) > .ov-right { flex: none; height: 52vh; min-height: 0; margin-top: 10px; }
   #ov-body:not(.lyrics-hidden) .ov-lyrics {
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 10%, rgba(0,0,0,1) 90%, transparent 100%);
@@ -1483,7 +1483,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
 }
 /* v11: enforce crop at lyric viewport (ov-right overflow hidden, .ov-lyrics height 100%),
    tighten top gap above mini info row */
-@media (max-width: 720px) {
+@media (max-width: 800px) {
   #ov-body:not(.lyrics-hidden) > .ov-right { height: 52vh; overflow: hidden; }
   #ov-body:not(.lyrics-hidden) .ov-lyrics { height: 100%; overflow: hidden; }
   #ov-body:not(.lyrics-hidden) { padding-top: 0; }
