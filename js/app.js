@@ -1623,10 +1623,15 @@
         tb.textContent = this._lyricTrans ? '译' : '原';
         tb.classList.toggle('on', this._lyricTrans);
         this._swingLyricLines(); // 原文行协调动画：与译文出现/消失同拍，避免闪烁
-        // 行高变化后：立即重测度量并【定格】活动行位置（消除“先上下滚动再归位”的延迟）
+        // 行高变化后：重测度量并把轨道【平滑滑动】到活动行新位置（Apple Music 式切换）
         setTimeout(() => {
           this._measureLyrics();
-          this._snapActiveLyric();
+          const st = this._lyricState;
+          const li = st && st.li;
+          if (li != null && li >= 0) {
+            const target = this._lyricTargetFor(li, 0);
+            this._smoothLyricTo(target);
+          }
         }, this._lyricTrans ? 30 : 200);
         toast(this._lyricTrans ? '已显示译文' : '已隐藏译文');
       });
@@ -2070,8 +2075,8 @@
         // 3) 指数跟随 + 随唱平滑上移：行开始时下边缘在中心偏下 20px，随演唱进度
         //    连续上滑到中心偏上 10px；换行时自然衔接，避免“一跳一跳”的断续感。
         //    transform 平移（GPU 合成）；用户手动滚动预览时暂停跟随（4 秒）
-        if (now - (this._userScrollAt || 0) < 4000) {
-          // 用户预览中，保持当前滚动位置
+        if (now - (this._userScrollAt || 0) < 4000 || now - (this._lyricAnimT || 0) < 420) {
+          // 用户预览中 / 译原平滑切换过渡中：保持当前滚动位置
         } else {
           // 注意：clientHeight 已包含上下 padding，直接以其一半作为可视中心；
           // offsetTop 已相对轨道顶边（含其 padding），不再加 padTop
@@ -2108,6 +2113,22 @@
       if (li == null || li < 0) return;
       this._lyricScroll = this._lyricTargetFor(li, 0);
       this._applyLyricScroll();
+    },
+
+    /** 平滑滑动歌词轨道到目标位置（切换译/原时使用，Apple Music 式过渡） */
+    _smoothLyricTo(target) {
+      const inner = $('#ov-lyrics-inner');
+      const blurInner = $('#ov-lyric-blur-inner');
+      const els = [inner, blurInner].filter(Boolean);
+      els.forEach((el) => {
+        el.style.transition = 'transform .32s cubic-bezier(.22,.61,.36,1)';
+      });
+      this._lyricAnimT = Date.now(); // 过渡期间暂停逐帧跟随，避免打断
+      this._lyricScroll = target;
+      this._applyLyricScroll(); // 从旧 transform 平滑过渡到新位置
+      setTimeout(() => {
+        els.forEach((el) => { el.style.transition = ''; });
+      }, 380);
     },
 
     /** 原文行协调动画：活动行附近 ±12 行轻微上浮归位一次（与译文淡入/淡出同拍，防止闪烁） */
