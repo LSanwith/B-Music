@@ -1068,6 +1068,13 @@
       /* 设置弹窗 */
       $('#settings').querySelectorAll('[data-close]').forEach(el =>
         el.addEventListener('click', () => this.closeSettings()));
+      /* 设置弹窗二级页导航：一级行 → 二级页；二级返回 → 回一级列表 */
+      $('#settings').addEventListener('click', (e) => {
+        const row = e.target.closest('[data-setpage]');
+        if (row) { this._showSetPage(row.dataset.setpage); return; }
+        const back = e.target.closest('[data-setback]');
+        if (back) this._showSetPage('');
+      });
 
       /* 登录/注册弹窗 */
       $('#auth').querySelectorAll('[data-close]').forEach(el =>
@@ -1614,11 +1621,27 @@
       $('#settings').classList.remove('hidden');
       document.body.classList.add('no-scroll');
       this._applySettingsToUI();
+      this._showSetPage(''); // 打开设置总是复位到一级列表
       this._renderSettingsAccount();
     },
     closeSettings() {
       $('#settings').classList.add('hidden');
       document.body.classList.remove('no-scroll');
+    },
+    /** 设置弹窗二级页导航：'' → 一级列表（默认）；account/prefs/cache → 对应二级页 */
+    _showSetPage(name) {
+      const pages = ['account', 'prefs', 'cache'];
+      const main = $('#set-page-main');
+      if (main) main.classList.toggle('hidden', pages.indexOf(name) !== -1);
+      pages.forEach(p => {
+        const pg = $('#set-page-' + p);
+        if (pg) pg.classList.toggle('hidden', p !== name);
+      });
+      const panel = $('.modal-panel', $('#settings'));
+      if (panel) panel.scrollTop = 0;
+      if (name === 'account') this._renderSettingsAccount(); // 进账号页按最新登录态重绘
+      if (name === 'cache') this._bindCacheSettings();       // 进缓存页刷新用量
+      if (!name) this._refreshSettingsMenuAccount();         // 回一级列表刷新账号行副标题
     },
 
     /* ============================================================
@@ -1777,10 +1800,21 @@
       el.classList.remove('hidden');
       el.innerHTML = this._avatarInner(Store.Session.email || '', Store.Session.avatar || '');
     },
+    /** 刷新设置一级列表「账号」行的头像缩略 + 副标题（登录态/头像变化后调用） */
+    _refreshSettingsMenuAccount() {
+      const av = $('#set-menu-acc-av');
+      const sub = $('#set-menu-acc-sub');
+      if (av) {
+        av.innerHTML = this._avatarInner(Store.Session.email || '', Store.Session.avatar || '');
+        av.classList.toggle('off', !Store.Session.loggedIn);
+      }
+      if (sub) sub.textContent = Store.Session.loggedIn ? (Store.Session.email || '已登录') : '未登录';
+    },
     /** 刷新设置弹窗「账号设置」分区内容；登录/退出/换头像（ym:session）后都会调用 */
     _renderSettingsAccount() {
       const box = $('#set-account');
       if (!box) return;
+      this._refreshSettingsMenuAccount();
       if (!Store.Session.loggedIn) {
         box.innerHTML =
           '<div class="set-account">' +
