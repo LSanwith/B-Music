@@ -462,21 +462,22 @@
       if (!Session.loggedIn) return;
       clearTimeout(Session._syncT);
       Session._syncT = setTimeout(() => {
+        Session._syncT = 0;
         Session.push().catch((e) => { console.warn('[bmusic-sync] push failed:', e && e.message); });
       }, 800);
     },
 
     /* ---------- 自动双向同步（跨设备实时） ----------
-     * 此前只有"改动→上传"；另一台设备的改动要退出重登才可见。
-     * 现在：每 2 分钟（后台标签页 5 分钟）自动【拉取】云端并应用，
-     * 窗口重新聚焦/回到前台也立即拉取一次；上传仍由每次改动的
-     * 800ms 防抖负责（轮询不做上传，避免全量旧快照覆盖别的设备）。 */
+     * 页面内每 5 秒自动【拉取】云端并应用（仅页面可见时；后台标签页降频
+     * 5 分钟），窗口重新聚焦/回到前台也立即拉取一次；上传仍由每次改动
+     * 的 800ms 防抖负责（轮询不做上传，避免全量旧快照覆盖别的设备）。
+     * 本地有改动待上传时会推迟拉取，避免旧数据覆盖刚改的内容。 */
     _pollTimer: null,
     _polling: false,
     _lastPollAt: 0,
     _startPollOnce() {
       if (Session._pollTimer) return;
-      Session._pollTimer = setInterval(Session._pollSafe, 2 * 60 * 1000);
+      Session._pollTimer = setInterval(Session._pollSafe, 5000);
       if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) Session._pollSafe();
@@ -490,6 +491,11 @@
       if (!Session.loggedIn || Session._polling) return;
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden' &&
           Date.now() - Session._lastPollAt < 5 * 60 * 1000) return;
+      if (Session._syncT) { // 本地改动尚未上传完成：推迟 1.5s 再拉取，避免覆盖
+        clearTimeout(Session._pollRetryT);
+        Session._pollRetryT = setTimeout(Session._pollSafe, 1500);
+        return;
+      }
       Session._lastPollAt = Date.now();
       Session._polling = true;
       Session.pull()
