@@ -14,6 +14,19 @@
   /* 自建歌单默认封面：透明底白色音符（与歌单卡片深色底适配，内联 SVG） */
   const DEFAULT_PL_COVER = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 200\'%3E%3Cpath transform=\'translate(100,100) scale(6.6) translate(-12,-12)\' fill=\'%23f0f1f4\' d=\'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z\'/%3E%3C/svg%3E';
 
+  /** 艺术家列表归一化：兼容 对象数组 / "A / B" 字符串 / 旧 artistsArr（收藏等快照来源多样） */
+  function artistList(a) {
+    if (Array.isArray(a)) {
+      return a.filter(x => x && x.name)
+        .map(x => ({ id: x.id || 0, name: String(x.name).trim() }))
+        .filter(x => x.name);
+    }
+    if (typeof a === 'string') {
+      return a.split(' / ').map(n => n.trim()).filter(Boolean).map(n => ({ id: 0, name: n }));
+    }
+    return [];
+  }
+
   const App = {
     _ctx: { songs: [], banners: [] },
     _lyricLines: [],
@@ -183,7 +196,7 @@
       toast('请手动复制链接：' + url, 'warn');
     },
     _artistText(song) {
-      return (song.artists || []).map(a => a.name).join(' / ') || '未知歌手';
+      return artistList(song.artists).map(a => a.name).join(' / ') || '未知歌手';
     },
     /** 分享单曲：链接为独立歌曲页（打开自动播放），携带歌曲封面 */
     _shareSong(song) {
@@ -991,9 +1004,7 @@
     },
 
     _snapToSong(s) {
-      const artists = (s.artistsArr && s.artistsArr.length)
-        ? s.artistsArr
-        : (s.artists ? String(s.artists).split(' / ').filter(Boolean).map(n => ({ id: 0, name: n })) : []);
+      const artists = artistList(s.artistsArr && s.artistsArr.length ? s.artistsArr : s.artists); // 兼容对象数组/字符串/旧 artistsArr
       return {
         id: s.id, name: s.name, artists: artists,
         album: s.albumObj || (s.album ? { id: 0, name: s.album, cover: '' } : null),
@@ -1192,7 +1203,7 @@
       const start = opts.start || 0; // 分页追加时传累计起始索引，保证编号/点击索引全局连续
       return '<div class="song-list">' + songs.map((s, i) => {
         const n = start + i;
-        const artists = (s.artists || []).map(a => a.name).join(' / ');
+        const artists = artistList(s.artists).map(a => a.name).join(' / ');
         return '<div class="song-row" data-play="' + n + '" data-id="' + s.id + '">' +
           '<div class="sr-idx"><span class="sr-num">' + (n + 1) + '</span>' +
           '<svg class="sr-play" viewBox="0 0 1024 1024"><path d="M256 208.6v606.8c0 12.8 13 20.8 23.4 14.4l481-303.4c10.2-6.4 10.2-22.2 0-28.6L279.4 194.4c-10.4-6.6-23.4 1.4-23.4 14.2z"/></svg></div>' +
@@ -1401,7 +1412,7 @@
             const ext = (info.type || blob.type.split('/')[1] || 'mp3').replace('mpeg', 'mp3');
             const url = URL.createObjectURL(blob);
             a.href = url;
-            a.download = song.name + ' - ' + (song.artists || []).map(x => x.name).join('/') + '.' + ext;
+            a.download = song.name + ' - ' + artistList(song.artists).map(x => x.name).join('/') + '.' + ext;
             document.body.appendChild(a);
             a.click();
             setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 4000);
@@ -1651,13 +1662,13 @@
         return;
       }
       $('#pb-title').textContent = d.song.name;
-      $('#pb-artist').textContent = (d.song.artists || []).map(a => a.name).join(' / ');
+      $('#pb-artist').textContent = artistList(d.song.artists).map(a => a.name).join(' / ');
       $('#pb-cover').src = d.song.cover ? coverUrl(d.song.cover) : PLACEHOLDER;
       const faved = Store.FavSongs.has(d.song.id);
       $('#pb-fav').classList.toggle('on', faved);
       $('#pb-fav').innerHTML = Icons.heartIcon(faved);
       $('#ov-title').textContent = d.song.name;
-      $('#ov-artist').textContent = (d.song.artists || []).map(a => a.name).join(' / ') +
+      $('#ov-artist').textContent = artistList(d.song.artists).map(a => a.name).join(' / ') +
         (d.song.album && d.song.album.name ? ' — ' + d.song.album.name : '');
       $('#ov-cover').src = d.song.cover ? coverUrl(d.song.cover) : PLACEHOLDER;
       $('#ov-bg').style.backgroundImage = d.song.cover ? 'url("' + coverUrl(d.song.cover) + '")' : '';
@@ -2101,7 +2112,7 @@
         '<div class="qd-idx">' + (i === Player.index ? '<span class="qd-eq"><i></i><i></i><i></i></span>' : (i + 1)) + '</div>' +
         '<div class="qd-cover"><img src="' + esc(coverUrl(s.cover)) + '" alt=""></div>' +
         '<div class="qd-main"><div class="qd-name">' + esc(s.name) + '</div>' +
-        '<div class="qd-artists">' + esc((s.artists || []).map(a => a.name).join(' / ')) + '</div></div>' +
+        '<div class="qd-artists">' + esc(artistList(s.artists).map(a => a.name).join(' / ')) + '</div></div>' +
         '<div class="qd-dur">' + fmtDuration(s.duration) + '</div>' +
         '<button class="qd-rm" data-qrm="' + i + '">' +
         '<svg viewBox="0 0 1024 1024"><path d="M864 256H736v-80c0-35.3-28.7-64-64-64H352c-35.3 0-64 28.7-64 64v80H160c-17.7 0-32 14.3-32 32s14.3 32 32 32h32v512c0 35.3 28.7 64 64 64h512c35.3 0 64-28.7 64-64V320h32c17.7 0 32-14.3 32-32s-14.3-32-32-32zM384 192h256v64H384v-64zm384 640H256V320h512v512z"/></svg></button>' +
@@ -2695,7 +2706,7 @@
         if (!s) return;
         ms.metadata = new MediaMetadata({
           title: s.name,
-          artist: (s.artists || []).map(a => a.name).join(' / '),
+          artist: artistList(s.artists).map(a => a.name).join(' / '),
           album: s.album ? s.album.name : '',
           artwork: s.cover ? [{ src: coverUrl(s.cover), sizes: '512x512', type: 'image/jpeg' }] : [],
         });
