@@ -2112,18 +2112,16 @@
       }
     },
 
-    /** 活动行应处的滚动目标（帧跟随全部使用【换句时实测缓存】：
-     *  this._lineTop / this._lineH / this._wrapH，无逐帧回流）：
-     *  块中心对齐可视区中心，多行时叠加顶部安全线（第一行下探不低于可视区 15%）。 */
+    /** 活动行应处的滚动目标：主句【上边缘】恒定对齐封面中心水平线（≈可视区 38%）：
+     *  - 单行/多行统一——上边缘恒在此线上，多行自然向下展开，顶部永不被裁
+     *  - 帧跟随全部使用【换句时实测缓存】（this._lineTop/_lineH/_wrapH），无逐帧回流 */
     _lyricTargetFor(li, p) {
-      const wrapH = this._wrapH || 320;
+      const wrapH = Math.max(this._wrapH || 0, 320);
       const lineH = this._lineH || 42;
       const base = this._lineTop || 0;
       const travel = 20; // 随唱上滑行程 px
-      let target = base + lineH / 2 - wrapH / 2 + 10 + (p || 0) * travel;
-      const minTop = base - wrapH * 0.15; // 块顶安全线：第一行不会被羽化/裁切区吃掉
-      if (target < minTop) target = minTop;
-      return Math.max(0, Math.min(wrapH * 6, target));
+      return Math.max(0, Math.min(wrapH * 6,
+        base - wrapH * 0.38 + 6 + (p || 0) * travel));
     },
 
     /** 立即把活动行定格到居中位置（翻译/原文本切换后消除滚动追赶动画） */
