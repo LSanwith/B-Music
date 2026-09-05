@@ -809,7 +809,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .view-back svg { width: 16px; height: 16px; fill: var(--sub); transition: fill .18s var(--ease); }
 .view-back:hover { background: var(--accent-soft); }
 .view-back:hover svg { fill: var(--accent); }
-@media (max-width: 800px) { .view-back { margin: 0 0 10px; padding: 6px 12px 6px 8px; font-size: 12px; } }
+@media (max-width: 1300px) { .view-back { margin: 0 0 10px; padding: 6px 12px 6px 8px; font-size: 12px; } }
 
 /* ===== 歌词动画 GPU 化 =====
  * 轨道只做 translate3d 平移（合成器层运行，不触发重排/重绘）；
@@ -855,7 +855,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 }
 .lyric-blur-inner .ly-line { color: inherit; }
 .lyric-blur-inner .ly-text { color: inherit; }
-@media (max-width: 800px) { .lyric-blur-inner { padding: 42vh 24px 44vh; } }
+@media (max-width: 1300px) { .lyric-blur-inner { padding: 42vh 24px 44vh; } }
 
 /* 清晰层：活动行 1，近处行半透明微露（叠在模糊层上呈柔和光晕），远处行全透（交给模糊层） */
 .ly-line:not(.active):not(.ly-far) { opacity: .18; }
@@ -1121,11 +1121,11 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .lyric-blur-inner .ly-text { color: inherit; }
 .ly-line:not(.active):not(.ly-far) { opacity: 0; }
 .ly-line.ly-far { opacity: 0; }
-@media (max-width: 800px) { .lyric-blur-inner { filter: blur(11px); } }
+@media (max-width: 1300px) { .lyric-blur-inner { filter: blur(11px); } }
 
 /* 高斯模糊平衡：半径适中、文字更实，保持模糊质感又可辨认 */
 .lyric-blur-inner { filter: blur(8px); opacity: 1; color: rgba(245, 245, 247, .8); }
-@media (max-width: 800px) { .lyric-blur-inner { filter: blur(7px); } }
+@media (max-width: 1300px) { .lyric-blur-inner { filter: blur(7px); } }
 
 /* 修正：透明度规则只作用于清晰层，模糊层歌词恒可见 */
 #ov-lyrics-inner .ly-line:not(.active):not(.ly-far) { opacity: 0; }
@@ -1136,7 +1136,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 
 /* 最终高斯模糊参数：4px，无泛光 */
 .lyric-blur-inner { filter: blur(4px); opacity: 1; color: rgba(245, 245, 247, .75); }
-@media (max-width: 800px) { .lyric-blur-inner { filter: blur(4px); } }
+@media (max-width: 1300px) { .lyric-blur-inner { filter: blur(4px); } }
 
 /* 预览(浏览)歌词时：清晰层全部行可见，模糊层隐藏 */
 #ov-lyrics.lyrics-previewing #ov-lyrics-inner .ly-line:not(.active) { opacity: 1 !important; }
@@ -1280,7 +1280,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 /* lyric preview: clear blur on non-active lines while scrolling (readable) */
 #ov-lyrics.lyrics-previewing #ov-lyrics-inner .ly-line:not(.active) { filter: none !important; }
 /* mobile player: default cover-big mode (Apple Music style), lyrics via toggle */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-body.lyrics-hidden { justify-content: center; align-items: center; overflow: hidden; }
   #ov-body.lyrics-hidden .ov-left {
     flex-direction: column; align-items: center; text-align: center;
@@ -1301,7 +1301,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   #ov-body.lyrics-hidden .ly-toolbar { display: none; }
 }
 /* narrow lyrics mode: header row (mini cover + title), lyrics, controls at bottom */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   .ov-head {
     display: flex; align-items: center; gap: 12px;
     width: 100%; padding: 2px 22px 8px; flex: none;
@@ -1324,7 +1324,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   #ov-body.lyrics-hidden .ov-disc { width: min(64vw, 44vh); height: min(64vw, 44vh); margin: 0 auto 12px; flex: none; }
 }
 /* narrow layout fixes: lyrics area flex-fill + small paddings, cover mode scrollable & centered */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-body > .ov-right { flex: 1 1 auto; height: auto; min-height: 0; }
   #ov-lyrics-inner { padding: 15vh 22px 17vh; }
   #ov-body.lyrics-hidden { overflow: auto; }
@@ -1357,12 +1357,12 @@ html.narrow-debug #ov-body.lyrics-hidden .ov-quality,
 html.narrow-debug #ov-body.lyrics-hidden .ov-btns,
 html.narrow-debug #ov-body.lyrics-hidden .ov-vol { width: min(380px, 86vw); max-width: 380px; margin-left: auto; margin-right: auto; }
 /* lyrics area vertical buffer: enough to center active line in narrow mode */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-lyrics-inner { padding: 28vh 22px 32vh; }
 }
 html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
 /* narrow lyrics-mode fixes: centered text, enough buffer for multi-line, toolbar clear of volume */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-lyrics-inner { padding: 36vh 22px 40vh; }
   #ov-lyrics-inner .ly-line,
   #ov-lyrics-inner .ly-text,
@@ -1371,7 +1371,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   .ly-toolbar { bottom: 8px; }
 }
 /* ===== narrow player v3: controls fixed & centered, lyrics left-aligned, no DOM moves ===== */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   /* ??????????????/???????????? & ????????????? */
   #ov-body .ov-progress, #ov-body.lyrics-hidden .ov-progress {
     position: fixed; bottom: 196px; left: 50%; transform: translateX(-50%);
@@ -1411,7 +1411,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body.lyrics-hidden .ly-toolbar { display: none; }
 }
 /* ===== narrow player v4: cover-mode whole group centered (controls inside), lyrics stable ===== */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   /* ???????????????????????????????/???? */
   #ov-lyrics-inner { padding: 48vh 24px 52vh; }
   #ov-body:not(.lyrics-hidden) > .ov-right { flex: none; height: calc(100vh - 330px); min-height: 0; }
@@ -1430,18 +1430,18 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body.lyrics-hidden .ly-toolbar { display: none; }
 }
 /* narrow v5: cover-mode group center shifted to true screen center; lyric remeasure safe */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-body.lyrics-hidden { padding-top: 6vh; }
 }
 /* v6: hard true-center for cover mode; button row centered with progress (justify-center) */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-body .ov-btns { justify-content: center; }
   #ov-body.lyrics-hidden { padding: 0; }
   #ov-body.lyrics-hidden .ov-left { height: calc(100vh - 70px); }
   #ov-body.lyrics-hidden .ov-vol { justify-content: center; }
 }
 /* v7: cover-mode group ABSOLUTELY centered (translate -50%/-50%), immune to flex quirks */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-body.lyrics-hidden { position: relative; display: block; padding: 0; overflow: hidden; }
   #ov-body.lyrics-hidden .ov-left {
     position: absolute; top: 50%; left: 50%;
@@ -1461,7 +1461,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body.lyrics-hidden .ov-btns { justify-content: center; }
 }
 /* v8: lyrics area fade-out mask (sharp center, faded edges) ? narrow lyrics mode only */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-body:not(.lyrics-hidden) .ov-lyrics {
     overflow: hidden;
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 18%, rgba(0,0,0,1) 84%, transparent 100%);
@@ -1469,12 +1469,12 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   }
 }
 /* v9: no native scrollbar & no extra bottom padding in narrow player */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-body:not(.lyrics-hidden), #ov-body.lyrics-hidden { overflow: hidden; }
   #ov-body:not(.lyrics-hidden) { padding-bottom: 0; }
 }
 /* v10: lyrics viewport = red-box area (52vh), anything beyond is cropped with soft fade edges */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-body:not(.lyrics-hidden) > .ov-right { flex: none; height: 52vh; min-height: 0; margin-top: 10px; }
   #ov-body:not(.lyrics-hidden) .ov-lyrics {
     -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 10%, rgba(0,0,0,1) 90%, transparent 100%);
@@ -1483,7 +1483,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
 }
 /* v11: enforce crop at lyric viewport (ov-right overflow hidden, .ov-lyrics height 100%),
    tighten top gap above mini info row */
-@media (max-width: 800px) {
+@media (max-width: 1300px) {
   #ov-body:not(.lyrics-hidden) > .ov-right { height: 52vh; overflow: hidden; }
   #ov-body:not(.lyrics-hidden) .ov-lyrics { height: 100%; overflow: hidden; }
   #ov-body:not(.lyrics-hidden) { padding-top: 0; }
