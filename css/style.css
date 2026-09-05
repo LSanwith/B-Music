@@ -1133,3 +1133,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 #ov-lyrics-inner .ly-line.active { opacity: 1; }
 .lyric-blur-inner .ly-line { opacity: 1 !important; }
 .ov-lyrics.lyrics-previewing .lyric-blur-inner .ly-line { opacity: 1; }
+
+/* 最终高斯模糊参数：4px，无泛光 */
+.lyric-blur-inner { filter: blur(4px); opacity: 1; color: rgba(245, 245, 247, .75); }
+@media (max-width: 720px) { .lyric-blur-inner { filter: blur(4px); } }
