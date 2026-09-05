@@ -1429,3 +1429,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body.lyrics-hidden .ov-left { flex: 1 1 auto; justify-content: center; }
   #ov-body.lyrics-hidden .ly-toolbar { display: none; }
 }
+/* narrow v5: cover-mode group center shifted to true screen center; lyric remeasure safe */
+@media (max-width: 720px) {
+  #ov-body.lyrics-hidden { padding-top: 6vh; }
+}

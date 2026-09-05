@@ -1641,6 +1641,14 @@
         const ob = $('#ov-body');
         if (ob) ob.classList.toggle('lyrics-hidden', !this._lyricsVisible);
         $('#ly-toggle').classList.toggle('on', this._lyricsVisible);
+        // 布局类切换后强制重测歌词度量（窗口/模式变化会改变歌词区高度），
+        // 防止滚动定位用了过期缓存导致“剧烈上移/无法回正”
+        setTimeout(() => {
+          this._wrapClientH = 0;
+          this._wrapScrollH = 0;
+          this._measureLyrics();
+          this._snapActiveLyric();
+        }, 80);
       });
       $('#ly-share').addEventListener('click', () => {
         const s = Player.current();
@@ -2228,6 +2236,8 @@
           ob.classList.add('lyrics-hidden');
           const tb = $('#ly-toggle');
           if (tb) tb.classList.remove('on');
+          this._wrapClientH = 0;
+          this._wrapScrollH = 0;
         } else {        // 变为宽屏：恢复 左封面+右歌词 布局
           this._lyricsVisible = true;
           ob.classList.remove('lyrics-hidden');
