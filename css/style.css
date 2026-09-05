@@ -1481,3 +1481,11 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
     mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 10%, rgba(0,0,0,1) 90%, transparent 100%);
   }
 }
+/* v11: enforce crop at lyric viewport (ov-right overflow hidden, .ov-lyrics height 100%),
+   tighten top gap above mini info row */
+@media (max-width: 720px) {
+  #ov-body:not(.lyrics-hidden) > .ov-right { height: 52vh; overflow: hidden; }
+  #ov-body:not(.lyrics-hidden) .ov-lyrics { height: 100%; overflow: hidden; }
+  #ov-body:not(.lyrics-hidden) { padding-top: 0; }
+  #ov-body:not(.lyrics-hidden) .ov-left { padding-top: 4px; }
+}
