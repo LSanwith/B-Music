@@ -2124,7 +2124,7 @@
     },
 
     /* ============================================================
-     * 更新公告
+     * 更新公告（左侧版本列表 → 右侧对应版本内容）
      * ============================================================ */
     _noticeSeenKey() { return 'ym.noticeSeen'; },
     _noticeSeen() {
@@ -2133,16 +2133,35 @@
     _markNoticeSeen() {
       try { localStorage.setItem(this._noticeSeenKey(), (window.APP_NOTICE || {}).version || ''); } catch (e) { /* 忽略 */ }
     },
-    /** 打开更新公告；打开即视为已读 */
-    openNotice() {
-      const n = window.APP_NOTICE;
-      if (n && n.title) $('#notice-title').textContent = n.title;
+    _noticeAll() {
+      const n = window.APP_NOTICE || {};
+      return (n.history && n.history.length) ? n.history.slice() : (n.version ? [n] : []);
+    },
+    /** 在弹窗右侧渲染某个版本的公告内容 */
+    _noticeShow(entry) {
+      if (!entry) return;
       const ver = $('#notice-ver');
-      if (ver && n) ver.textContent = 'v' + n.version + (n.date ? ' · ' + n.date : '');
+      if (ver) ver.textContent = 'v' + entry.version + (entry.date ? ' · ' + entry.date : '');
       const list = $('#notice-list');
-      if (list && n) {
-        list.innerHTML = (n.items || []).map(t => '<li>' + esc(t) + '</li>').join('');
+      if (list) list.innerHTML = (entry.items || []).map(t => '<li>' + esc(t) + '</li>').join('');
+      $$('#notice-side .notice-ver-item').forEach(b => b.classList.toggle('active', b.dataset.noticeVer === entry.version));
+    },
+    /** 打开更新公告：左侧版本列表 + 默认显示最新版；打开即视为已读 */
+    openNotice() {
+      const all = this._noticeAll();
+      const n = all[all.length - 1] || {};
+      if (n.title) $('#notice-title').textContent = n.title;
+      const side = $('#notice-side');
+      if (side) {
+        side.innerHTML = all.slice().reverse().map(v =>
+          '<button class="notice-ver-item' + (v.version === (window.APP_NOTICE || {}).version ? ' active' : '') + '" data-notice-ver="' + esc(v.version) + '">' +
+          '<b>v' + esc(v.version) + '</b><span>' + esc(v.date || '') + '</span></button>').join('');
+        side.querySelectorAll('[data-notice-ver]').forEach(b => b.addEventListener('click', () => {
+          const e = all.find(x => x.version === b.dataset.noticeVer);
+          if (e) this._noticeShow(e);
+        }));
       }
+      this._noticeShow(n);
       $('#notice').classList.remove('hidden');
       document.body.classList.add('no-scroll');
       this._markNoticeSeen();

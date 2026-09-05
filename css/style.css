@@ -1221,3 +1221,28 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .sr-pladd { color: var(--sub) !important; }
 /* add-to-playlist button hover: same as share (white + bg highlight) */
 .sr-pladd:hover { color: #fff !important; }
+/* notice: history viewer (v1.1) */
+.notice-panel .modal-body { padding: 14px 16px 18px; }
+.notice-body {
+  display: flex; gap: 14px; align-items: stretch;
+  max-height: 52vh; min-height: 240px;
+}
+.notice-side {
+  flex: none; width: 130px; display: flex; flex-direction: column; gap: 6px;
+  overflow-y: auto; padding-right: 4px;
+  border-right: 1px solid rgba(255,255,255,.08);
+}
+.notice-ver-item {
+  display: flex; flex-direction: column; gap: 2px; align-items: flex-start;
+  padding: 9px 10px; border-radius: 10px; text-align: left;
+  border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.04);
+  color: #fff; font-size: 13px; cursor: pointer; transition: all .15s;
+}
+.notice-ver-item b { font-size: 14px; font-weight: 700; }
+.notice-ver-item span { font-size: 11px; color: rgba(255,255,255,.5); }
+.notice-ver-item:hover { background: rgba(255,255,255,.09); }
+.notice-ver-item.active { background: rgba(250,45,60,.16); border-color: rgba(250,45,60,.45); }
+.notice-ver-item.active span { color: rgba(255,255,255,.75); }
+.notice-main { flex: 1; min-width: 0; overflow-y: auto; }
+.notice-main .notice-ver { margin-bottom: 10px; }
+.notice-panel { width: min(560px, 94vw) !important; }
