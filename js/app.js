@@ -1009,10 +1009,25 @@
 
       /* 音量：拖动时实时生效，松开才写入存储（避免每 tick 同步写 localStorage） */
       const bindVol = (barId, muteId) => {
+        // iOS Safari 忽略 HTMLMediaElement.volume（音量只能系统侧键调）：
+        // 滑块退化为“静音开关”，拖动>0 取消静音并提示；muted 在 iOS 上始终有效。
+        const iosHinted = {};
+        const applyVol = (v) => {
+          if (Player._isIOS && Player._isIOS()) {
+            Player.audio.muted = v <= 0;
+            if (v > 0 && !iosHinted[barId]) {
+              iosHinted[barId] = true;
+              toast('iPhone 音量请用机身侧键调节（滑块用于静音/取消静音）');
+              setTimeout(() => { iosHinted[barId] = false; }, 4000);
+            }
+          } else {
+            Player.audio.volume = v / 100;
+            Player.audio.muted = v <= 0;
+          }
+        };
         $(barId).addEventListener('input', () => {
-          const v = +$(barId).value;
-          Player.audio.volume = v / 100;
-          this._syncVolume(v);
+          applyVol(+$(barId).value);
+          this._syncVolume(+$(barId).value);
         });
         $(barId).addEventListener('change', () => {
           const v = +$(barId).value;
@@ -1021,7 +1036,7 @@
         });
         $(muteId).addEventListener('click', () => {
           const m = !Store.Settings.muted;
-          Player.audio.volume = m ? 0 : Store.Settings.volume / 100;
+          applyVol(m ? 0 : Store.Settings.volume);
           Store.Settings.set({ muted: m });
           this._syncVolume();
         });
