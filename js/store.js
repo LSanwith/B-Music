@@ -453,15 +453,20 @@
 
     /** 上传当前本机数据（设置 + 收藏 + 自建歌单，不含最近播放/搜索历史） */
     async push() {
-      await Session._api('/data', {
-        method: 'POST',
-        body: JSON.stringify({
-          settings: SETTINGS,
-          favSongs: favSongs,
-          favPlaylists: favPlaylists,
-          myPlaylists: myPlaylists,
-        }),
-      });
+      Session._pushT = Date.now(); // 标记上传进行中（轮询据此暂停拉取，防旧数据回滚） 
+      try {
+        await Session._api('/data', {
+          method: 'POST',
+          body: JSON.stringify({
+            settings: SETTINGS,
+            favSongs: favSongs,
+            favPlaylists: favPlaylists,
+            myPlaylists: myPlaylists,
+          }),
+        });
+      } finally {
+        Session._pushT = Date.now(); // 上传完成时间（完成后短暂保护窗口）
+      }
     },
 
     _syncT: 0,
@@ -483,6 +488,7 @@
     _pollTimer: null,
     _polling: false,
     _lastPollAt: 0,
+    _pushT: 0, // 最近一次上传开始/完成时间：保护窗口内不拉取（本地为权威）
     _startPollOnce() {
       if (Session._pollTimer) return;
       Session._pollTimer = setInterval(Session._pollSafe, 1000);
@@ -504,6 +510,8 @@
         Session._pollRetryT = setTimeout(Session._pollSafe, 1500);
         return;
       }
+      // 上传进行中 / 刚完成 1.5s 内：本地是最新权威，这时拉云端旧数据会回滚本地改动
+      if (Session._pushT && Date.now() - Session._pushT < 1500) return;
       Session._lastPollAt = Date.now();
       Session._polling = true;
       Session.pull()
