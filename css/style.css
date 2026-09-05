@@ -1440,3 +1440,23 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body.lyrics-hidden .ov-left { height: calc(100vh - 70px); }
   #ov-body.lyrics-hidden .ov-vol { justify-content: center; }
 }
+/* v7: cover-mode group ABSOLUTELY centered (translate -50%/-50%), immune to flex quirks */
+@media (max-width: 720px) {
+  #ov-body.lyrics-hidden { position: relative; display: block; padding: 0; overflow: hidden; }
+  #ov-body.lyrics-hidden .ov-left {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%; display: flex; flex-direction: column;
+    align-items: center; text-align: center; gap: 8px;
+  }
+  #ov-body.lyrics-hidden .ov-disc { width: min(62vw, 40vh); height: min(62vw, 40vh); margin: 0 auto 12px; flex: none; }
+  #ov-body.lyrics-hidden .ov-progress,
+  #ov-body.lyrics-hidden .ov-quality,
+  #ov-body.lyrics-hidden .ov-btns,
+  #ov-body.lyrics-hidden .ov-vol {
+    position: static; transform: none;
+    width: min(340px, 82vw); max-width: 340px;
+    margin-left: auto; margin-right: auto; z-index: auto;
+  }
+  #ov-body.lyrics-hidden .ov-btns { justify-content: center; }
+}
