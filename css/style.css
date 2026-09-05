@@ -1493,3 +1493,11 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
 @media (max-width: 1300px) {
   #ov-lyrics-inner { padding: 24vh 22px 30vh; }
 }
+/* narrow lyrics: render layer direct height & no mask (mask was making content invisible in this viewport) */
+@media (max-width: 1300px) {
+  #ov-body:not(.lyrics-hidden) .ov-lyrics {
+    height: 52vh;
+    -webkit-mask-image: none !important;
+    mask-image: none !important;
+  }
+}
