@@ -2,8 +2,9 @@
  * API 层
  *  主接口: www.sanwith.cc.cd      (网易云音乐API增强版)
  *  备用接口: silence-music-api.cc.cd
- *  兜底源: 红云点歌v4 (仅用于播放地址 / 歌词，密钥仅发往
- *          api.xunjinlu.fun)
+ *  兜底/辅助源: 红云点歌v4 + 落七七(18years 网易云整合源)
+ *          (仅用于播放地址/歌词；两者密钥仅发往各自的代理，
+ *          浏览器 URL 不携带密钥)
  * ============================================================ */
 (function () {
   'use strict';
@@ -85,9 +86,16 @@
   }
   probeLocalServer();
 
+  /* 密钥注入型第三方源：代理标志 + 展示名（密钥不进入浏览器 URL）
+   *  - hk=1 → 红云点歌（api.xunjinlu.fun）
+   *  - nt=1 → 落七七 18years 整合源（api.18years.ink） */
+  const KEYED_SOURCES = {};
+  KEYED_SOURCES[CFG.HONGYUN_ENDPOINT] = { flag: 'hk', name: '红云点歌' };
+  if (CFG.NT18_ENDPOINT) KEYED_SOURCES[CFG.NT18_ENDPOINT] = { flag: 'nt', name: '落七七' };
+
   async function request(base, path, params, timeoutMs) {
-    const isHongyun = base === CFG.HONGYUN_ENDPOINT;
-    // 红云请求不携带 key：代理注入（hk=1），URL 中不暴露密钥
+    const keyed = KEYED_SOURCES[base] || null;
+    // 密钥源请求不携带 key：代理注入（hk=1 / nt=1），URL 中不暴露密钥
     const target = buildApiUrl(base, path, params);
     const proxyPath = window.APP_CONFIG.PROXY_PATH;
     const viaHttp = proxyPath && location.protocol !== 'file:';
@@ -97,7 +105,7 @@
     if ((viaHttp || viaLocal) && _proxyState !== 'off') {
       try {
         const base0 = viaLocal ? _localServer : '';
-        const u = base0 + proxyPath + '?u=' + encodeURIComponent(target) + (isHongyun ? '&hk=1' : '');
+        const u = base0 + proxyPath + '?u=' + encodeURIComponent(target) + (keyed ? '&' + keyed.flag + '=1' : '');
         await _acquireProxySlot();
         let res;
         try {
@@ -122,15 +130,15 @@
         }
       } catch (e) {
         if (String(e.message).indexOf('proxy HTTP') === 0) throw e;
-        if (isHongyun) throw e; // 红云不回退直连（避免密钥暴露在 URL）
+        if (keyed) throw e; // 密钥源不回退直连（避免密钥暴露在 URL）
         _proxyState = 'off';     // 其它请求：关闭代理后走直连
       }
     }
-    if (isHongyun) {
-      // 无代理可用（file:// 且本机服务器未运行）：红云上游 CORS 头非法，直连必然被浏览器拦截，
-      // 且会暴露密钥——直接给出明确提示，不发起注定失败的带 key 请求
+    if (keyed) {
+      // 无代理可用（file:// 且本机服务器未运行）：第三方源上游 CORS 头非法，直连必然被
+      // 浏览器拦截，且会暴露密钥——直接给出明确提示，不发起注定失败的带 key 请求
       const err = new Error(location.protocol === 'file:'
-        ? '红云接口需经本机服务器代理（请双击 start.bat 启动，或访问网页版）'
+        ? keyed.name + '接口需经本机服务器代理（请双击 start.bat 启动，或访问网页版）'
         : '无法获取播放地址');
       throw err;
     }
@@ -462,6 +470,33 @@
       return await fetchLevel(want);
     },
 
+    /** 落七七（18years）网易云整合源获取直链（辅助源）。密钥不进入 URL：代理注入（nt=1）。
+     *  档位映射：higher→exhigh、jyeffect/sky/dolby→lossless，其余档位直传；
+     *  服务端不识别时快速降级而非报错等待（hires/jymaster 实测降到可用最高无损档）。
+     *  响应结构：{ code:200, message, data:{ urls:[{ id,url,br,level,size,md5,time }], count } }
+     *  —— 取 urls[0].url；code!=200 或 url 为空串视为失败（版权/VIP 限制返回空 url）。 */
+    async nt18Url(id, level) {
+      const NT_MAP = {
+        standard: 'standard', higher: 'exhigh', exhigh: 'exhigh', lossless: 'lossless',
+        hires: 'hires', jyeffect: 'lossless', sky: 'lossless', dolby: 'lossless', jymaster: 'jymaster',
+      };
+      const want = NT_MAP[level] || 'lossless';
+      const j = await request(CFG.NT18_ENDPOINT, '', { action: 'url', id: id, quality: want }, 20000);
+      const d = j && j.data && Array.isArray(j.data.urls) ? j.data.urls[0] : null;
+      if (j && j.code === 200 && d && d.url) {
+        return {
+          url: d.url,
+          br: d.br || 0,
+          type: (/\.flac/i.test(d.url) ? 'flac' : (/\.mp3/i.test(d.url) ? 'mp3' : (/\.m4a/i.test(d.url) ? 'm4a' : ''))),
+          level: d.level || want,
+          size: d.size || '',
+        };
+      }
+      const err = new Error((j && j.message) || '落七七接口失败');
+      err.nt18Code = j ? j.code : undefined;
+      throw err;
+    },
+
     /** 红云点歌搜索（兼容新旧结构）。
      *  新版: { code:200, msg, count, data:[{ index, name, singer, id }] }（参数为 name）
      *  旧版: { code:0, data:{ data:{ songs:[{ id,name,artists,album,... }] } } } */
@@ -488,9 +523,10 @@
     },
 
     /**
-     * 解析【完整】播放地址 —— 三个数据源【同时并发请求】，先成功者胜出：
-     *   主接口 / 备用接口 / 红云点歌v4 并行竞速，谁快用谁，加载流畅不卡顿；
-     *   若红云先返回，给网易云 300ms 优先窗口（优先官方源），窗口内官方源成功则改选官方源。
+     * 解析【完整】播放地址 —— 四个数据源【同时并发请求】，先成功者胜出：
+     *   主接口 / 备用接口 / 红云点歌v4 / 落七七(18years) 并行竞速，谁快用谁，加载流畅不卡顿；
+     *   官方镜像（主/备）先到直接胜出；第三方源（红云/落七七）先返回时，
+     *   给官方源 300ms 优先窗口，窗口内官方源成功则改选官方源。
      * 结果按 (id, level) 缓存 10 分钟。
      */
     _urlCache: new Map(),
@@ -506,13 +542,14 @@
           API.neteaseUrl(PRIMARY, song.id, lv).then(r => { r.source = '主接口'; return r; }),
           API.neteaseUrl(SECONDARY, song.id, lv).then(r => { r.source = '备用接口'; return r; }),
           API.hongyunUrl(song.id, lv).then(r => { r.source = '红云点歌'; return r; }),
+          API.nt18Url(song.id, lv).then(r => { r.source = '落七七'; return r; }),
         ];
         let settled = 0;
         tasks.forEach((p) => {
           p.then((r) => {
             if (result) return;
-            if (r.source !== '红云点歌') { result = r; done(); return; }
-            // 红云先到：给官方源 300ms 优先窗口
+            if (r.source === '主接口' || r.source === '备用接口') { result = r; done(); return; }
+            // 第三方源先到：给官方源 300ms 优先窗口
             setTimeout(() => { if (!result) { result = r; done(); } }, 300);
           }).catch((e) => {
             errors.push(e.message);
@@ -527,7 +564,7 @@
         API._urlCache.set(key, { t: Date.now(), v: result });
         return result;
       }
-      // 兜底：普通三源全挂（VIP/版权歌常见）时，走主接口(sanwith)的 unblock 解锁通道。
+      // 兜底：普通四源全挂（VIP/版权歌常见）时，走主接口(sanwith)的 unblock 解锁通道。
       // sanwith 别名迁移期会在多个实例间随机分发（旧实例 SKey 快照不同 → 偶发 403），
       // 因此最多重试 3 次。
       for (let a = 0; a < 3; a++) {

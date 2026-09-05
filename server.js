@@ -216,12 +216,15 @@ const PROXY_ALLOWED = [
   'https://www.sanwith.cc.cd',
   'https://silence-music-api.cc.cd',
   'https://api.xunjinlu.fun',
+  'https://api.18years.ink',
 ];
 
-/** /proxy?u=<完整URL>[&hk=1] —— 同源转发上游 API，规避上游 CORS 响应头不稳定问题。
+/** /proxy?u=<完整URL>[&hk=1][&nt=1] —— 同源转发上游 API，规避上游 CORS 响应头不稳定问题。
  *  hk=1 表示红云点歌请求：密钥由本代理注入上游 URL，浏览器请求中不暴露密钥。
- *  密钥来源优先级：环境变量 HONGYUN_KEY → 仓库根目录 ./key.local（被 gitignore，
- *  不随仓库上传）→ 未配置（红云请求将返回明确错误）。 */
+ *  nt=1 表示落七七（18years）整合源请求：密钥同样由本代理注入。
+ *  密钥来源优先级：环境变量 → 仓库根目录密钥文件（均被 gitignore，不随仓库上传）：
+ *    HONGYUN_KEY → ./key.local ；NT18_KEY → ./ntkey.local
+ *  未配置（请求将返回明确错误）。 */
 const HONGYUN_KEY = (function () {
   if (process.env.HONGYUN_KEY) return process.env.HONGYUN_KEY;
   try {
@@ -229,6 +232,15 @@ const HONGYUN_KEY = (function () {
     const v = require('fs').readFileSync(p, 'utf8').trim();
     if (v) return v;
   } catch (e) { /* 无 key.local */ }
+  return '';
+})();
+const NT18_KEY = (function () {
+  if (process.env.NT18_KEY) return process.env.NT18_KEY;
+  try {
+    const p = require('path').join(__dirname, 'ntkey.local');
+    const v = require('fs').readFileSync(p, 'utf8').trim();
+    if (v) return v;
+  } catch (e) { /* 无 ntkey.local */ }
   return '';
 })();
 
@@ -247,7 +259,8 @@ async function handleProxy(req, res, urlPath) {
   if (urlPath !== '/proxy') return false;
   const u = new URL(req.url, 'http://localhost');
   const target = u.searchParams.get('u');
-  const injectKey = u.searchParams.get('hk') === '1';
+  const hk = u.searchParams.get('hk') === '1'; // 红云点歌
+  const nt = u.searchParams.get('nt') === '1'; // 落七七（18years）
   if (!target) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end('{"code":-1,"msg":"missing u"}');
@@ -264,13 +277,21 @@ async function handleProxy(req, res, urlPath) {
     res.end('{"code":-1,"msg":"forbidden"}');
     return true;
   }
-  if (injectKey) {
-    if (dest.origin !== 'https://api.xunjinlu.fun') {
+  if (hk || nt) {
+    const isHkDest = dest.origin === 'https://api.xunjinlu.fun';
+    const isNtDest = dest.origin === 'https://api.18years.ink';
+    if ((hk && !isHkDest) || (nt && !isNtDest)) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
-      res.end('{"code":-1,"msg":"hk not allowed"}');
+      res.end('{"code":-1,"msg":"key not allowed for this origin"}');
       return true;
     }
-    dest.searchParams.set('key', HONGYUN_KEY); // 注入密钥，浏览器 URL 中不出现
+    const key = hk ? HONGYUN_KEY : NT18_KEY; // 注入密钥，浏览器 URL 中不出现
+    if (!key) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end('{"code":-1,"msg":"' + (hk ? 'HONGYUN_KEY' : 'NT18_KEY') + ' not set"}');
+      return true;
+    }
+    dest.searchParams.set('key', key);
   }
   try {
     const ctrl = AbortSignal.timeout(25000);
@@ -475,6 +496,10 @@ server.listen(PORT, () => {
   if (!HONGYUN_KEY) {
     console.log('⚠️ 未找到红云密钥：请创建 key.local（与 server.js 同目录，内容为你的 sk- 开头密钥）');
     console.log('   或设置环境变量 HONGYUN_KEY，否则红云兜底源不可用（其余功能正常）');
+  }
+  if (!NT18_KEY) {
+    console.log('⚠️ 未找到落七七密钥：请创建 ntkey.local（与 server.js 同目录，内容为接口 key）');
+    console.log('   或设置环境变量 NT18_KEY，否则落七七辅助源不可用（其余功能正常）');
   }
   const url = `http://localhost:${PORT}/`;
   console.log('┌──────────────────────────────────────┐');

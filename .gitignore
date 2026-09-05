@@ -4,6 +4,8 @@ data/
 key.local
 # sanwith SKey（本机专用，绝不提交）
 skey.local
+# 落七七/18years 密钥（本机专用，绝不提交）
+ntkey.local
 # Node
 node_modules/
 *.log
