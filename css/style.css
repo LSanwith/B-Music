@@ -1370,3 +1370,43 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body > .ov-vol { margin-bottom: 64px; }
   .ly-toolbar { bottom: 8px; }
 }
+/* ===== narrow player v3: controls fixed & centered, lyrics left-aligned, no DOM moves ===== */
+@media (max-width: 720px) {
+  /* ??????????????/???????????? & ????????????? */
+  #ov-body .ov-progress, #ov-body.lyrics-hidden .ov-progress {
+    position: fixed; bottom: 196px; left: 50%; transform: translateX(-50%);
+    width: min(340px, 82vw); margin: 0; z-index: 3;
+  }
+  #ov-body .ov-quality, #ov-body.lyrics-hidden .ov-quality {
+    position: fixed; bottom: 156px; left: 50%; transform: translateX(-50%); margin: 0; z-index: 3;
+  }
+  #ov-body .ov-btns, #ov-body.lyrics-hidden .ov-btns {
+    position: fixed; bottom: 112px; left: 50%; transform: translateX(-50%); margin: 0; z-index: 3;
+  }
+  #ov-body .ov-vol, #ov-body.lyrics-hidden .ov-vol {
+    position: fixed; bottom: 58px; left: 50%; transform: translateX(-50%);
+    width: min(340px, 82vw); margin: 0; z-index: 3;
+  }
+  .ly-toolbar { bottom: 0; }
+
+  /* ???????????? + ????????????????? */
+  #ov-body:not(.lyrics-hidden) { padding-bottom: 250px; }
+  #ov-body:not(.lyrics-hidden) .ov-left {
+    flex-direction: row; align-items: center; gap: 12px;
+    padding: 8px 18px 0; width: 100%; flex: none;
+  }
+  #ov-body:not(.lyrics-hidden) .ov-disc { width: 56px; height: 56px; margin: 0; flex: none; }
+  #ov-body:not(.lyrics-hidden) .ov-song { text-align: left; flex: 1; min-width: 0; }
+  #ov-body:not(.lyrics-hidden) > .ov-right { flex: 1 1 auto; height: auto; min-height: 0; }
+  #ov-lyrics-inner { padding: 44vh 24px 34vh; }
+  #ov-lyrics-inner .ly-line, #ov-lyrics-inner .ly-text, #ov-lyrics-inner .ly-trans { text-align: left; }
+
+  /* ??????????????????????? */
+  #ov-body.lyrics-hidden { justify-content: center; align-items: center; overflow-y: auto; padding-bottom: 230px; }
+  #ov-body.lyrics-hidden .ov-left {
+    flex-direction: column; align-items: center; text-align: center;
+    width: 100%; gap: 8px; padding: 0 22px; justify-content: center; flex: none;
+  }
+  #ov-body.lyrics-hidden .ov-disc { width: min(62vw, 40vh); height: min(62vw, 40vh); margin: 0 auto 14px; flex: none; }
+  #ov-body.lyrics-hidden .ly-toolbar { display: none; }
+}

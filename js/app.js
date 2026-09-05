@@ -1641,10 +1641,6 @@
         const ob = $('#ov-body');
         if (ob) ob.classList.toggle('lyrics-hidden', !this._lyricsVisible);
         $('#ly-toggle').classList.toggle('on', this._lyricsVisible);
-        // 窄屏：歌词模式 → 顶栏式布局（小封面+歌名 / 歌词 / 控件）；封面模式 → 大图居中
-        if (this._isNarrowLayout()) {
-          this._arrangeOverlayNarrow(this._lyricsVisible);
-        }
       });
       $('#ly-share').addEventListener('click', () => {
         const s = Player.current();
@@ -2191,7 +2187,6 @@
         if (ob) ob.classList.add('lyrics-hidden');
         const tb = $('#ly-toggle');
         if (tb) tb.classList.remove('on');
-        this._arrangeOverlayNarrow(false); // 封面大图模式布局（控件回归左区）
       }
       this._bindOverlayResize();
       this.startLyricLoop();
@@ -2210,45 +2205,6 @@
       this.stopLyricLoop();
       if (!$('#queue-drawer').classList.contains('hidden')) this.closeQueue();
       document.body.classList.remove('no-scroll');
-    },
-
-    /** 窄屏全屏页布局（节点移动，保留已绑定的事件监听）：
-     *  lyricsMode=true（显示歌词）：小封面+歌名/歌手顶栏 → 歌词 → 控件（底部）
-     *  lyricsMode=false（隐藏歌词）：全部回归左区，封面大图居中 */
-    _arrangeOverlayNarrow(lyricsMode) {
-      const body = $('#ov-body');
-      if (!body) return;
-      const left = body.querySelector('.ov-left');
-      const head = body.querySelector('.ov-head');
-      if (lyricsMode) {
-        if (left && !head) {
-          const disc = left.querySelector('.ov-disc');
-          const song = left.querySelector('.ov-song');
-          const rest = Array.from(left.children).filter(el => el !== disc && el !== song);
-          const h = document.createElement('div');
-          h.className = 'ov-head';
-          body.insertBefore(h, left);
-          if (disc) h.appendChild(disc);
-          if (song) h.appendChild(song);
-          rest.forEach(el => body.appendChild(el)); // 进度/按钮/音量 → 歌词之后（页面底部）
-          left.remove();
-        }
-      } else if (head) {
-        const disc = head.querySelector('.ov-disc');
-        const song = head.querySelector('.ov-song');
-        const restored = document.createElement('div');
-        restored.className = 'ov-left';
-        if (disc) restored.appendChild(disc);       // 还原顺序：封面 → 歌名 → 控件
-        if (song) restored.appendChild(song);
-        Array.from(body.children).forEach(el => {
-          if (el.classList.contains('ov-progress') || el.classList.contains('ov-quality') ||
-              el.classList.contains('ov-btns') || el.classList.contains('ov-vol')) {
-            restored.appendChild(el);
-          }
-        });
-        body.insertBefore(restored, body.firstChild);
-        head.remove();
-      }
     },
 
     /** 是否窄屏布局（真机 720px 断点） */
@@ -2272,13 +2228,11 @@
           ob.classList.add('lyrics-hidden');
           const tb = $('#ly-toggle');
           if (tb) tb.classList.remove('on');
-          this._arrangeOverlayNarrow(false);
         } else {        // 变为宽屏：恢复 左封面+右歌词 布局
           this._lyricsVisible = true;
           ob.classList.remove('lyrics-hidden');
           const tb = $('#ly-toggle');
           if (tb) tb.classList.add('on');
-          this._arrangeOverlayNarrow(false);
           this._measureLyrics();
           this._snapActiveLyric();
         }
