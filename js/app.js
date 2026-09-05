@@ -130,32 +130,32 @@
       const base = location.href.split('#')[0];
       return base + hash;
     },
-    /** 分享：优先系统分享面板（可携带封面图片文件），否则复制链接 */
+    /** 分享：系统面板立即弹出（不等待图片，杜绝“点了没反应”）；支持 files 时后台补图后二次唤起文件分享 */
     async _doShare(title, hash, imageUrl) {
       const url = this.shareUrl(hash);
       try { window.__lastShareUrl = url; } catch (e) {}
-      try {
-        if (navigator.share) {
-          const payload = { title: title || '', text: title || '', url: url };
-          // 尝试附带封面图片（歌曲封面/歌单图等），让接收方看到缩略图
-          if (imageUrl && navigator.canShare) {
+      // ① 有系统分享：立刻弹纯文本/链接面板（首击必有响应）
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: title || '', text: title || '', url: url });
+          // ② 成功后在后台拉封面，若有 files 支持再补一次“带图分享”（用户取消则忽略）
+          if (imageUrl && navigator.canShare && typeof navigator.canShare === 'function') {
             try {
               const res = await fetch(imageUrl, { mode: 'cors', signal: AbortSignal.timeout(3000) });
               if (res.ok) {
                 const blob = await res.blob();
                 const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
                 const file = new File([blob], 'cover.' + ext, { type: blob.type || 'image/jpeg' });
-                const withFile = { ...payload, files: [file] };
-                if (navigator.canShare(withFile)) payload.files = [file];
+                const withFile = { title: title || '', url: url, files: [file] };
+                if (navigator.canShare(withFile)) await navigator.share(withFile);
               }
-            } catch (e) { /* 图片拉取失败则纯文本分享 */ }
+            } catch (e) { /* 忽略：无图/取消均可 */ }
           }
-          await navigator.share(payload);
-          toast('已唤起系统分享');
           return;
+        } catch (e) {
+          if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return; // 用户取消
+          // 其它失败继续走复制兜底
         }
-      } catch (e) {
-        if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return; // 用户取消
       }
       try {
         await navigator.clipboard.writeText(url);

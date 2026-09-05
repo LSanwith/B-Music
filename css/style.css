@@ -1141,3 +1141,6 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 /* 预览(浏览)歌词时：清晰层全部行可见，模糊层隐藏 */
 #ov-lyrics.lyrics-previewing #ov-lyrics-inner .ly-line:not(.active) { opacity: 1 !important; }
 #ov-lyrics.lyrics-previewing #ov-lyrics-inner .ly-line.active { opacity: 1 !important; }
+
+/* 彻底去除泛光/高光：模糊层与清晰层文字均无阴影 */
+.lyric-blur-inner, .lyric-blur-inner .ly-text, .lyric-blur-inner .ly-trans, #ov-lyrics-inner .ly-text, #ov-lyrics-inner .ly-trans { text-shadow: none !important; }
