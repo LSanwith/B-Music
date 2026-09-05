@@ -1489,3 +1489,7 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body:not(.lyrics-hidden) { padding-top: 0; }
   #ov-body:not(.lyrics-hidden) .ov-left { padding-top: 4px; }
 }
+/* narrow lyrics: inner must fit the 52vh viewport (48vh top padding pushed all lines out of view) */
+@media (max-width: 1300px) {
+  #ov-lyrics-inner { padding: 24vh 22px 30vh; }
+}
