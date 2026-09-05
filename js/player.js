@@ -240,24 +240,26 @@
       this._emit('change');
       this._emit('state');
       const resume = (keepTime !== undefined ? keepTime : (this.curTime || 0));
+      // 键 = 歌曲 id @ 用户所选音质（须先于网络解析计算，用于缓存优先）
+      const ck = (window.AudioCache && song.id) ? AudioCache.key(song.id, this.quality) : null;
+      this._curKey = ck;
       try {
-        let info = await API.resolveUrl(song, this.quality);
-        // 音频本地缓存：有缓存直接用（免等待、不怕源链接过期）；无缓存则远程直播并后台整曲入缓存
-        // 键 = 歌曲 id @ 用户所选音质（不能用 info.level —— 各源返回的 level 标签不稳定）
-        const ck = (window.AudioCache && song.id) ? AudioCache.key(song.id, this.quality) : null;
-        this._curKey = ck;
+        // ① 缓存优先：同音质已有整曲 → 直接播放本地，不发任何网络请求
         if (ck && AudioCache.enabled()) {
           const cu = await AudioCache.url(ck);
           if (cu) {
             this._cacheUsed = true;
             a.src = cu;
-          } else {
-            a.src = info.url;
-            this._fetchToCache(ck, info.url);
+            if (resume > 0 && song.id === this.current().id) this._pendingSeek = resume;
+            this._retried = false;
+            try { await a.play(); } catch (e) { /* 自动播放被拦截 */ }
+            return;
           }
-        } else {
-          a.src = info.url;
         }
+        // ② 无缓存 → 才走网络解析；播放同时后台整曲入缓存
+        let info = await API.resolveUrl(song, this.quality);
+        a.src = info.url;
+        if (ck && AudioCache.enabled()) this._fetchToCache(ck, info.url);
         if (resume > 0 && song.id === this.current().id) this._pendingSeek = resume;
         this._retried = false;
         try { await a.play(); } catch (e) { /* 自动播放被拦截 */ }
