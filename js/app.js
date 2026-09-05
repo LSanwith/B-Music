@@ -2193,6 +2193,7 @@
         if (tb) tb.classList.remove('on');
         this._arrangeOverlayNarrow(false); // 封面大图模式布局（控件回归左区）
       }
+      this._bindOverlayResize();
       this.startLyricLoop();
       this._syncLyric(Player.curTime);
       // 等自定义字体就绪后重测行高（字体加载会改变行高，缓存的 offsetTop 会失效）
@@ -2249,11 +2250,40 @@
       }
     },
 
-    /** 是否窄屏布局（真机 720px 断点；?narrow=1 可强制桌面预览窄屏布局） */
+    /** 是否窄屏布局（真机 720px 断点） */
     _isNarrowLayout() {
-      const forced = /[?&]narrow=1/.test(location.search);
-      if (forced) document.documentElement.classList.add('narrow-debug');
-      return forced || (window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
+      return window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+    },
+
+    /** 窗口宽度跨 720px 断点时，实时还原/切换两种布局（避免拖动窗口后布局残留错乱） */
+    _bindOverlayResize() {
+      if (this._ovResizeBound) return;
+      this._ovResizeBound = true;
+      const mq = window.matchMedia && window.matchMedia('(max-width: 720px)');
+      if (!mq) return;
+      const onChange = (e) => {
+        const ov = $('#overlay');
+        if (!ov || ov.classList.contains('hidden')) return;
+        const ob = $('#ov-body');
+        if (!ob) return;
+        if (e.matches) { // 变为窄屏：默认封面大图模式
+          this._lyricsVisible = false;
+          ob.classList.add('lyrics-hidden');
+          const tb = $('#ly-toggle');
+          if (tb) tb.classList.remove('on');
+          this._arrangeOverlayNarrow(false);
+        } else {        // 变为宽屏：恢复 左封面+右歌词 布局
+          this._lyricsVisible = true;
+          ob.classList.remove('lyrics-hidden');
+          const tb = $('#ly-toggle');
+          if (tb) tb.classList.add('on');
+          this._arrangeOverlayNarrow(false);
+          this._measureLyrics();
+          this._snapActiveLyric();
+        }
+      };
+      if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);
+      else if (typeof mq.addListener === 'function') mq.addListener(onChange);
     },
 
     /* ---------------- 音质（仅设置弹窗内切换） ---------------- */
