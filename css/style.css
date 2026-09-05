@@ -1433,3 +1433,10 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
 @media (max-width: 720px) {
   #ov-body.lyrics-hidden { padding-top: 6vh; }
 }
+/* v6: hard true-center for cover mode; button row centered with progress (justify-center) */
+@media (max-width: 720px) {
+  #ov-body .ov-btns { justify-content: center; }
+  #ov-body.lyrics-hidden { padding: 0; }
+  #ov-body.lyrics-hidden .ov-left { height: calc(100vh - 70px); }
+  #ov-body.lyrics-hidden .ov-vol { justify-content: center; }
+}

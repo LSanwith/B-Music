@@ -1647,6 +1647,7 @@
           this._wrapClientH = 0;
           this._wrapScrollH = 0;
           this._measureLyrics();
+          this._redrawActiveLyric(); // 重新点亮活动行并重算各行为 blur（防止全部同模糊）
           this._snapActiveLyric();
         }, 80);
       });
@@ -2121,6 +2122,22 @@
       if (li == null || li < 0) return;
       this._lyricScroll = this._lyricTargetFor(li, 0);
       this._applyLyricScroll();
+    },
+
+    /** 重新点亮活动行并重算全部行的距离模糊（歌词/布局切换后的兜底重绘） */
+    _redrawActiveLyric() {
+      const els = this._lyricEls || [];
+      if (!els.length) return;
+      const st = this._lyricState;
+      const li = (st && st.li >= 0) ? st.li : -1;
+      els.forEach((el, i) => {
+        el.classList.toggle('active', i === li);
+        if (i !== li) {
+          const d = Math.abs(i - li);
+          const blur = d <= 1 ? 0.5 : Math.min(4, 0.5 + (d - 1) * (3.5 / 6));
+          el.style.setProperty('--ly-blur', blur.toFixed(2) + 'px');
+        }
+      });
     },
 
     /** 平滑滑动歌词轨道到目标位置（切换译/原时使用，Apple Music 式过渡） */
