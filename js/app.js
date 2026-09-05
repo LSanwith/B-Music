@@ -741,14 +741,15 @@
       this._plCoverFile.value = '';
       this._plCoverFile.click();
     },
-    /** 校验大小（≤10MB）→ 压缩（最长边 400 / JPEG / >100KB 降质）→ 存歌单并刷新界面 */
+    /** 校验大小（≤10MB）→ 压缩（最长边 400 / JPEG / >100KB 降质；失败回退 256px，再失败小图直接存）→ 存歌单并刷新界面 */
     async _onPlCoverFile(id, file) {
       if (!file) return;
       if (file.size > 10 * 1024 * 1024) {
         toast('图片不能超过 10MB', 'warn');
         return;
       }
-      if (!/^image\//.test(file.type || '')) {
+      const isImage = /^image\//.test(file.type || '') || /\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name || '');
+      if (!isImage) {
         toast('请选择图片文件', 'warn');
         return;
       }
@@ -764,7 +765,7 @@
       }
     },
     _compressPlCover(file) {
-      return new Promise((resolve, reject) => {
+      const compressAt = (maxSide, maxBytes) => new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onerror = () => reject(new Error('读取图片失败'));
         reader.onload = () => {
@@ -772,10 +773,9 @@
           img.onerror = () => reject(new Error('不支持的图片格式'));
           img.onload = () => {
             try {
-              const MAX = 400;
               const w0 = img.naturalWidth || img.width || 1;
               const h0 = img.naturalHeight || img.height || 1;
-              const scale = Math.min(1, MAX / Math.max(w0, h0));
+              const scale = Math.min(1, maxSide / Math.max(w0, h0));
               const w = Math.max(1, Math.round(w0 * scale));
               const h = Math.max(1, Math.round(h0 * scale));
               const cv = document.createElement('canvas');
@@ -788,19 +788,33 @@
               }
               const bytesOf = (s) => Math.floor((s.length - (s.indexOf(',') + 1)) * 3 / 4);
               let q = 0.82;
-              let out = cv.toDataURL('image/jpeg', q);
-              while (bytesOf(out) > 100 * 1024 && q > 0.18) {
-                q = +(q - 0.06).toFixed(2);
+              let out = '';
+              while (q > 0.18) {
                 out = cv.toDataURL('image/jpeg', q);
+                if (out && out.length > 30 && bytesOf(out) <= maxBytes) break;
+                q = +(q - 0.06).toFixed(2);
               }
-              if (!out || out.length < 30) reject(new Error('图片压缩失败'));
-              else resolve(out);
-            } catch (e) { reject(e); }
+              if (out && out.length > 30) resolve(out);
+              else reject(new Error('图片过复杂无法压缩，请换一张较小的图（建议 2MB 内）'));
+            } catch (e2) { reject(e2); }
           };
           img.src = reader.result;
         };
         reader.readAsDataURL(file);
       });
+      // 首选 400px/100KB；失败（复杂大图/异常画布）→ 256px 再试；仍失败给小图机会直接用原始 dataURL
+      return compressAt(400, 100 * 1024)
+        .catch(() => compressAt(256, 100 * 1024))
+        .catch(() => new Promise((resolve, reject) => {
+          if (file.size <= 300 * 1024) {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result);
+            r.onerror = () => reject(new Error('读取图片失败'));
+            r.readAsDataURL(file);
+          } else {
+            reject(new Error('图片过复杂无法压缩，请换一张较小的图（建议 2MB 内）'));
+          }
+        }));
     },
 
     /* 卡片内联重命名：点击后名称变输入框，回车/失焦保存 */

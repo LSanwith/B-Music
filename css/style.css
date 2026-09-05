@@ -1246,3 +1246,13 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .notice-main { flex: 1; min-width: 0; overflow-y: auto; }
 .notice-main .notice-ver { margin-bottom: 10px; }
 .notice-panel { width: min(560px, 94vw) !important; }
+/* notice v1.1 visual alignment: side list flush with title, accent indicator, polish */
+.notice-panel .modal-body { padding: 14px 0 18px; }
+.notice-body { padding: 0 0 0 8px; }
+.notice-side { width: 128px; }
+.notice-ver-item.active { border-left: 3px solid var(--accent); padding-left: 7px; }
+.notice-main { padding-right: 16px; }
+.notice-main .notice-list li { margin: 0; }
+.notice-list li::before { margin-right: 10px; }
+/* notice v1.1 final alignment */
+.notice-body { padding: 0; }
