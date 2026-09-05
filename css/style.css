@@ -1323,3 +1323,36 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   #ov-body.lyrics-hidden .ov-left { flex-direction: column; align-items: center; text-align: center; width: 100%; gap: 8px; padding: 0 22px; }
   #ov-body.lyrics-hidden .ov-disc { width: min(64vw, 44vh); height: min(64vw, 44vh); margin: 0 auto 12px; flex: none; }
 }
+/* narrow layout fixes: lyrics area flex-fill + small paddings, cover mode scrollable & centered */
+@media (max-width: 720px) {
+  #ov-body > .ov-right { flex: 1 1 auto; height: auto; min-height: 0; }
+  #ov-lyrics-inner { padding: 15vh 22px 17vh; }
+  #ov-body.lyrics-hidden { overflow: auto; }
+  #ov-body.lyrics-hidden .ov-left { justify-content: center; flex: 1 0 auto; }
+  #ov-body.lyrics-hidden .ov-progress,
+  #ov-body.lyrics-hidden .ov-quality,
+  #ov-body.lyrics-hidden .ov-btns,
+  #ov-body.lyrics-hidden .ov-vol { width: min(380px, 86vw); max-width: 380px; margin-left: auto; margin-right: auto; }
+}
+/* ?narrow=1 desktop preview of the same narrow layout */
+html.narrow-debug #ov-body { flex-direction: column; justify-content: flex-start; align-items: center; padding-top: 14px; overflow-y: auto; }
+html.narrow-debug #ov-body > .ov-right { width: 100%; max-width: 100%; height: 48vh; display: flex; flex: none; }
+html.narrow-debug #ov-body > .ov-right { flex: 1 1 auto; height: auto; min-height: 0; }
+html.narrow-debug #ov-lyrics-inner { padding: 15vh 22px 17vh !important; }
+html.narrow-debug .ov-head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 2px 22px 8px; flex: none; }
+html.narrow-debug .ov-head .ov-disc { width: 56px; height: 56px; margin: 0; flex: none; }
+html.narrow-debug .ov-head .ov-disc img { border-radius: 10px; }
+html.narrow-debug .ov-head .ov-song { flex: 1; min-width: 0; text-align: left; }
+html.narrow-debug #ov-body > .ov-progress,
+html.narrow-debug #ov-body > .ov-quality,
+html.narrow-debug #ov-body > .ov-btns,
+html.narrow-debug #ov-body > .ov-vol { width: min(380px, 86vw); max-width: 380px; margin-left: auto; margin-right: auto; flex: none; }
+html.narrow-debug #ov-body > .ov-progress { margin-top: 8px; }
+html.narrow-debug #ov-body > .ov-btns { margin-top: 8px; }
+html.narrow-debug #ov-body.lyrics-hidden { overflow: auto; justify-content: center; align-items: center; }
+html.narrow-debug #ov-body.lyrics-hidden .ov-left { flex-direction: column; align-items: center; text-align: center; width: 100%; gap: 8px; padding: 0 22px; justify-content: center; flex: 1 0 auto; }
+html.narrow-debug #ov-body.lyrics-hidden .ov-disc { width: min(64vw, 44vh); height: min(64vw, 44vh); margin: 0 auto 12px; flex: none; }
+html.narrow-debug #ov-body.lyrics-hidden .ov-progress,
+html.narrow-debug #ov-body.lyrics-hidden .ov-quality,
+html.narrow-debug #ov-body.lyrics-hidden .ov-btns,
+html.narrow-debug #ov-body.lyrics-hidden .ov-vol { width: min(380px, 86vw); max-width: 380px; margin-left: auto; margin-right: auto; }

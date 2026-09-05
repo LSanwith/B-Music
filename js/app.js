@@ -1642,7 +1642,7 @@
         if (ob) ob.classList.toggle('lyrics-hidden', !this._lyricsVisible);
         $('#ly-toggle').classList.toggle('on', this._lyricsVisible);
         // 窄屏：歌词模式 → 顶栏式布局（小封面+歌名 / 歌词 / 控件）；封面模式 → 大图居中
-        if (window.matchMedia && window.matchMedia('(max-width: 720px)').matches) {
+        if (this._isNarrowLayout()) {
           this._arrangeOverlayNarrow(this._lyricsVisible);
         }
       });
@@ -2185,7 +2185,7 @@
       document.body.classList.add('no-scroll');
       // 窄屏（≤720px）每次打开都默认“封面大图模式”（Apple Music 式）：歌手下移、
       // 封面居中放大；需要歌词时点右下角歌词按钮切换；宽屏保持歌词为主
-      if (window.matchMedia && window.matchMedia('(max-width: 720px)').matches) {
+      if (this._isNarrowLayout()) {
         this._lyricsVisible = false;
         const ob = $('#ov-body');
         if (ob) ob.classList.add('lyrics-hidden');
@@ -2236,17 +2236,24 @@
         const song = head.querySelector('.ov-song');
         const restored = document.createElement('div');
         restored.className = 'ov-left';
+        if (disc) restored.appendChild(disc);       // 还原顺序：封面 → 歌名 → 控件
+        if (song) restored.appendChild(song);
         Array.from(body.children).forEach(el => {
           if (el.classList.contains('ov-progress') || el.classList.contains('ov-quality') ||
               el.classList.contains('ov-btns') || el.classList.contains('ov-vol')) {
             restored.appendChild(el);
           }
         });
-        if (disc) restored.appendChild(disc);
-        if (song) restored.appendChild(song);
         body.insertBefore(restored, body.firstChild);
         head.remove();
       }
+    },
+
+    /** 是否窄屏布局（真机 720px 断点；?narrow=1 可强制桌面预览窄屏布局） */
+    _isNarrowLayout() {
+      const forced = /[?&]narrow=1/.test(location.search);
+      if (forced) document.documentElement.classList.add('narrow-debug');
+      return forced || (window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
     },
 
     /* ---------------- 音质（仅设置弹窗内切换） ---------------- */
