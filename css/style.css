@@ -1473,3 +1473,11 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   #ov-body:not(.lyrics-hidden), #ov-body.lyrics-hidden { overflow: hidden; }
   #ov-body:not(.lyrics-hidden) { padding-bottom: 0; }
 }
+/* v10: lyrics viewport = red-box area (52vh), anything beyond is cropped with soft fade edges */
+@media (max-width: 720px) {
+  #ov-body:not(.lyrics-hidden) > .ov-right { flex: none; height: 52vh; min-height: 0; margin-top: 10px; }
+  #ov-body:not(.lyrics-hidden) .ov-lyrics {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 10%, rgba(0,0,0,1) 90%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 10%, rgba(0,0,0,1) 90%, transparent 100%);
+  }
+}
