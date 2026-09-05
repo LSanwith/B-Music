@@ -1460,3 +1460,11 @@ html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
   }
   #ov-body.lyrics-hidden .ov-btns { justify-content: center; }
 }
+/* v8: lyrics area fade-out mask (sharp center, faded edges) ? narrow lyrics mode only */
+@media (max-width: 720px) {
+  #ov-body:not(.lyrics-hidden) .ov-lyrics {
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 18%, rgba(0,0,0,1) 84%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, rgba(0,0,0,1) 18%, rgba(0,0,0,1) 84%, transparent 100%);
+  }
+}
