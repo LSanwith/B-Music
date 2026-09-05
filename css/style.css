@@ -1215,3 +1215,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .mp-cover-edit svg { width: 100%; height: 100%; fill: #fff; }
 .mp-cover:hover .mp-cover-edit, .mp-cover-edit:focus { opacity: 1; }
 .mp-cover-edit:hover { background: var(--accent); }
+/* add-to-playlist row button accent */
+.sr-pladd { color: #8ab4ff !important; }

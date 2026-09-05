@@ -692,13 +692,13 @@
 
     _mpCard(p) {
       return '<div class="pl-card mp-card" data-mp="' + p.id + '">' +
-        '<div class="pl-cover mp-cover"><img src="' + esc(this._mpCoverSrc(p)) + '" alt="" loading="lazy">' +
+        '<div class="pl-cover"><img src="' + esc(this._mpCoverSrc(p)) + '" alt="" loading="lazy">' +
         '<span class="pl-count">' + p.songs.length + ' 首</span>' +
-        '<button class="mp-cover-edit" data-mp-cover="' + p.id + '" aria-label="更换封面">' + CAM_ICON + '</button>' +
         '<span class="pl-hover">' + Icons.icon('playTri') + '</span></div>' +
         '<div class="mp-name">' + esc(p.name) + '</div>' +
         '<div class="mp-acts"><button class="mini-btn" data-mp-rename="' + p.id + '">重命名</button>' +
-        '<button class="mini-btn danger" data-mp-del="' + p.id + '">删除</button></div></div>';
+        '<button class="mini-btn danger" data-mp-del="' + p.id + '">删除</button>' +
+        '<button class="mini-btn danger" data-mp-clear="' + p.id + '">清空</button></div></div>';
     },
 
     /** 自建歌单封面来源优先级：自定义封面 → 首曲封面 → 默认人像占位 */
@@ -828,8 +828,7 @@
         '<button class="mini-btn" id="mp-rename">重命名</button>' +
         '<button class="mini-btn" id="mp-cover-btn">更换封面</button>' +
         (pl.cover ? '<button class="mini-btn" id="mp-cover-reset">恢复默认</button>' : '') +
-        '<button class="mini-btn danger" id="mp-clear">清空列表</button>' +
-        '<button class="mini-btn danger" id="mp-del">删除歌单</button></div>' +
+        '</div>' +
         '<div class="mp-import"><div class="search-box"><form id="mp-import-form">' +
         '<input id="mp-import-input" placeholder="粘贴网易云 歌单/专辑/歌曲 链接或 ID，导入全部歌曲" maxlength="300"></form></div>' +
         '<button class="mini-btn" id="mp-import-btn">导入</button></div>' +
@@ -864,16 +863,6 @@
         toast('已恢复默认封面');
         this.vMyPlaylist(pl.id);
       });
-      this._twoStep($('#mp-clear'), '清空列表', () => {
-        Store.MyPlaylists.clearSongs(pl.id);
-        toast('歌单已清空');
-        this.vMyPlaylist(pl.id);
-      });
-      this._twoStep($('#mp-del'), '删除歌单', () => {
-        Store.MyPlaylists.remove(pl.id);
-        toast('歌单已删除');
-        this.nav('favorites');
-      });
       const btn = $('#mp-import-btn');
       const inp = $('#mp-import-input');
       const doImport = async () => {
@@ -904,17 +893,6 @@
       }
     },
 
-    /** 两段式确认按钮（再点一次才执行），5 秒内未确认自动复位 */
-    _twoStep(btn, label, fn) {
-      if (!btn) return;
-      if (btn.dataset.armed) { delete btn.dataset.armed; fn(); return; }
-      btn.dataset.armed = '1';
-      const old = btn.textContent;
-      btn.textContent = label + '（再点确认）';
-      clearTimeout(btn._t);
-      btn._t = setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; }, 5000);
-    },
-
     /** 按类型拉取歌单/专辑/歌曲全部歌曲（供自建歌单导入），分页上限 1500 首 */
     async _fetchImportSongs(t, onProg) {
       onProg = onProg || (() => {});
@@ -941,6 +919,38 @@
         }
       } catch (e) { /* 返回已获取部分 */ }
       return [];
+    },
+
+    /** 单曲加入自建歌单：弹出目标歌单选择浮层（歌曲列表/歌曲页「加入歌单」共用） */
+    _addSongToPl(song) {
+      if (!song) return;
+      const pls = Store.MyPlaylists.all;
+      if (!pls.length) {
+        toast('请先到「我的收藏 → 自建歌单」新建歌单', 'warn');
+        return;
+      }
+      const mask = document.createElement('div');
+      mask.className = 'mp-pick-mask';
+      mask.innerHTML =
+        '<div class="mp-pick"><div class="mp-pick-head"><span>「' + esc(song.name) + '」加入歌单</span>' +
+        '<button class="icon-btn" id="mp-psong-close">✕</button></div>' +
+        '<div class="mp-pick-body">' + pls.map(p =>
+          '<button class="mp-pick-item" data-target="' + p.id + '">' + esc(p.name) +
+          '<em>' + p.songs.length + ' 首</em></button>').join('') +
+        '</div><div class="mp-pick-foot">按歌曲 ID 去重，重复加入不会产生副本</div></div>';
+      document.body.appendChild(mask);
+      const close = () => mask.remove();
+      mask.addEventListener('click', (e) => { if (e.target === mask) close(); });
+      $('#mp-psong-close').addEventListener('click', close);
+      mask.querySelectorAll('[data-target]').forEach(b => b.addEventListener('click', () => {
+        const pid = b.dataset.target;
+        const p = Store.MyPlaylists.get(pid);
+        if (!p) { close(); return; }
+        close();
+        const added = Store.MyPlaylists.addSongs(pid, [song]);
+        if (added) toast('已加入「' + p.name + '」');
+        else toast('这首歌已在「' + p.name + '」中', 'warn');
+      }));
     },
 
     /** 在网易云歌单页选择目标自建歌单并导入 */
@@ -1009,12 +1019,14 @@
           (s.duration ? ' · ' + fmtDuration(s.duration) : '') + '</div>' +
           '<div class="dt-actions">' +
           '<button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放</button>' +
+          '<button class="btn" id="dt-pladd">加入歌单</button>' +
           '<button class="btn" id="dt-share">分享</button></div>' +
           '</div></section>' +
           '<section class="view-section"><div class="sec-head"><h2>单曲</h2></div>' +
           this._songListHtml([s], { album: true }) + '</section>';
         this._setView(html);
         $('#dt-playall').addEventListener('click', () => Player.playQueue([s], 0));
+        $('#dt-pladd').addEventListener('click', () => this._addSongToPl(s));
         $('#dt-share').addEventListener('click', () => this._shareSong(s));
         // 打开分享链接后自动播放（浏览器自动播放策略允许时；被拦截则用户点播放）
         setTimeout(() => { if (this._viewSeq === seq) Player.playQueue([s], 0); }, 600);
@@ -1189,6 +1201,8 @@
           '<div class="sr-dur">' + fmtDuration(s.duration) + '</div>' +
           '<button class="sr-fav' + (Store.FavSongs.has(s.id) ? ' on' : '') + '" data-fav="' + n + '">' +
           Icons.heartIcon(Store.FavSongs.has(s.id)) + '</button>' +
+          '<button class="sr-dl sr-pladd" data-pladd="' + n + '" aria-label="加入歌单">' +
+          '<svg viewBox="0 0 1024 1024"><path d="M832 352H192c-17.7 0-32-14.3-32-32s14.3-32 32-32h640c17.7 0 32 14.3 32 32s-14.3 32-32 32zM832 544H192c-17.7 0-32-14.3-32-32s14.3-32 32-32h640c17.7 0 32 14.3 32 32s-14.3 32-32 32zM512 736H192c-17.7 0-32-14.3-32-32s14.3-32 32-32h320c17.7 0 32 14.3 32 32s-14.3 32-32 32z"/><path d="M896 608v64h-64c-17.7 0-32 14.3-32 32s14.3 32 32 32h64v64c0 17.7 14.3 32 32 32s32-14.3 32-32v-64h64c17.7 0 32-14.3 32-32s-14.3-32-32-32h-64v-64c0-17.7-14.3-32-32-32s-32 14.3-32 32z"/></svg></button>' +
           (opts.remove ? '<button class="sr-dl sr-del" data-mprem="' + n + '" aria-label="移出歌单">' +
             '<svg viewBox="0 0 1024 1024"><path d="M800 288H640.3V224c0-35.4-28.7-64-64-64h-128.5c-35.4 0-64 28.6-64 64v64H224c-35.4 0-64 28.7-64 64s28.7 64 64 64h26.4l30.6 428.4c1.7 24.2 21.9 43.2 46.1 43.2h369.8c24.2 0 44.4-19 46.1-43.2L773.6 416H800c35.4 0 64-28.7 64-64s-28.6-64-64-64z m-224-64v64H448v-64h128z M512 512c14.1 0 25.6 11.5 25.6 25.6l-12.8 214.4c0 14.1-11.5 25.6-25.6 25.6s-25.6-11.5-25.6-25.6l12.8-214.4c0-14.1 11.5-25.6 25.6-25.6z"/></svg></button>' : '') +
           '<button class="sr-dl sr-share" data-share="' + n + '" aria-label="分享">' +
@@ -1242,6 +1256,13 @@
           if (s) this._downloadSong(s);
           return;
         }
+        const plAddEl = e.target.closest('[data-pladd]');
+        if (plAddEl) {
+          const i = +plAddEl.dataset.pladd;
+          const s = this._ctx.songs[i];
+          if (s) this._addSongToPl(s);
+          return;
+        }
         const mpremEl = e.target.closest('[data-mprem]');
         if (mpremEl) {
           const i = +mpremEl.dataset.mprem;
@@ -1279,8 +1300,26 @@
         }
         const mpDelNoEl = e.target.closest('[data-mp-del-no]');
         if (mpDelNoEl) { this.vFavorites(); return; }
-        const mpCovEl = e.target.closest('[data-mp-cover]');
-        if (mpCovEl) { this._changePlCover(mpCovEl.dataset.mpCover); return; }
+        const mpClrEl = e.target.closest('[data-mp-clear]');
+        if (mpClrEl) {
+          const id = mpClrEl.dataset.mpClear;
+          const p = Store.MyPlaylists.get(id);
+          const card = mpClrEl.closest('.mp-card');
+          if (!p || !card) return;
+          card.innerHTML = '<div class="mp-del-confirm">清空歌单「' + esc(p.name) + '」的全部 ' + p.songs.length + ' 首歌曲？<br>' +
+            '<button class="mini-btn danger" data-mp-clear-yes="' + id + '">确认清空</button>' +
+            '<button class="mini-btn" data-mp-clear-no>取消</button></div>';
+          return;
+        }
+        const mpClrYesEl = e.target.closest('[data-mp-clear-yes]');
+        if (mpClrYesEl) {
+          Store.MyPlaylists.clearSongs(mpClrYesEl.dataset.mpClearYes);
+          toast('歌单已清空');
+          this.vFavorites();
+          return;
+        }
+        const mpClrNoEl = e.target.closest('[data-mp-clear-no]');
+        if (mpClrNoEl) { this.vFavorites(); return; }
         const mpEl = e.target.closest('[data-mp]');
         if (mpEl) { this.nav('myplaylist/' + mpEl.dataset.mp); return; }
         const playEl = e.target.closest('[data-play]');
