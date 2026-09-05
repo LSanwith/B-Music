@@ -834,7 +834,7 @@
         '<button class="mini-btn" id="mp-import-btn">导入</button></div>' +
         '<div id="mp-progress" class="mp-progress"></div>' +
         (pl.songs.length ? this._songListHtml(pl.songs, { album: true, remove: true })
-          : UI.empty('歌单是空的', '复制网易云歌单链接粘贴到上方输入框，点「导入」即可拉取全部歌曲')) +
+          : UI.empty('歌单是空的', '在任意歌曲列表点「加入歌单」，或粘贴网易云歌单链接到上方输入框导入')) +
         '</section>');
       const pa = $('#mp-play-all');
       if (pa) pa.addEventListener('click', () => Player.playQueue(pl.songs, 0));
