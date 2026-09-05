@@ -1114,3 +1114,11 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   .set-menu-row { padding: 10px 12px; }
   .set-page-head .view-back { margin: 0; }
 }
+
+/* 歌词高斯模糊修正：更大半径、纯模糊呈现（去掉清晰层锐利残留，消除泛光感） */
+.lyric-blur-inner { filter: blur(13px) saturate(1.05); opacity: .75; color: rgba(245, 245, 247, .62); }
+.lyric-blur-inner .ly-line { color: inherit; }
+.lyric-blur-inner .ly-text { color: inherit; }
+.ly-line:not(.active):not(.ly-far) { opacity: 0; }
+.ly-line.ly-far { opacity: 0; }
+@media (max-width: 720px) { .lyric-blur-inner { filter: blur(11px); } }
