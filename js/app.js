@@ -1606,10 +1606,28 @@
       $('#ly-trans-toggle').addEventListener('click', () => {
         if (!$$('.ly-trans').length) { toast('该歌曲暂无译文', 'warn'); return; }
         this._lyricTrans = !this._lyricTrans;
-        $$('.ly-trans').forEach(el => el.classList.toggle('hide', !this._lyricTrans));
+        $$('.ly-trans').forEach((el) => {
+          if (this._lyricTrans) {
+            // 出现动画：淡入 + 轻微上浮
+            el.classList.remove('hide', 'out');
+            el.classList.remove('in'); void el.offsetWidth; // 重新触发动画
+            el.classList.add('in');
+          } else {
+            // 消失动画：先淡出，再移除占位
+            el.classList.remove('in');
+            el.classList.add('out');
+            setTimeout(() => { el.classList.remove('out'); el.classList.add('hide'); }, 170);
+          }
+        });
         const tb = $('#ly-trans-toggle');
         tb.textContent = this._lyricTrans ? '译' : '原';
         tb.classList.toggle('on', this._lyricTrans);
+        // 行高变化后：立即重测度量并【定格】活动行位置（消除“先上下滚动再归位”的延迟）
+        setTimeout(() => {
+          this._measureLyrics();
+          this._snapActiveLyric();
+        }, this._lyricTrans ? 30 : 200);
+        toast(this._lyricTrans ? '已显示译文' : '已隐藏译文');
       });
       $('#ly-queue').addEventListener('click', () => this.toggleQueue());
       $('#ly-toggle').addEventListener('click', () => {
@@ -2056,24 +2074,39 @@
         } else {
           // 注意：clientHeight 已包含上下 padding，直接以其一半作为可视中心；
           // offsetTop 已相对轨道顶边（含其 padding），不再加 padTop
-          this._ensureLyricMeasured();
-          const m = this._lyricM && this._lyricM[li];
-          const travel = 20; // 随唱上滑行程 px
-          const wrapH = this._wrapClientH || wrap.clientHeight;
-          const scrollH = this._wrapScrollH || wrap.scrollHeight;
-          const lineH = m ? m.h : (el.offsetHeight || 42);
-          const maxScroll = Math.max(0, scrollH - wrapH);
-          const base = m ? m.top : el.offsetTop;
-          const target = Math.max(0, Math.min(maxScroll,
-            base + lineH - wrapH / 2 + 10 + p * travel));
+          const target = this._lyricTargetFor(li, p);
           const diff = target - (this._lyricScroll || 0);
           if (Math.abs(diff) > 0.5) {
             const k = 1 - Math.exp(-dt * 11); // 收敛时间约 250ms
-            this._lyricScroll = Math.max(0, Math.min(maxScroll, (this._lyricScroll || 0) + diff * k));
+            this._lyricScroll = Math.max(0, Math.min(target, (this._lyricScroll || 0) + diff * k));
             this._applyLyricScroll();
           }
         }
       }
+    },
+
+    /** 活动行应处的滚动目标（base + 行高/2 居中 + 随唱上滑 travel） */
+    _lyricTargetFor(li, p) {
+      const wrap = $('.ov-lyrics');
+      const el = this._lyricEls && this._lyricEls[li];
+      if (!wrap || !el) return this._lyricScroll || 0;
+      const m = this._lyricM && this._lyricM[li];
+      const travel = 20; // 随唱上滑行程 px
+      const wrapH = this._wrapClientH || wrap.clientHeight;
+      const scrollH = this._wrapScrollH || wrap.scrollHeight;
+      const lineH = m ? m.h : (el.offsetHeight || 42);
+      const base = m ? m.top : el.offsetTop;
+      return Math.max(0, Math.min(Math.max(0, scrollH - wrapH),
+        base + lineH - wrapH / 2 + 10 + (p || 0) * travel));
+    },
+
+    /** 立即把活动行定格到居中位置（翻译/原文本切换后消除滚动追赶动画） */
+    _snapActiveLyric() {
+      const st = this._lyricState;
+      const li = st && st.li;
+      if (li == null || li < 0) return;
+      this._lyricScroll = this._lyricTargetFor(li, 0);
+      this._applyLyricScroll();
     },
 
     /** 应用歌词轨道平移（GPU 合成滚动；同时清零容器原生 scrollTop 防双重偏移） */

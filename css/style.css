@@ -1258,3 +1258,15 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .notice-body { padding: 0; }
 /* lyric blur gradient: per-line --ly-blur set by JS (closer = sharper, 0.5px..4px) */
 #ov-lyrics-inner .ly-line:not(.active) { filter: blur(var(--ly-blur, 4px)) !important; }
+/* lyric translation toggle animation (v1.1) */
+.ly-trans { transition: opacity .2s ease, transform .2s ease; }
+.ly-trans.in { animation: lyTransIn .24s ease; }
+.ly-trans.out { animation: lyTransOut .17s ease forwards; }
+@keyframes lyTransIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes lyTransOut {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(-4px); }
+}
