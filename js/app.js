@@ -1641,7 +1641,6 @@
         const ob = $('#ov-body');
         if (ob) ob.classList.toggle('lyrics-hidden', !this._lyricsVisible);
         $('#ly-toggle').classList.toggle('on', this._lyricsVisible);
-        toast('DBG LY=' + this._lyricsVisible + ' hidden=' + (ob ? ob.classList.contains('lyrics-hidden') : '?') + ' narrow=' + this._isNarrowLayout());
         // 布局类切换后【全量重锁】歌词状态：重新缓存行引用 + 重测度量 + 滚动归零，
         // 下一帧 _lyricUpdate 按当前时间从零重新锁定活动行并平滑归位（杜绝错位残留）
         setTimeout(() => {
@@ -2242,16 +2241,16 @@
       document.body.classList.remove('no-scroll');
     },
 
-    /** 是否窄屏布局（调试期 1300px 断点；发布前改回 800） */
+    /** 是否窄屏布局（≤800px 断点，与播放器 CSS 一致） */
     _isNarrowLayout() {
-      return window.matchMedia && window.matchMedia('(max-width: 1300px)').matches;
+      return window.matchMedia && window.matchMedia('(max-width: 800px)').matches;
     },
 
     /** 窗口宽度跨 720px 断点时，实时还原/切换两种布局（避免拖动窗口后布局残留错乱） */
     _bindOverlayResize() {
       if (this._ovResizeBound) return;
       this._ovResizeBound = true;
-      const mq = window.matchMedia && window.matchMedia('(max-width: 1300px)');
+      const mq = window.matchMedia && window.matchMedia('(max-width: 800px)');
       if (!mq) return;
       const onChange = (e) => {
         const ov = $('#overlay');
