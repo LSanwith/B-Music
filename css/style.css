@@ -1283,3 +1283,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .ly-toolbar { opacity: .38; transition: opacity .35s ease; }
 .ly-toolbar:hover, .ly-toolbar:focus-within, .ly-toolbar:active { opacity: 1; }
 @media (max-width: 720px) { .ly-toolbar { opacity: .5; } }
+/* YRC word-level karaoke highlight (active line only) */
+.ly-line.active .ly-w { color: rgba(255,255,255,.34); transition: color .12s linear; }
+.ly-line.active .ly-w.on { color: #fff; }
+.ly-line:not(.active) .ly-w { color: inherit; }

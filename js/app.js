@@ -1825,7 +1825,7 @@
       this._lyricLines = [];
       this._lyricState = { li: -1 };
       this._showLyricPlaceholder('加载歌词…');
-      const show = (base, trans) => {
+      const show = (base, trans, yrows) => {
         const tb = $('#ly-trans-toggle');
         const setTrans = (has) => {
           this._lyricTrans = !!has;
@@ -1835,6 +1835,26 @@
           }
         };
         const merged = Lrc.mergeLyrics(base || '', trans || '');
+        // 逐字（YRC）接入：按时间把 yrc 词挂到对应行；无匹配的行插入为独立逐字行
+        if (yrows && yrows.length) {
+          const extra = [];
+          for (const r of yrows) {
+            let best = null, bd = 0.35;
+            for (const o of merged) {
+              const d = Math.abs(o.t - r.t);
+              if (d < bd) { bd = d; best = o; }
+            }
+            if (best) {
+              if (!best.words) best.words = r.words;
+            } else {
+              extra.push({ t: r.t, l: r.words.map(w => w.w).join(''), tl: '', words: r.words });
+            }
+          }
+          if (extra.length) {
+            merged.push(...extra);
+            merged.sort((a, b) => a.t - b.t);
+          }
+        }
         this._lyricLines = merged;
         if (!box) return;
         if (!merged.length) {
@@ -1850,10 +1870,10 @@
       try {
         const ly = await API.lyric(song.id);
         if (ly.base) {
-          show(ly.base, ly.trans);
+          show(ly.base, ly.trans, ly.yrc ? Lrc.parseYrc(ly.yrc) : []);
         } else {
           const hy = await API.hongyunLrc(song.id);
-          show(hy, '');
+          show(hy, '', []);
         }
       } catch (e) {
         this._lyricLines = [];
@@ -1864,8 +1884,13 @@
     _renderLyricBox(box, lines, hasTrans) {
       const html = lines.map((l, i) => {
         const dur = Math.max(0.5, ((lines[i + 1] ? lines[i + 1].t : l.t + 5) - l.t));
+        let textHtml = l.l ? esc(l.l) : '&nbsp;';
+        if (l.words && l.words.length) {
+          const ascii = /[\u4e00-\u9fa5]/.test(l.l) ? false : true;
+          textHtml = l.words.map(w => '<span class="ly-w" data-t="' + w.t + '" data-d="' + Math.max(0.05, w.d) + '">' + esc(w.w) + '</span>').join(ascii ? ' ' : '');
+        }
         return '<div class="ly-line" data-li="' + i + '" data-t="' + l.t + '" data-d="' + dur + '">' +
-          '<div class="ly-text">' + (l.l ? esc(l.l) : '&nbsp;') + '</div>' +
+          '<div class="ly-text">' + textHtml + '</div>' +
           (l.tl ? '<div class="ly-trans' + (hasTrans ? '' : ' hide') + '">' + esc(l.tl) + '</div>' : '') +
           '</div>';
       }).join('');
@@ -2066,9 +2091,20 @@
         }
       }
 
-      // 2) 无 YRC 逐字数据：整段显示（活动行纯白，其余行灰色+模糊），不做卡拉OK填充
+      // 2) 逐字（YRC）：活动行内词级卡拉OK高亮；无词数据则整段显示（活动行纯白）
       const el = els[li];
       if (el) {
+        const ws = el.querySelectorAll('.ly-w');
+        if (ws && ws.length) {
+          let wi = -1;
+          for (let k = 0; k < ws.length; k++) {
+            if (parseFloat(ws[k].dataset.t) <= cur) wi = k;
+            else break;
+          }
+          for (let k = 0; k < ws.length; k++) {
+            ws[k].classList.toggle('on', k <= wi);
+          }
+        }
         const d = parseFloat(el.dataset.d) || 5;
         const t0 = parseFloat(el.dataset.t) || 0;
         const p = Math.max(0, Math.min(1, (cur - t0) / d)); // 行进度 0..1（仅用于随唱上滑）
