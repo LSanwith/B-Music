@@ -106,6 +106,13 @@
           _releaseProxySlot();
         }
         if (res.status === 404 || res.status === 405) {
+          // 只有“代理端点本身不存在”（返回 HTML/非 JSON）才关闭代理走直连；
+          // 代理存在但上游 404（如接口路由挂了）视为上游失败，保留代理
+          const ct = (res.headers.get('content-type') || '').toLowerCase();
+          const body = await res.text();
+          if (ct.indexOf('json') >= 0 || /^\s*[\[{]/.test(body)) {
+            throw new Error('proxy HTTP ' + res.status);
+          }
           _proxyState = 'off'; // 页面不在本应用服务器上，无代理
         } else if (!res.ok) {
           throw new Error('proxy HTTP ' + res.status); // 上游失败：代理本身可用，保留
