@@ -187,15 +187,17 @@
       document.dispatchEvent(new CustomEvent('ym:mypls'));
       Session.sync();
     },
-    /** 批量加入（按 id 去重），返回实际新增数 */
+    /** 批量加入（按 id 去重），返回实际新增数。
+     *  新歌【置顶】并保持传入顺序：其他歌单的歌曲 1~a → 原有歌曲 a+1~b。 */
     addSongs(id, songs) {
       const p = MyPlaylists.get(id);
       if (!p || !Array.isArray(songs)) return 0;
-      let added = 0;
+      const fresh = []; // 本批新增（按传入顺序，去重：已有 + 批次内重复）
       songs.forEach(s => {
         if (!s || !s.id) return;
         if (p.songs.some(x => idEq(x.id, s.id))) return;
-        p.songs.push({
+        if (fresh.some(x => idEq(x.id, s.id))) return;
+        fresh.push({
           id: s.id,
           name: s.name,
           artists: s.artists,
@@ -204,15 +206,14 @@
           duration: s.duration || 0,
           vip: !!s.vip,
         });
-        added++;
       });
-      if (added) {
-        p.updatedAt = Date.now();
-        write('myPlaylists', myPlaylists);
-        document.dispatchEvent(new CustomEvent('ym:mypls'));
-        Session.sync();
-      }
-      return added;
+      if (!fresh.length) return 0;
+      p.songs = fresh.concat(p.songs); // 置顶：本批 1..a 在前，原有歌曲跟后
+      p.updatedAt = Date.now();
+      write('myPlaylists', myPlaylists);
+      document.dispatchEvent(new CustomEvent('ym:mypls'));
+      Session.sync();
+      return fresh.length;
     },
     removeSong(id, songId) {
       const p = MyPlaylists.get(id);
