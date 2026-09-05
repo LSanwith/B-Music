@@ -1122,3 +1122,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .ly-line:not(.active):not(.ly-far) { opacity: 0; }
 .ly-line.ly-far { opacity: 0; }
 @media (max-width: 720px) { .lyric-blur-inner { filter: blur(11px); } }
+
+/* 高斯模糊平衡：半径适中、文字更实，保持模糊质感又可辨认 */
+.lyric-blur-inner { filter: blur(8px); opacity: 1; color: rgba(245, 245, 247, .8); }
+@media (max-width: 720px) { .lyric-blur-inner { filter: blur(7px); } }
