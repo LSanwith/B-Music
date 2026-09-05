@@ -2100,7 +2100,10 @@
       }
     },
 
-    /** 活动行应处的滚动目标（base + 行高/2 居中 + 随唱上滑 travel） */
+    /** 活动行应处的滚动目标：以【主歌词块上边缘】为基准动态定位。
+     *  单行：上边缘按整块中心对齐（同旧行为）；多行（含译文，行块较高）：
+     *  上边缘锁定在可视区约 38% 处向下铺开，保证第一行永远完整可见，
+     *  不会被滚动/羽化区裁掉顶部。 */
     _lyricTargetFor(li, p) {
       const wrap = $('.ov-lyrics');
       const el = this._lyricEls && this._lyricEls[li];
@@ -2111,8 +2114,10 @@
       const scrollH = this._wrapScrollH || wrap.scrollHeight;
       const lineH = m ? m.h : (el.offsetHeight || 42);
       const base = m ? m.top : el.offsetTop;
+      const effH = Math.min(lineH, wrapH * 0.62);              // 行块占用可视区上限
+      const topTarget = Math.max(wrapH * 0.12, (wrapH - effH) / 2); // 上边缘目标：中心对齐且不低于安全区
       return Math.max(0, Math.min(Math.max(0, scrollH - wrapH),
-        base + lineH - wrapH / 2 + 10 + (p || 0) * travel));
+        base - topTarget + 10 + (p || 0) * travel));
     },
 
     /** 立即把活动行定格到居中位置（翻译/原文本切换后消除滚动追赶动画） */
