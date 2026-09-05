@@ -232,6 +232,32 @@
       document.dispatchEvent(new CustomEvent('ym:session'));
     },
 
+    /**
+     * 拉取云端最新资料（GET /api/account/profile，返回 { email, avatar }）：
+     * 供启动 / 登录成功 / 窗口重新聚焦时调用，跨设备头像同步（A 机换头像 → B 机刷新生效）。
+     * 成功时仅更新本地 session 的 avatar（token/email 不变，也绝不涉及密码字段）并
+     * 派发 'ym:session'（→ app 侧 _syncAuthUI 重绘侧栏与设置头像）；
+     * 头像未变化则不派发。失败（未登录 / 401 / 网络等）静默返回 false，不影响本地。
+     * @returns {Promise<boolean>} 是否成功拉取并应用
+     */
+    async refreshProfile() {
+      if (!session) return false;
+      const token = session.token; // 请求期间可能退出/切换账号：用发起时的 token 校验响应归属
+      try {
+        const j = await Session._api('/account/profile');
+        if (!session || session.token !== token) return false; // 已退出/换号：丢弃过期结果
+        const avatar = j && typeof j.avatar === 'string' ? j.avatar : '';
+        if (session.avatar !== avatar) {
+          session.avatar = avatar;
+          write('session', session);
+          document.dispatchEvent(new CustomEvent('ym:session'));
+        }
+        return true;
+      } catch (e) {
+        return false; // 网络失败 / 401（登录过期）静默忽略
+      }
+    },
+
     /** 拉取云端数据并应用到本地（登录时云端为准） */
     async pull() {
       const j = await Session._api('/data');

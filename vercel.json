@@ -8,6 +8,7 @@
     { "source": "/api/data", "destination": "/api/account?r=data" },
     { "source": "/api/account/delete", "destination": "/api/account?r=delete" },
     { "source": "/api/account/avatar", "destination": "/api/account?r=avatar" },
+    { "source": "/api/account/profile", "destination": "/api/account?r=profile" },
     { "source": "/api/account/password", "destination": "/api/account?r=password" }
   ]
 }

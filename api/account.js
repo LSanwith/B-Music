@@ -10,6 +10,7 @@
  *   /api/data           → /api/account?r=data           (GET/POST)
  *   /api/account/avatar → /api/account?r=avatar         (POST)
  *   /api/account/password → /api/account?r=password     (POST)
+ *   /api/account/profile → /api/account?r=profile       (GET)
  *
  * 持久化：
  *  - 推荐：Vercel KV（Redis）—— 控制台 Storage → KV → 创建并连接到本项目，
@@ -130,6 +131,11 @@ export default async function handler(req, res) {
     }
     const user = authUser(db, req);
     if (!user) return res.status(401).json({ msg: '未登录或登录已过期' });
+    if (r === 'profile' && method === 'GET') {
+      // 当前账号公开资料（仅 email/avatar，绝不返回 salt/passHash），
+      // 供多端在启动/回前台时拉取最新头像，实现跨设备头像同步
+      return res.status(200).json({ email: user.email, avatar: user.avatar || '' });
+    }
     if (r === 'avatar' && method === 'POST') {
       const b = await readBody(req);
       const avatar = String(b.avatar || '').trim();

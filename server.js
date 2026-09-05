@@ -64,7 +64,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 async function handleApi(req, res, urlPath) {
   const API_PATHS = ['/api/register', '/api/captcha', '/api/login',
     '/api/logout', '/api/account/delete', '/api/data',
-    '/api/account/avatar', '/api/account/password'];
+    '/api/account/avatar', '/api/account/password', '/api/account/profile'];
   if (API_PATHS.indexOf(urlPath) < 0) return false;
   const method = req.method;
   try {
@@ -127,6 +127,11 @@ async function handleApi(req, res, urlPath) {
     }
     const user = authUser(req);
     if (!user) return sendJson(res, 401, { msg: '未登录或登录已过期' });
+    // 当前账号公开资料（仅 email/avatar，绝不返回 salt/passHash），
+    // 供多端在启动/回前台时拉取最新头像，实现跨设备头像同步
+    if (urlPath === '/api/account/profile' && method === 'GET') {
+      return sendJson(res, 200, { email: user.email, avatar: user.avatar || '' });
+    }
     if (urlPath === '/api/account/avatar' && method === 'POST') {
       const b = await readBody(req);
       const avatar = String(b.avatar || '').trim();

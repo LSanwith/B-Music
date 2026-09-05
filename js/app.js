@@ -42,6 +42,11 @@
       this.render();
       this._applySettingsToUI();
       this._syncAuthUI();
+      // 启动即拉取云端最新资料（头像）：此前已登录的旧会话（localStorage 里存着旧 avatar）
+      // 打开应用也能立即同步为其他设备设置的头像（失败静默，无碍本地）
+      this._refreshProfile();
+      // 从其他标签/应用切回本页时也刷新（_refreshProfile 内部有 ≥60s 节流）
+      window.addEventListener('focus', () => this._refreshProfile());
       this._maybeShowNotice();
       this._initMediaSession();
       this._lyricsVisible = true;
@@ -1723,6 +1728,25 @@
       thumb.addEventListener('pointerup', finish);
       thumb.addEventListener('pointercancel', finish);
     },
+    /**
+     * 拉取云端最新资料（头像，跨设备同步）：启动 / 登录成功后各调用一次；
+     * window 'focus' 触发时做节流刷新——距上次成功刷新 <60s 则跳过。
+     * 未登录或拉取失败（网络/401）静默忽略，不影响本地会话。
+     * 成功后 Store.Session.refreshProfile 内部派发 ym:session → _syncAuthUI 自动重绘
+     * 侧栏头像与设置「账号设置」区，无需在此手动刷新 UI。
+     */
+    async _refreshProfile() {
+      if (!Store.Session.loggedIn || this._profileRefreshing) return;
+      const now = Date.now();
+      if (now - (this._profileRefreshT || 0) < 60000) return; // 节流：距上次成功刷新 ≥60s 才请求
+      this._profileRefreshing = true;
+      try {
+        const ok = await Store.Session.refreshProfile();
+        if (ok) this._profileRefreshT = Date.now();
+      } finally {
+        this._profileRefreshing = false;
+      }
+    },
     /** 侧栏账号区：未登录显示 登录/注册，已登录显示头像 + 邮箱 + 退出 */
     _syncAuthUI() {
       const logged = Store.Session.loggedIn;
@@ -1930,6 +1954,7 @@
         $('#auth-pass').value = '';
         $('#auth-pass2').value = '';
         this.closeAuth();
+        this._refreshProfile(); // 登录成功后再拉一次云端资料（头像），与启动拉取互补
       } catch (e) {
         showErr(e.message || '操作失败');
         if (this._authMode === 'register') this._loadCaptcha(); // 验证题一次一题
