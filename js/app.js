@@ -2195,6 +2195,7 @@
       }
       this._bindOverlayResize();
       this.startLyricLoop();
+      this._lyricScroll = 0; // 每次打开重置滚动位置（避免换歌/切模式后主句丢失）
       this._syncLyric(Player.curTime);
       // 等自定义字体就绪后重测行高（字体加载会改变行高，缓存的 offsetTop 会失效）
       this._measureLyrics();

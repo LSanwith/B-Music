@@ -1361,3 +1361,12 @@ html.narrow-debug #ov-body.lyrics-hidden .ov-vol { width: min(380px, 86vw); max-
   #ov-lyrics-inner { padding: 28vh 22px 32vh; }
 }
 html.narrow-debug #ov-lyrics-inner { padding: 28vh 22px 32vh !important; }
+/* narrow lyrics-mode fixes: centered text, enough buffer for multi-line, toolbar clear of volume */
+@media (max-width: 720px) {
+  #ov-lyrics-inner { padding: 36vh 22px 40vh; }
+  #ov-lyrics-inner .ly-line,
+  #ov-lyrics-inner .ly-text,
+  #ov-lyrics-inner .ly-trans { text-align: center; }
+  #ov-body > .ov-vol { margin-bottom: 64px; }
+  .ly-toolbar { bottom: 8px; }
+}
