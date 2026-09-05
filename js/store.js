@@ -1,5 +1,5 @@
 /* ============================================================
- * 本地存储：收藏歌曲 / 收藏歌单 / 最近播放 / 设置
+ * 本地存储：收藏歌曲 / 收藏歌单 / 最近播放 / 自建歌单 / 搜索历史 / 设置
  * 全部保存在浏览器 localStorage（前缀 ym.）
  * ============================================================ */
 (function () {
@@ -132,19 +132,127 @@
     },
   };
 
+  /* ---------- 自建歌单 ---------- */
+  let myPlaylists = read('myPlaylists', []);
+  const MyPlaylists = {
+    get all() { return myPlaylists; },
+    get(id) { return myPlaylists.find(p => idEq(p.id, id)) || null; },
+    create(name) {
+      const pl = {
+        id: 'mp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        name: String(name || '新建歌单').trim().slice(0, 30) || '新建歌单',
+        songs: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      myPlaylists.unshift(pl);
+      write('myPlaylists', myPlaylists);
+      document.dispatchEvent(new CustomEvent('ym:mypls'));
+      Session.sync();
+      return pl;
+    },
+    rename(id, name) {
+      const p = MyPlaylists.get(id);
+      if (!p) return;
+      p.name = String(name || '').trim().slice(0, 30) || p.name;
+      p.updatedAt = Date.now();
+      write('myPlaylists', myPlaylists);
+      document.dispatchEvent(new CustomEvent('ym:mypls'));
+      Session.sync();
+    },
+    remove(id) {
+      myPlaylists = myPlaylists.filter(p => !idEq(p.id, id));
+      write('myPlaylists', myPlaylists);
+      document.dispatchEvent(new CustomEvent('ym:mypls'));
+      Session.sync();
+    },
+    /** 批量加入（按 id 去重），返回实际新增数 */
+    addSongs(id, songs) {
+      const p = MyPlaylists.get(id);
+      if (!p || !Array.isArray(songs)) return 0;
+      let added = 0;
+      songs.forEach(s => {
+        if (!s || !s.id) return;
+        if (p.songs.some(x => idEq(x.id, s.id))) return;
+        p.songs.push({
+          id: s.id,
+          name: s.name,
+          artists: s.artists,
+          album: s.album,
+          cover: s.cover || (s.album && s.album.cover) || '',
+          duration: s.duration || 0,
+          vip: !!s.vip,
+        });
+        added++;
+      });
+      if (added) {
+        p.updatedAt = Date.now();
+        write('myPlaylists', myPlaylists);
+        document.dispatchEvent(new CustomEvent('ym:mypls'));
+        Session.sync();
+      }
+      return added;
+    },
+    removeSong(id, songId) {
+      const p = MyPlaylists.get(id);
+      if (!p) return;
+      const before = p.songs.length;
+      p.songs = p.songs.filter(s => !idEq(s.id, songId));
+      if (p.songs.length !== before) {
+        p.updatedAt = Date.now();
+        write('myPlaylists', myPlaylists);
+        document.dispatchEvent(new CustomEvent('ym:mypls'));
+        Session.sync();
+      }
+    },
+    clearSongs(id) {
+      const p = MyPlaylists.get(id);
+      if (!p || !p.songs.length) return;
+      p.songs = [];
+      p.updatedAt = Date.now();
+      write('myPlaylists', myPlaylists);
+      document.dispatchEvent(new CustomEvent('ym:mypls'));
+      Session.sync();
+    },
+  };
+
+  /* ---------- 搜索历史（仅本机，不同步） ---------- */
+  const MAX_SEARCH_HISTORY = 12;
+  let searchHistory = read('searchHistory', []);
+  const SearchHistory = {
+    get all() { return searchHistory; },
+    add(kw) {
+      kw = String(kw || '').trim();
+      if (!kw) return;
+      searchHistory = searchHistory.filter(k => k !== kw);
+      searchHistory.unshift(kw);
+      if (searchHistory.length > MAX_SEARCH_HISTORY) searchHistory.length = MAX_SEARCH_HISTORY;
+      write('searchHistory', searchHistory);
+      document.dispatchEvent(new CustomEvent('ym:searchhist'));
+    },
+    clear() {
+      searchHistory = [];
+      write('searchHistory', searchHistory);
+      document.dispatchEvent(new CustomEvent('ym:searchhist'));
+    },
+  };
+
   /* ---------- 清空 ---------- */
   function clearAll() {
-    favSongs = []; favPlaylists = []; recent = [];
+    favSongs = []; favPlaylists = []; recent = []; myPlaylists = []; searchHistory = [];
     write('favSongs', favSongs); write('favPlaylists', favPlaylists); write('recent', recent);
+    write('myPlaylists', myPlaylists); write('searchHistory', searchHistory);
     document.dispatchEvent(new CustomEvent('ym:favsongs', {}));
     document.dispatchEvent(new CustomEvent('ym:favpls'));
     document.dispatchEvent(new CustomEvent('ym:recent'));
+    document.dispatchEvent(new CustomEvent('ym:mypls'));
+    document.dispatchEvent(new CustomEvent('ym:searchhist'));
     Session.sync();
   }
 
   /* ============================================================
-   * 云账号（数据库同步）：设置 + 收藏歌曲 + 收藏歌单 上传/下载；
-   * 最近播放仅保存在本机，不同步。
+   * 云账号（数据库同步）：设置 + 收藏歌曲 + 收藏歌单 + 自建歌单
+   * 上传/下载；最近播放与搜索历史仅保存在本机，不同步。
    * 未登录时一切照旧（localStorage）；登录后数据自动云端同步。
    * ============================================================ */
   let session = read('session', null); // { token, email, avatar }
@@ -277,9 +385,14 @@
         write('favPlaylists', favPlaylists);
         document.dispatchEvent(new CustomEvent('ym:favpls'));
       }
+      if (Array.isArray(j.myPlaylists)) {
+        myPlaylists = j.myPlaylists;
+        write('myPlaylists', myPlaylists);
+        document.dispatchEvent(new CustomEvent('ym:mypls'));
+      }
     },
 
-    /** 上传当前本机数据（设置 + 收藏，不含最近播放） */
+    /** 上传当前本机数据（设置 + 收藏 + 自建歌单，不含最近播放/搜索历史） */
     async push() {
       await Session._api('/data', {
         method: 'POST',
@@ -287,6 +400,7 @@
           settings: SETTINGS,
           favSongs: favSongs,
           favPlaylists: favPlaylists,
+          myPlaylists: myPlaylists,
         }),
       });
     },
@@ -300,5 +414,5 @@
     },
   };
 
-  window.Store = { Settings, FavSongs, FavPlaylists, Recent, Session, clearAll };
+  window.Store = { Settings, FavSongs, FavPlaylists, Recent, MyPlaylists, SearchHistory, Session, clearAll };
 })();

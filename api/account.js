@@ -188,6 +188,7 @@ export default async function handler(req, res) {
         if (b.settings && typeof b.settings === 'object') d.settings = b.settings;
         if (Array.isArray(b.favSongs)) d.favSongs = b.favSongs;
         if (Array.isArray(b.favPlaylists)) d.favPlaylists = b.favPlaylists;
+        if (Array.isArray(b.myPlaylists)) d.myPlaylists = b.myPlaylists;
         db.data[user.id] = d;
         await saveDb(db);
         return res.status(200).json({ ok: true });

@@ -205,9 +205,9 @@
       const seg = path.split('/').filter(Boolean);
       const root = seg[0] || 'discover';
       this._highlightNav(root);
-      // 顶栏返回按钮：仅在 歌单/专辑/歌手/单曲 等详情页显示（位于顶部标题文本左侧）
+      // 顶栏返回按钮：仅在 歌单/专辑/歌手/单曲/自建歌单 等详情页显示（位于顶部标题文本左侧）
       const topBack = $('#btn-topback');
-      if (topBack) topBack.classList.toggle('hidden', !(root === 'playlist' || root === 'album' || root === 'artist' || root === 'song'));
+      if (topBack) topBack.classList.toggle('hidden', !(root === 'playlist' || root === 'album' || root === 'artist' || root === 'song' || root === 'myplaylist'));
       // 分享深度链接的 ?song= 参数：页面就绪后在原列表定位并自动播放该曲
       this._autoSong = params.get('song') ? String(params.get('song')) : null;
       this._autoSongTries = 0;
@@ -217,6 +217,7 @@
       if (root === 'playlists') return this.vPlaylists(params.get('cat'), params.get('order'));
       if (root === 'search') return this.vSearch(params.get('q') || '');
       if (root === 'favorites') return this.vFavorites();
+      if (root === 'myplaylist' && seg[1]) return this.vMyPlaylist(seg[1]);
       if (root === 'song' && seg[1]) return this.vSong(seg[1]);
       if (root === 'playlist' && (seg[1] || params.get('id'))) return this.vPlaylist(seg[1] || params.get('id'));
       if (root === 'album' && (seg[1] || params.get('id'))) return this.vAlbum(seg[1] || params.get('id'));
@@ -226,7 +227,7 @@
 
     _highlightNav(root) {
       $$('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.nav === root));
-      const titles = { discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲' };
+      const titles = { discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲' };
       const t = $('#page-title');
       if (t) t.textContent = titles[root] || '发现';
       const cur = Player.current();
@@ -424,19 +425,30 @@
         const seq = this._viewSeq;
         const hot = await API.searchHot().catch(() => []);
         if (seq !== this._viewSeq) return;
+        const hist = Store.SearchHistory.all.slice(0, 12);
         this._setView(
           '<section class="view-section search-page"><div class="search-box"><form id="search-form">' +
-          '<input id="search-input" type="text" placeholder="输入关键词，回车搜索" maxlength="60" autofocus></form></div>' +
-          (hot.length ? '<div class="sec-head"><h2>热门搜索</h2></div><div class="hot-chips">' +
+          '<input id="search-input" type="text" placeholder="关键词 / 歌曲ID / 网易云链接，回车搜索" maxlength="120" autofocus></form></div>' +
+          (hist.length ? '<div class="sec-head"><h2>历史搜索</h2><button class="mini-btn danger" id="search-clear-hist">清空</button></div>' +
+            '<div class="hot-chips">' + hist.map(w => '<button class="chip" data-search="' + esc(w) + '">' + esc(w) + '</button>').join('') +
+            '</div>' : '') +
+          (hot.length ? '<div class="sec-head" style="margin-top:26px"><h2>热门搜索</h2></div><div class="hot-chips">' +
             hot.slice(0, 20).map(w => '<button class="chip" data-search="' + esc(w) + '">' + esc(w) + '</button>').join('') +
             '</div>' : '') + '</section>');
         $('#search-form').addEventListener('submit', (e) => {
           e.preventDefault();
           const v = $('#search-input').value.trim();
-          if (v) this.nav('search', { q: v });
+          if (v) {
+            Store.SearchHistory.add(v);
+            this.nav('search', { q: v });
+          }
         });
+        const ch = $('#search-clear-hist');
+        if (ch) ch.addEventListener('click', () => { Store.SearchHistory.clear(); toast('搜索历史已清空'); this.vSearch(''); });
         return;
       }
+      // 支持 网易云链接 / ID 直达：识别成功则直接打开对应页面
+      if (await this._maybeIdSearch(kw)) return;
       this._searchType = 'song';
       this._searchKw = kw;
       this._searchOffset = 0;
@@ -444,16 +456,71 @@
       this._searchAll = [];
       this._setView(
         '<section class="view-section search-page"><div class="search-box"><form id="search-form">' +
-        '<input id="search-input" type="text" value="' + esc(kw) + '" maxlength="60"></form></div>' +
+        '<input id="search-input" type="text" value="' + esc(kw) + '" maxlength="120"></form></div>' +
         '<div class="fav-tabs" id="search-tabs"></div>' +
         '<div id="search-result"></div></section>');
       $('#search-form').addEventListener('submit', (e) => {
         e.preventDefault();
         const v = $('#search-input').value.trim();
-        if (v && v !== this._searchKw) this.nav('search', { q: v });
+        if (v && v !== this._searchKw) {
+          Store.SearchHistory.add(v);
+          this.nav('search', { q: v });
+        }
       });
       this._searchTabHtml(tabs);
       await this._doSearch();
+    },
+
+    /** 搜索词可能是网易云链接或纯 ID：识别并直达对应页面。返回 true 表示已处理 */
+    async _maybeIdSearch(kw) {
+      const t = App._parseNeteaseLink(kw);
+      if (t) {
+        if (t.type === 'song' || t.type === 'playlist' || t.type === 'album' || t.type === 'artist') {
+          toast('已识别网易云' + { song: '歌曲', playlist: '歌单', album: '专辑', artist: '歌手' }[t.type] + '链接，正在打开');
+          this.nav(t.type + '/' + t.id);
+          return true;
+        }
+        return false; // mv / djradio 等暂不支持：退回关键词搜索
+      }
+      if (/^\d{5,}$/.test(kw)) {
+        const hit = await App._resolveNeteaseId(kw);
+        if (hit) {
+          toast(hit.label);
+          this.nav(hit.route);
+          return true;
+        }
+        toast('未找到该 ID，已按关键词搜索', 'warn');
+      }
+      return false;
+    },
+
+    /** 解析网易云链接（含分享文本中夹带链接），返回 { type, id }；识别不到返回 null */
+    _parseNeteaseLink(text) {
+      const m = /((?:playlist|album|artist|song|mv|djradio|program|user|radio))[\s\S]{0,120}?(?:id|sid)=(\d+)/i.exec(text || '');
+      if (!m) return null;
+      return { type: m[1].toLowerCase(), id: m[2] };
+    },
+
+    /** 纯数字 ID 依次探测 歌曲→歌单→专辑→歌手 */
+    async _resolveNeteaseId(id) {
+      try {
+        const s = await API.songDetail(id);
+        if (s && s.id) return { route: 'song/' + id, label: '歌曲 ID 直达：' + s.name };
+      } catch (e) { /* 继续探测 */ }
+      try {
+        const p = await API.playlistDetail(id);
+        const t = await API.playlistTracks(id, 1, 0);
+        if (p && p.id && t && t.songs) return { route: 'playlist/' + id, label: '歌单 ID 直达：' + p.name };
+      } catch (e) { /* 继续探测 */ }
+      try {
+        const a = await API.albumDetail(id);
+        if (a && a.album && a.album.id) return { route: 'album/' + id, label: '专辑 ID 直达：' + a.album.name };
+      } catch (e) { /* 继续探测 */ }
+      try {
+        const ar = await API.artistDetail(id);
+        if (ar && ar.id) return { route: 'artist/' + id, label: '歌手 ID 直达：' + ar.name };
+      } catch (e) { /* 未命中 */ }
+      return null;
     },
 
     _searchTabHtml(tabs) {
@@ -537,6 +604,8 @@
       const favSongs = Store.FavSongs.all;
       const favPls = Store.FavPlaylists.all;
       const recents = Store.Recent.all;
+      const myPls = Store.MyPlaylists.all;
+      const tab = this._favTab || 'songs'; // 记住上次所在分页（自建歌单操作后刷新不跳走）
       this._ctx = {
         favSongs: favSongs.map(s => this._snapToSong(s)),
         recent: recents.map(s => this._snapToSong(s)),
@@ -544,19 +613,37 @@
       };
       const html =
         '<section class="view-section"><div class="sec-head"><h2>我的收藏</h2></div>' +
-        '<div class="fav-tabs"><button class="chip active" data-favtab="songs">收藏歌曲 (' + favSongs.length + ')</button>' +
-        '<button class="chip" data-favtab="playlists">收藏歌单 (' + favPls.length + ')</button>' +
-        '<button class="chip" data-favtab="recent">最近播放 (' + recents.length + ')</button></div>' +
+        '<div class="fav-tabs"><button class="chip' + (tab === 'songs' ? ' active' : '') + '" data-favtab="songs">收藏歌曲 (' + favSongs.length + ')</button>' +
+        '<button class="chip' + (tab === 'playlists' ? ' active' : '') + '" data-favtab="playlists">收藏歌单 (' + favPls.length + ')</button>' +
+        '<button class="chip' + (tab === 'recent' ? ' active' : '') + '" data-favtab="recent">最近播放 (' + recents.length + ')</button>' +
+        '<button class="chip' + (tab === 'mypls' ? ' active' : '') + '" data-favtab="mypls">自建歌单 (' + myPls.length + ')</button></div>' +
         '<div id="fav-body">' +
-        (favSongs.length
-          ? this._songListHtml(this._ctx.songs, { album: false, cover: false })
-          : UI.empty('还没有收藏歌曲', '在歌曲列表或播放页点击 ♥ 收藏')) +
+        (tab === 'mypls' ? this._myPlsTabHtml(myPls) :
+          (tab === 'playlists'
+            ? (favPls.length ? '<div class="grid pl-grid">' + favPls.map(p => this._plCard(p)).join('') + '</div>' : UI.empty('还没有收藏歌单', '在歌单页点击「收藏歌单」'))
+            : (tab === 'recent'
+              ? (recents.length ? this._songListHtml(this._ctx.songs, { album: false, cover: false }) : UI.empty('暂无播放记录'))
+              : (favSongs.length ? this._songListHtml(this._ctx.songs, { album: false, cover: false }) : UI.empty('还没有收藏歌曲', '在歌曲列表或播放页点击 ♥ 收藏'))))) +
         '</div></section>';
       this._setView(html);
+      this._bindFavTabEvents();
+    },
+
+    /* 自建歌单 Tab 内容（含新建歌单输入行） */
+    _myPlsTabHtml(myPls) {
+      return '<div class="mp-tools"><input id="mp-new-name" class="mp-input" placeholder="新歌单名称，如：开车循环" maxlength="30">' +
+        '<button class="mini-btn" id="mp-new-btn">新建歌单</button></div>' +
+        (myPls.length
+          ? '<div class="grid pl-grid">' + myPls.map(p => this._mpCard(p)).join('') + '</div>'
+          : UI.empty('还没有自建歌单', '输入名称点「新建歌单」，再从网易云链接导入全部歌曲'));
+    },
+
+    _bindFavTabEvents() {
       $$('.fav-tabs .chip').forEach(b => b.addEventListener('click', () => {
         $$('.fav-tabs .chip').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         const t = b.dataset.favtab;
+        this._favTab = t;
         const body = $('#fav-body');
         if (t === 'songs') {
           this._ctx.songs = this._ctx.favSongs; // 点击委托读取 _ctx.songs
@@ -564,14 +651,227 @@
             ? this._songListHtml(this._ctx.songs, { album: false, cover: false })
             : UI.empty('还没有收藏歌曲', '在歌曲列表或播放页点击 ♥ 收藏');
         } else if (t === 'playlists') {
+          const favPls = Store.FavPlaylists.all;
           body.innerHTML = favPls.length
             ? '<div class="grid pl-grid">' + favPls.map(p => this._plCard(p)).join('') + '</div>'
             : UI.empty('还没有收藏歌单', '在歌单页点击「收藏歌单」');
-        } else {
+        } else if (t === 'recent') {
           this._ctx.songs = this._ctx.recent; // 最近播放：点击委托同样生效
           body.innerHTML = this._ctx.songs.length
             ? this._songListHtml(this._ctx.songs, { album: false, cover: false })
             : UI.empty('暂无播放记录');
+        } else {
+          body.innerHTML = this._myPlsTabHtml(Store.MyPlaylists.all);
+          this._bindMyPlsTabEvents();
+        }
+      }));
+      this._bindMyPlsTabEvents(); // 初始渲染（含 mypls 分页）也绑定
+    },
+
+    /* 自建歌单 Tab 内：新建 + 卡片交互（重命名/删除/打开） */
+    _bindMyPlsTabEvents() {
+      const fresh = $('#mp-new-btn');
+      if (fresh) {
+        const create = () => {
+          const inp = $('#mp-new-name');
+          const v = inp ? inp.value.trim() : '';
+          if (!v) { toast('请输入歌单名称', 'warn'); return; }
+          const pl = Store.MyPlaylists.create(v);
+          toast('已创建歌单「' + pl.name + '」');
+          this._favTab = 'mypls';
+          this.vFavorites();
+        };
+        fresh.addEventListener('click', create);
+        const inp = $('#mp-new-name');
+        if (inp) inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') create(); });
+      }
+    },
+
+    _mpCard(p) {
+      return '<div class="pl-card mp-card" data-mp="' + p.id + '">' +
+        '<div class="pl-cover"><img src="' + esc(coverUrl(p.songs[0] ? p.songs[0].cover : '')) + '" alt="" loading="lazy">' +
+        '<span class="pl-count">' + p.songs.length + ' 首</span>' +
+        '<span class="pl-hover">' + Icons.icon('playTri') + '</span></div>' +
+        '<div class="mp-name">' + esc(p.name) + '</div>' +
+        '<div class="mp-acts"><button class="mini-btn" data-mp-rename="' + p.id + '">重命名</button>' +
+        '<button class="mini-btn danger" data-mp-del="' + p.id + '">删除</button></div></div>';
+    },
+
+    /* 卡片内联重命名：点击后名称变输入框，回车/失焦保存 */
+    _editMpName(id, card) {
+      const p = Store.MyPlaylists.get(id);
+      const nameEl = card.querySelector('.mp-name');
+      if (!p || !nameEl) return;
+      const input = document.createElement('input');
+      input.className = 'mp-edit-input';
+      input.value = p.name;
+      input.maxLength = 30;
+      nameEl.innerHTML = '';
+      nameEl.appendChild(input);
+      let doneFlag = false;
+      const done = () => {
+        if (doneFlag) return;
+        doneFlag = true;
+        Store.MyPlaylists.rename(id, input.value);
+        this.vFavorites();
+      };
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') done();
+        else if (e.key === 'Escape') this.vFavorites();
+      });
+      input.addEventListener('blur', done);
+      input.focus();
+      input.select();
+    },
+
+    /* ============================================================
+     * 视图：自建歌单详情
+     * ============================================================ */
+    async vMyPlaylist(id) {
+      const pl = Store.MyPlaylists.get(id);
+      if (!pl) { this._viewError('歌单不存在或已删除', 'App.vMyPlaylist()'); return; }
+      this._ctx.songs = pl.songs;
+      this._mpId = pl.id; // 供「移出歌单」按钮知道目标歌单
+      this._setView(
+        '<section class="view-section"><div class="sec-head"><h2>' + esc(pl.name) + '</h2>' +
+        '<span class="mp-count">' + pl.songs.length + ' 首</span></div>' +
+        '<div class="mp-tools">' +
+        (pl.songs.length ? '<button class="mini-btn" id="mp-play-all">播放全部</button>' : '') +
+        '<button class="mini-btn" id="mp-rename">重命名</button>' +
+        '<button class="mini-btn danger" id="mp-clear">清空列表</button>' +
+        '<button class="mini-btn danger" id="mp-del">删除歌单</button></div>' +
+        '<div class="mp-import"><div class="search-box"><form id="mp-import-form">' +
+        '<input id="mp-import-input" placeholder="粘贴网易云 歌单/专辑/歌曲 链接或 ID，导入全部歌曲" maxlength="300"></form></div>' +
+        '<button class="mini-btn" id="mp-import-btn">导入</button></div>' +
+        '<div id="mp-progress" class="mp-progress"></div>' +
+        (pl.songs.length ? this._songListHtml(pl.songs, { album: true, remove: true })
+          : UI.empty('歌单是空的', '复制网易云歌单链接粘贴到上方输入框，点「导入」即可拉取全部歌曲')) +
+        '</section>');
+      const pa = $('#mp-play-all');
+      if (pa) pa.addEventListener('click', () => Player.playQueue(pl.songs, 0));
+      $('#mp-rename').addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.className = 'mp-edit-input';
+        input.value = pl.name;
+        input.maxLength = 30;
+        const h2 = $('#view .sec-head h2');
+        h2.innerHTML = ''; h2.appendChild(input);
+        let doneFlag = false;
+        const done = () => {
+          if (doneFlag) return; doneFlag = true;
+          Store.MyPlaylists.rename(pl.id, input.value);
+          this.vMyPlaylist(pl.id);
+        };
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); else if (e.key === 'Escape') this.vMyPlaylist(pl.id); });
+        input.addEventListener('blur', done);
+        input.focus(); input.select();
+      });
+      this._twoStep($('#mp-clear'), '清空列表', () => {
+        Store.MyPlaylists.clearSongs(pl.id);
+        toast('歌单已清空');
+        this.vMyPlaylist(pl.id);
+      });
+      this._twoStep($('#mp-del'), '删除歌单', () => {
+        Store.MyPlaylists.remove(pl.id);
+        toast('歌单已删除');
+        this.nav('favorites');
+      });
+      const btn = $('#mp-import-btn');
+      const inp = $('#mp-import-input');
+      const doImport = async () => {
+        const v = inp.value.trim();
+        if (!v) { toast('请先粘贴网易云链接或 ID', 'warn'); return; }
+        const prog = $('#mp-progress');
+        prog.textContent = '解析中…';
+        let t = App._parseNeteaseLink(v);
+        if (!t && /^\d{5,}$/.test(v)) t = { type: 'playlist', id: v }; // 导入框里纯 ID 默认按歌单处理
+        if (!t) { prog.textContent = '无法识别该链接/ID'; return; }
+        if (t.type === 'mv' || t.type === 'djradio' || t.type === 'program' || t.type === 'user' || t.type === 'radio') {
+          prog.textContent = '暂不支持导入该类型：' + t.type;
+          return;
+        }
+        const songs = await App._fetchImportSongs(t, (msg) => { const p = $('#mp-progress'); if (p) p.textContent = msg; });
+        if (!songs || !songs.length) {
+          prog.textContent = '未导入任何歌曲（链接无效 / 权限不足 / 已全部存在）';
+          return;
+        }
+        const added = Store.MyPlaylists.addSongs(pl.id, songs);
+        this.vMyPlaylist(pl.id);
+        toast('导入完成：新增 ' + added + ' 首');
+      };
+      btn.addEventListener('click', doImport);
+      $('#mp-import-form').addEventListener('submit', (e) => { e.preventDefault(); doImport(); });
+    },
+
+    /** 两段式确认按钮（再点一次才执行） */
+    _twoStep(btn, label, fn) {
+      if (!btn) return;
+      if (btn.dataset.armed) { delete btn.dataset.armed; fn(); return; }
+      btn.dataset.armed = '1';
+      const old = btn.textContent;
+      btn.textContent = label + '（再点确认）';
+      clearTimeout(btn._t);
+      btn._t = setTimeout(() => { delete btn.dataset.armed; btn.textContent = old; }, 3000);
+    },
+
+    /** 按类型拉取歌单/专辑/歌曲全部歌曲（供自建歌单导入），分页上限 1500 首 */
+    async _fetchImportSongs(t, onProg) {
+      onProg = onProg || (() => {});
+      try {
+        if (t.type === 'song') {
+          const s = await API.songDetail(t.id);
+          return s && s.id ? [s] : [];
+        }
+        if (t.type === 'album') {
+          const a = await API.albumDetail(t.id);
+          return (a && a.songs) || [];
+        }
+        if (t.type === 'playlist') {
+          const out = [];
+          let offset = 0;
+          while (out.length < 1500) {
+            onProg('获取歌单歌曲… 已 ' + out.length + ' 首');
+            const j = await API.playlistTracks(t.id, 100, offset);
+            out.push(...(j.songs || []));
+            if (!j.more || out.length >= 1500) break;
+            offset += 100;
+          }
+          return out;
+        }
+      } catch (e) { /* 返回已获取部分 */ }
+      return [];
+    },
+
+    /** 在网易云歌单页选择目标自建歌单并导入 */
+    _openImportPicker(targetId) {
+      const pls = Store.MyPlaylists.all;
+      if (!pls.length) { toast('请先在「我的收藏 → 自建歌单」新建歌单', 'warn'); return; }
+      const mask = document.createElement('div');
+      mask.className = 'mp-pick-mask';
+      mask.innerHTML =
+        '<div class="mp-pick"><div class="mp-pick-head"><span>导入到自建歌单</span>' +
+        '<button class="icon-btn" id="mp-pick-close">✕</button></div>' +
+        '<div class="mp-pick-body">' + pls.map(p =>
+          '<button class="mp-pick-item" data-target="' + p.id + '">' + esc(p.name) +
+          '<em>' + p.songs.length + ' 首</em></button>').join('') +
+        '</div><div class="mp-pick-foot">按歌曲 ID 去重导入，不影响收藏与最近播放</div></div>';
+      document.body.appendChild(mask);
+      const close = () => mask.remove();
+      mask.addEventListener('click', (e) => { if (e.target === mask) close(); });
+      $('#mp-pick-close').addEventListener('click', close);
+      mask.querySelectorAll('[data-target]').forEach(b => b.addEventListener('click', async () => {
+        const pid = b.dataset.target;
+        const p = Store.MyPlaylists.get(pid);
+        if (!p) { close(); return; }
+        close();
+        toast('正在导入到「' + p.name + '」…');
+        try {
+          const pl = await App._fetchImportSongs({ type: 'playlist', id: targetId }, () => {});
+          const added = Store.MyPlaylists.addSongs(pid, pl);
+          if (added) toast('导入完成：' + p.name + ' 新增 ' + added + ' 首');
+          else toast('没有新歌曲（可能已存在或链接失效）', 'warn');
+        } catch (e) {
+          toast('导入失败：' + e.message, 'warn');
         }
       }));
     },
@@ -649,6 +949,7 @@
           '<div class="dt-actions">' +
           '<button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放全部</button>' +
           '<button class="btn" id="dt-share">分享</button>' +
+          '<button class="btn" id="dt-import">导入自建歌单</button>' +
           '<button class="btn' + (fav ? ' on' : '') + '" id="dt-fav">' + Icons.heartIcon(fav) +
           (fav ? '已收藏' : '收藏歌单') + '</button></div>' +
           (info.description ? '<div class="dt-desc">' + esc(info.description).slice(0, 120) + '</div>' : '') +
@@ -670,6 +971,7 @@
           toast(on ? '已收藏歌单' : '已取消收藏');
         });
         $('#dt-share').addEventListener('click', () => this._sharePage('playlist', id, '歌单', info.name, info.cover));
+        $('#dt-import').addEventListener('click', () => this._openImportPicker(id));
       } catch (e) {
         this._viewError('歌单加载失败：' + e.message, 'App.vPlaylist(\'' + id + '\')');
       }
@@ -786,6 +1088,8 @@
           '<div class="sr-dur">' + fmtDuration(s.duration) + '</div>' +
           '<button class="sr-fav' + (Store.FavSongs.has(s.id) ? ' on' : '') + '" data-fav="' + n + '">' +
           Icons.heartIcon(Store.FavSongs.has(s.id)) + '</button>' +
+          (opts.remove ? '<button class="sr-dl sr-del" data-mprem="' + n + '" aria-label="移出歌单">' +
+            '<svg viewBox="0 0 1024 1024"><path d="M800 288H640.3V224c0-35.4-28.7-64-64-64h-128.5c-35.4 0-64 28.6-64 64v64H224c-35.4 0-64 28.7-64 64s28.7 64 64 64h26.4l30.6 428.4c1.7 24.2 21.9 43.2 46.1 43.2h369.8c24.2 0 44.4-19 46.1-43.2L773.6 416H800c35.4 0 64-28.7 64-64s-28.6-64-64-64z m-224-64v64H448v-64h128z M512 512c14.1 0 25.6 11.5 25.6 25.6l-12.8 214.4c0 14.1-11.5 25.6-25.6 25.6s-25.6-11.5-25.6-25.6l12.8-214.4c0-14.1 11.5-25.6 25.6-25.6z"/></svg></button>' : '') +
           '<button class="sr-dl sr-share" data-share="' + n + '" aria-label="分享">' +
           '<svg viewBox="0 0 1024 1024"><path d="M807 588c-36 0-68 14-93 36L416 486c1-7 1-13 0-20l298-138c25 22 57 36 93 36 75 0 136-61 136-136S882 92 807 92 671 153 671 228c0 7 0 13 1 20L374 386c-25-22-57-36-93-36-75 0-136 61-136 136s61 136 136 136c36 0 68-14 93-36l298 138c-1 7-1 13 0 20-1 75 60 136 135 136s136-61 136-136-61-136-136-136z"/></svg></button>' +
           '<button class="sr-dl" data-dl="' + n + '">' +
@@ -837,6 +1141,45 @@
           if (s) this._downloadSong(s);
           return;
         }
+        const mpremEl = e.target.closest('[data-mprem]');
+        if (mpremEl) {
+          const i = +mpremEl.dataset.mprem;
+          const s = this._ctx.songs[i];
+          const pid = this._mpId; // vMyPlaylist 渲染时记录
+          if (s && pid) {
+            Store.MyPlaylists.removeSong(pid, s.id);
+            toast('已移出歌单');
+            this.vMyPlaylist(pid);
+          }
+          return;
+        }
+        const mpRenEl = e.target.closest('[data-mp-rename]');
+        if (mpRenEl) {
+          this._editMpName(mpRenEl.dataset.mpRename, mpRenEl.closest('.mp-card'));
+          return;
+        }
+        const mpDelEl = e.target.closest('[data-mp-del]');
+        if (mpDelEl) {
+          const id = mpDelEl.dataset.mpDel;
+          const p = Store.MyPlaylists.get(id);
+          const card = mpDelEl.closest('.mp-card');
+          if (!p || !card) return;
+          card.innerHTML = '<div class="mp-del-confirm">删除歌单「' + esc(p.name) + '」？<br>' +
+            '<button class="mini-btn danger" data-mp-del-yes="' + id + '">确认删除</button>' +
+            '<button class="mini-btn" data-mp-del-no>取消</button></div>';
+          return;
+        }
+        const mpDelYesEl = e.target.closest('[data-mp-del-yes]');
+        if (mpDelYesEl) {
+          Store.MyPlaylists.remove(mpDelYesEl.dataset.mpDelYes);
+          toast('歌单已删除');
+          this.vFavorites();
+          return;
+        }
+        const mpDelNoEl = e.target.closest('[data-mp-del-no]');
+        if (mpDelNoEl) { this.vFavorites(); return; }
+        const mpEl = e.target.closest('[data-mp]');
+        if (mpEl) { this.nav('myplaylist/' + mpEl.dataset.mp); return; }
         const playEl = e.target.closest('[data-play]');
         if (playEl) {
           const i = +playEl.dataset.play;
@@ -852,7 +1195,9 @@
         if (arEl && arEl.dataset.artist) { this.nav('artist/' + arEl.dataset.artist); return; }
         const scEl = e.target.closest('[data-search]');
         if (scEl) {
-          $('#top-search-input').value = scEl.dataset.search;
+          const tsi = $('#top-search-input');
+          if (tsi) tsi.value = scEl.dataset.search;
+          Store.SearchHistory.add(scEl.dataset.search);
           this.nav('search', { q: scEl.dataset.search });
           return;
         }

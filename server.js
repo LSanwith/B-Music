@@ -185,6 +185,7 @@ async function handleApi(req, res, urlPath) {
         if (b.settings && typeof b.settings === 'object') d.settings = b.settings;
         if (Array.isArray(b.favSongs)) d.favSongs = b.favSongs;
         if (Array.isArray(b.favPlaylists)) d.favPlaylists = b.favPlaylists;
+        if (Array.isArray(b.myPlaylists)) d.myPlaylists = b.myPlaylists;
         DB.data[user.id] = d;
         saveDb(DB);
         return sendJson(res, 200, { ok: true });
