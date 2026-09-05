@@ -1647,7 +1647,9 @@
           const box = $('.ov-lyrics');
           if (!box) return;
           this._cacheLyricEls(box);
+          if (!this._lyricLines || !this._lyricLines.length) this._rebuildLinesFromDom();
           this._syncLyric(Player.curTime); // 立即按当前时间锁定活动行+高亮+定位
+          this._lyricUpdate(performance.now()); // 再跑一帧确保点亮与模糊就位
         }, 80);
       });
       $('#ly-share').addEventListener('click', () => {
@@ -2144,6 +2146,18 @@
       this._wrapH = wrap ? wrap.clientHeight : (this._wrapH || 320);
     },
 
+    /** 从 DOM 行重建歌词时间轴（第二次显示时 _lyricLines 可能已丢失） */
+    _rebuildLinesFromDom() {
+      const els = this._lyricEls || [];
+      if (!els.length) return;
+      this._lyricLines = els.map((el) => {
+        const t = parseFloat(el.dataset.t) || 0;
+        const d = parseFloat(el.dataset.d) || 5;
+        const txt = el.querySelector('.ly-text');
+        return { t: t, d: d, t1: t + d, text: txt ? txt.textContent : '' };
+      });
+    },
+
     /** 重新点亮活动行并重算全部行的距离模糊（歌词/布局切换后的兜底重绘） */
     _redrawActiveLyric() {
       const els = this._lyricEls || [];
@@ -2285,7 +2299,9 @@
           const box = $('.ov-lyrics');
           if (!box) return;
           this._cacheLyricEls(box);
+          if (!this._lyricLines || !this._lyricLines.length) this._rebuildLinesFromDom();
           this._syncLyric(Player.curTime); // 立即按当前时间锁定活动行+高亮+定位
+          this._lyricUpdate(performance.now());
         }, 250);
       };
       if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange);
