@@ -53,6 +53,10 @@
       });
       document.addEventListener('ym:favpls', () => this._renderSidePlaylists());
       document.addEventListener('ym:settings', (e) => this._onSettings(e.detail));
+      // 云端同步变化 → 当前正在看的页面自动更新（不再需要手动刷新）
+      document.addEventListener('ym:favsongs', () => this._onCloudDataChanged());
+      document.addEventListener('ym:favpls', () => this._onCloudDataChanged());
+      document.addEventListener('ym:mypls', () => this._onCloudDataChanged());
       this._renderSidePlaylists();
       this._renderQualityMenu();
       this.render();
@@ -2686,6 +2690,33 @@
         '<span>' + esc(p.name) + '</span></div>').join('');
       box.querySelectorAll('[data-spl]').forEach(el => el.addEventListener('click', () =>
         this.nav('playlist/' + el.dataset.spl)));
+    },
+
+    /* 云端数据变化后的界面刷新（自动同步可见性）：
+     *  - 收藏 / 自建歌单页：数据可能新增/删除条目 → 直接重绘当前页
+     *  - 其它页面：仅刷新列表行内的红心与播放器收藏按钮状态 */
+    _onCloudDataChanged() {
+      const h = location.hash;
+      if (/^#\/favorites/.test(h) || /^#\/myplaylist\//.test(h)) {
+        this.render();
+        return;
+      }
+      $$('#view .sr-fav').forEach((b) => {
+        const i = +b.dataset.fav;
+        const s = this._ctx && this._ctx.songs && this._ctx.songs[i];
+        if (!s) return;
+        const on = Store.FavSongs.has(s.id);
+        b.classList.toggle('on', on);
+        b.innerHTML = Icons.heartIcon(on);
+      });
+      const cur = Player.current && Player.current();
+      if (cur && cur.id != null) {
+        const on = Store.FavSongs.has(cur.id);
+        const pb = $('#pb-fav');
+        if (pb) { pb.classList.toggle('on', on); pb.innerHTML = Icons.heartIcon(on); }
+        const ov = $('#ov-fav');
+        if (ov) { ov.classList.toggle('on', on); ov.innerHTML = Icons.heartIcon(on); }
+      }
     },
 
     /* ============================================================
