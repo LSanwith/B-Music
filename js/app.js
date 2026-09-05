@@ -11,6 +11,9 @@
   /* 相机小图标（头像悬停时提示“可更换”，viewBox 1024，内联 SVG，无 title/tooltip） */
   const CAM_ICON = '<svg viewBox="0 0 1024 1024"><path d="M928 288H768l-56-64H312l-56 64H96c-17.7 0-32 14.3-32 32v480c0 17.7 14.3 32 32 32h832c17.7 0 32-14.3 32-32V320c0-17.7-14.3-32-32-32zM512 768c-97.2 0-176-78.8-176-176s78.8-176 176-176 176 78.8 176 176-78.8 176-176 176z m0-288c-61.9 0-112 50.1-112 112s50.1 112 112 112 112-50.1 112-112-50.1-112-112-112z"/></svg>';
 
+  /* 自建歌单默认封面：灰底人像占位图（与默认用户头像一致，内联 SVG） */
+  const DEFAULT_PL_COVER = 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 200 200\'%3E%3Ccircle cx=\'100\' cy=\'100\' r=\'100\' fill=\'%23e2e3e5\'/%3E%3Ccircle cx=\'100\' cy=\'80\' r=\'33\' fill=\'%23f7f8fa\'/%3E%3Cpath d=\'M100 128c-36 0-60 20-68 44a100 100 0 0 0 136 0c-8-24-32-44-68-44z\' fill=\'%23f7f8fa\'/%3E%3C/svg%3E';
+
   const App = {
     _ctx: { songs: [], banners: [] },
     _lyricLines: [],
@@ -689,12 +692,95 @@
 
     _mpCard(p) {
       return '<div class="pl-card mp-card" data-mp="' + p.id + '">' +
-        '<div class="pl-cover"><img src="' + esc(coverUrl(p.songs[0] ? p.songs[0].cover : '')) + '" alt="" loading="lazy">' +
+        '<div class="pl-cover mp-cover"><img src="' + esc(this._mpCoverSrc(p)) + '" alt="" loading="lazy">' +
         '<span class="pl-count">' + p.songs.length + ' 首</span>' +
+        '<button class="mp-cover-edit" data-mp-cover="' + p.id + '" aria-label="更换封面">' + CAM_ICON + '</button>' +
         '<span class="pl-hover">' + Icons.icon('playTri') + '</span></div>' +
         '<div class="mp-name">' + esc(p.name) + '</div>' +
         '<div class="mp-acts"><button class="mini-btn" data-mp-rename="' + p.id + '">重命名</button>' +
         '<button class="mini-btn danger" data-mp-del="' + p.id + '">删除</button></div></div>';
+    },
+
+    /** 自建歌单封面来源优先级：自定义封面 → 首曲封面 → 默认人像占位 */
+    _mpCoverSrc(p) {
+      return p.cover || (p.songs[0] && p.songs[0].cover ? coverUrl(p.songs[0].cover) : '') || DEFAULT_PL_COVER;
+    },
+
+    /* ---------- 自建歌单自定义封面（≤10MB，本地压缩后存储） ---------- */
+    _changePlCover(id) {
+      if (!this._plCoverFile) {
+        const inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = 'image/*';
+        inp.style.display = 'none';
+        inp.addEventListener('change', () => this._onPlCoverFile(this._plCoverPending, inp.files && inp.files[0]));
+        document.body.appendChild(inp);
+        this._plCoverFile = inp;
+      }
+      this._plCoverPending = id;
+      this._plCoverFile.value = '';
+      this._plCoverFile.click();
+    },
+    /** 校验大小（≤10MB）→ 压缩（最长边 400 / JPEG / >100KB 降质）→ 存歌单并刷新界面 */
+    async _onPlCoverFile(id, file) {
+      if (!file) return;
+      if (file.size > 10 * 1024 * 1024) {
+        toast('图片不能超过 10MB', 'warn');
+        return;
+      }
+      if (!/^image\//.test(file.type || '')) {
+        toast('请选择图片文件', 'warn');
+        return;
+      }
+      try {
+        const dataURL = await this._compressPlCover(file);
+        Store.MyPlaylists.setCover(id, dataURL);
+        toast('封面已更新');
+        const h = location.hash;
+        if (/^#\/myplaylist\//.test(h)) this.vMyPlaylist(id);
+        else this.vFavorites();
+      } catch (e) {
+        toast((e && e.message) || '封面更新失败', 'warn');
+      }
+    },
+    _compressPlCover(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('读取图片失败'));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error('不支持的图片格式'));
+          img.onload = () => {
+            try {
+              const MAX = 400;
+              const w0 = img.naturalWidth || img.width || 1;
+              const h0 = img.naturalHeight || img.height || 1;
+              const scale = Math.min(1, MAX / Math.max(w0, h0));
+              const w = Math.max(1, Math.round(w0 * scale));
+              const h = Math.max(1, Math.round(h0 * scale));
+              const cv = document.createElement('canvas');
+              cv.width = w; cv.height = h;
+              const ctx = cv.getContext('2d');
+              if (ctx) {
+                ctx.fillStyle = '#15151a'; // JPEG 无透明通道：深色底垫底
+                ctx.fillRect(0, 0, w, h);
+                ctx.drawImage(img, 0, 0, w, h);
+              }
+              const bytesOf = (s) => Math.floor((s.length - (s.indexOf(',') + 1)) * 3 / 4);
+              let q = 0.82;
+              let out = cv.toDataURL('image/jpeg', q);
+              while (bytesOf(out) > 100 * 1024 && q > 0.18) {
+                q = +(q - 0.06).toFixed(2);
+                out = cv.toDataURL('image/jpeg', q);
+              }
+              if (!out || out.length < 30) reject(new Error('图片压缩失败'));
+              else resolve(out);
+            } catch (e) { reject(e); }
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
     },
 
     /* 卡片内联重命名：点击后名称变输入框，回车/失焦保存 */
@@ -733,11 +819,15 @@
       this._ctx.songs = pl.songs;
       this._mpId = pl.id; // 供「移出歌单」按钮知道目标歌单
       this._setView(
-        '<section class="view-section"><div class="sec-head"><h2>' + esc(pl.name) + '</h2>' +
+        '<section class="view-section"><div class="sec-head mp-head">' +
+        '<img class="mp-head-cover" src="' + esc(this._mpCoverSrc(pl)) + '" alt="">' +
+        '<h2>' + esc(pl.name) + '</h2>' +
         '<span class="mp-count">' + pl.songs.length + ' 首</span></div>' +
         '<div class="mp-tools">' +
         (pl.songs.length ? '<button class="mini-btn" id="mp-play-all">播放全部</button>' : '') +
         '<button class="mini-btn" id="mp-rename">重命名</button>' +
+        '<button class="mini-btn" id="mp-cover-btn">更换封面</button>' +
+        (pl.cover ? '<button class="mini-btn" id="mp-cover-reset">恢复默认</button>' : '') +
         '<button class="mini-btn danger" id="mp-clear">清空列表</button>' +
         '<button class="mini-btn danger" id="mp-del">删除歌单</button></div>' +
         '<div class="mp-import"><div class="search-box"><form id="mp-import-form">' +
@@ -766,6 +856,13 @@
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') done(); else if (e.key === 'Escape') this.vMyPlaylist(pl.id); });
         input.addEventListener('blur', done);
         input.focus(); input.select();
+      });
+      $('#mp-cover-btn').addEventListener('click', () => this._changePlCover(pl.id));
+      const rcst = $('#mp-cover-reset');
+      if (rcst) rcst.addEventListener('click', () => {
+        Store.MyPlaylists.clearCover(pl.id);
+        toast('已恢复默认封面');
+        this.vMyPlaylist(pl.id);
       });
       this._twoStep($('#mp-clear'), '清空列表', () => {
         Store.MyPlaylists.clearSongs(pl.id);
@@ -1182,6 +1279,8 @@
         }
         const mpDelNoEl = e.target.closest('[data-mp-del-no]');
         if (mpDelNoEl) { this.vFavorites(); return; }
+        const mpCovEl = e.target.closest('[data-mp-cover]');
+        if (mpCovEl) { this._changePlCover(mpCovEl.dataset.mpCover); return; }
         const mpEl = e.target.closest('[data-mp]');
         if (mpEl) { this.nav('myplaylist/' + mpEl.dataset.mp); return; }
         const playEl = e.target.closest('[data-play]');

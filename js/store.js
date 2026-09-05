@@ -141,6 +141,7 @@
       const pl = {
         id: 'mp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         name: String(name || '新建歌单').trim().slice(0, 30) || '新建歌单',
+        cover: '', // 自定义封面 dataURL（压缩后），空 = 用首曲封面/默认占位
         songs: [],
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -150,6 +151,26 @@
       document.dispatchEvent(new CustomEvent('ym:mypls'));
       Session.sync();
       return pl;
+    },
+    /** 设置自定义封面（dataURL；本地压缩后存储，云端随 myPlaylists 同步） */
+    setCover(id, dataURL) {
+      const p = MyPlaylists.get(id);
+      if (!p) return;
+      p.cover = String(dataURL || '') || '';
+      p.updatedAt = Date.now();
+      write('myPlaylists', myPlaylists);
+      document.dispatchEvent(new CustomEvent('ym:mypls'));
+      Session.sync();
+    },
+    /** 恢复默认封面（清除自定义） */
+    clearCover(id) {
+      const p = MyPlaylists.get(id);
+      if (!p || !p.cover) return;
+      p.cover = '';
+      p.updatedAt = Date.now();
+      write('myPlaylists', myPlaylists);
+      document.dispatchEvent(new CustomEvent('ym:mypls'));
+      Session.sync();
     },
     rename(id, name) {
       const p = MyPlaylists.get(id);
