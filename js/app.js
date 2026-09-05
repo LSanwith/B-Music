@@ -2123,7 +2123,7 @@
       els.forEach((el) => {
         el.style.transition = 'transform .32s cubic-bezier(.22,.61,.36,1)';
       });
-      this._lyricAnimT = Date.now(); // 过渡期间暂停逐帧跟随，避免打断
+      this._lyricAnimT = (typeof performance !== 'undefined' ? performance.now() : Date.now()); // 过渡期间暂停逐帧跟随，避免打断
       this._lyricScroll = target;
       this._applyLyricScroll(); // 从旧 transform 平滑过渡到新位置
       setTimeout(() => {
