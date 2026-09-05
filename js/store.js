@@ -417,27 +417,34 @@
       }
     },
 
-    /** 拉取云端数据并应用到本地（登录时云端为准） */
+    /** 拉取云端数据并应用到本地（登录时云端为准；未变化则不重绘，供 1s 轮询） */
     async pull() {
       const j = await Session._api('/data');
-      if (j.settings && typeof j.settings === 'object') {
+      const arr = (local, key) => {
+        if (!Array.isArray(j[key]) || JSON.stringify(j[key]) === JSON.stringify(local)) return local;
+        return j[key];
+      };
+      if (j.settings && typeof j.settings === 'object' && JSON.stringify(j.settings) !== JSON.stringify(SETTINGS)) {
         Object.keys(SETTINGS).forEach(k => delete SETTINGS[k]);
         Object.assign(SETTINGS, j.settings);
         write('settings', SETTINGS);
         document.dispatchEvent(new CustomEvent('ym:settings', { detail: j.settings }));
       }
-      if (Array.isArray(j.favSongs)) {
-        favSongs = j.favSongs;
+      const nf = arr(favSongs, 'favSongs');
+      if (nf !== favSongs) {
+        favSongs = nf;
         write('favSongs', favSongs);
         document.dispatchEvent(new CustomEvent('ym:favsongs', {}));
       }
-      if (Array.isArray(j.favPlaylists)) {
-        favPlaylists = j.favPlaylists;
+      const np = arr(favPlaylists, 'favPlaylists');
+      if (np !== favPlaylists) {
+        favPlaylists = np;
         write('favPlaylists', favPlaylists);
         document.dispatchEvent(new CustomEvent('ym:favpls'));
       }
-      if (Array.isArray(j.myPlaylists)) {
-        myPlaylists = j.myPlaylists;
+      const nm = arr(myPlaylists, 'myPlaylists');
+      if (nm !== myPlaylists) {
+        myPlaylists = nm;
         write('myPlaylists', myPlaylists);
         document.dispatchEvent(new CustomEvent('ym:mypls'));
       }
@@ -468,7 +475,7 @@
     },
 
     /* ---------- 自动双向同步（跨设备实时） ----------
-     * 页面内每 5 秒自动【拉取】云端并应用（仅页面可见时；后台标签页降频
+     * 页面内每 1 秒自动【拉取】云端并应用（仅页面可见时；后台标签页降频
      * 5 分钟），窗口重新聚焦/回到前台也立即拉取一次；上传仍由每次改动
      * 的 800ms 防抖负责（轮询不做上传，避免全量旧快照覆盖别的设备）。
      * 本地有改动待上传时会推迟拉取，避免旧数据覆盖刚改的内容。 */
@@ -477,7 +484,7 @@
     _lastPollAt: 0,
     _startPollOnce() {
       if (Session._pollTimer) return;
-      Session._pollTimer = setInterval(Session._pollSafe, 5000);
+      Session._pollTimer = setInterval(Session._pollSafe, 1000);
       if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) Session._pollSafe();
