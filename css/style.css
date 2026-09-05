@@ -1279,3 +1279,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 }
 /* lyric preview: clear blur on non-active lines while scrolling (readable) */
 #ov-lyrics.lyrics-previewing #ov-lyrics-inner .ly-line:not(.active) { filter: none !important; }
+/* player toolbar idle fade: dim when unused, back to full on use (hover/touch) */
+.ly-toolbar { opacity: .38; transition: opacity .35s ease; }
+.ly-toolbar:hover, .ly-toolbar:focus-within, .ly-toolbar:active { opacity: 1; }
+@media (max-width: 720px) { .ly-toolbar { opacity: .5; } }
