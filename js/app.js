@@ -1641,6 +1641,7 @@
         const ob = $('#ov-body');
         if (ob) ob.classList.toggle('lyrics-hidden', !this._lyricsVisible);
         $('#ly-toggle').classList.toggle('on', this._lyricsVisible);
+        toast('DBG LY=' + this._lyricsVisible + ' hidden=' + (ob ? ob.classList.contains('lyrics-hidden') : '?') + ' narrow=' + this._isNarrowLayout());
         // 布局类切换后【全量重锁】歌词状态：重新缓存行引用 + 重测度量 + 滚动归零，
         // 下一帧 _lyricUpdate 按当前时间从零重新锁定活动行并平滑归位（杜绝错位残留）
         setTimeout(() => {
