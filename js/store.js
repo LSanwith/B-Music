@@ -300,16 +300,21 @@
    * 上传/下载；最近播放与搜索历史仅保存在本机，不同步。
    * 未登录时一切照旧（localStorage）；登录后数据自动云端同步。
    * ============================================================ */
-  let session = read('session', null); // { token, email, avatar }
+  let session = read('session', null); // { token, email, avatar, name, uid }
   const Session = {
     get token() { return session ? session.token : null; },
     get email() { return session ? session.email : null; },
     // 旧数据兼容：无 avatar 字段一律按 '' 处理
     get avatar() { return session && session.avatar ? session.avatar : ''; },
+    get name() { return session && session.name ? session.name : ''; },
+    get uid() { return session && session.uid ? session.uid : ''; },
     get loggedIn() { return !!session; },
 
     _setSession(data) {
-      session = data ? { token: data.token, email: data.email, avatar: data.avatar || '' } : null;
+      session = data ? {
+        token: data.token, email: data.email, avatar: data.avatar || '',
+        name: data.name || '', uid: data.uid || '',
+      } : null;
       write('session', session);
     },
 
@@ -334,7 +339,7 @@
 
     async login(email, password) {
       const j = await Session._api('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '' });
+      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '', name: j.name || '', uid: j.uid || '' });
       document.dispatchEvent(new CustomEvent('ym:session'));
       // 未登录期间本机产生的收藏/自建歌单：先备份，登录拉取云端后再合并上传，
       // 避免「云端覆盖本地 → 本地数据丢失且云端也没有」的漏同步问题
@@ -354,7 +359,7 @@
         method: 'POST',
         body: JSON.stringify({ email, password, captchaId, pos, duration }),
       });
-      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '' });
+      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '', name: j.name || '', uid: j.uid || '' });
       document.dispatchEvent(new CustomEvent('ym:session'));
       // 新账号云端从空开始，不导入本机残留数据（避免多人共用电脑时数据混淆）
       return j;
@@ -409,8 +414,13 @@
         const j = await Session._api('/account/profile');
         if (!session || session.token !== token) return false; // 已退出/换号：丢弃过期结果
         const avatar = j && typeof j.avatar === 'string' ? j.avatar : '';
-        if (session.avatar !== avatar) {
-          session.avatar = avatar;
+        const name = j && typeof j.name === 'string' ? j.name : '';
+        const uid = j && typeof j.uid === 'string' ? j.uid : '';
+        let changed = false;
+        if (session.avatar !== avatar) { session.avatar = avatar; changed = true; }
+        if (session.name !== name) { session.name = name; changed = true; }
+        if (session.uid !== uid) { session.uid = uid; changed = true; }
+        if (changed) {
           write('session', session);
           document.dispatchEvent(new CustomEvent('ym:session'));
         }
@@ -418,6 +428,33 @@
       } catch (e) {
         return false; // 网络失败 / 401（登录过期）静默忽略
       }
+    },
+
+    /** 设置昵称（POST /api/account/nickname）；成功后本地缓存并派发 ym:session */
+    async setNickname(nick) {
+      const j = await Session._api('/account/nickname', {
+        method: 'POST',
+        body: JSON.stringify({ nick: String(nick || '').trim().slice(0, 20) }),
+      });
+      if (session) {
+        session.name = j.name || session.name;
+        write('session', session);
+        document.dispatchEvent(new CustomEvent('ym:session'));
+      }
+      return j;
+    },
+
+    /** 分享自建歌单（登录）：返回 { token, url } */
+    async shareMp(mpId) {
+      const j = await Session._api('/share', { method: 'POST', body: JSON.stringify({ mpId }) });
+      return j;
+    },
+
+    /** 读取他人分享的自建歌单（无需登录）：返回 { ok, name, cover, songs, owner, at } */
+    async fetchMpShare(token) {
+      const base = (location.protocol === 'file:' && window.APP_LOCAL_SERVER) ? window.APP_LOCAL_SERVER : '';
+      const r = await fetch(base + '/api/share?t=' + encodeURIComponent(token));
+      return r.json();
     },
 
     /** 拉取云端数据并应用到本地（登录时云端为准；未变化则不重绘，供 1s 轮询） */

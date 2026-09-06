@@ -17,6 +17,16 @@ const UA = 'Mozilla/5.0 (compatible; BMusicPreview/1.0)';
 
 const TYPE_LABEL = { song: '歌曲', playlist: '歌单', album: '专辑', artist: '歌手' };
 
+/* ---------- 自建歌单分享快照（独立 KV 键 share:<token>） ---------- */
+function kvGet(key) {
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    return fetch(process.env.KV_REST_API_URL + '/get/' + key, {
+      headers: { Authorization: 'Bearer ' + process.env.KV_REST_API_TOKEN },
+    }).then(r => r.json()).then(j => (j && j.result) ? JSON.parse(j.result) : null).catch(() => null);
+  }
+  return Promise.resolve(null);
+}
+
 /* ---------- 转义与工具 ---------- */
 function escHtml(s) {
   return String(s == null ? '' : s)
@@ -169,6 +179,22 @@ export default async function handler(req, res) {
   }
   const type = String((req.query && req.query.type) || '');
   const id = String((req.query && req.query.id) || '');
+  /* 自建歌单分享：/s/mp/<token>（token 为 16+位 hex，与数字 id 区分） */
+  if (type === 'mp') {
+    const snap = await kvGet('share:' + id);
+    if (!snap) return sendHtml(404, fallbackHtml('/index.html', '该自建歌单分享已失效'));
+    const ownerName = (snap.owner && snap.owner.name) || '用户';
+    const ownerId = (snap.owner && snap.owner.id) || '';
+    const cnt = (snap.songs || []).length;
+    const meta = {
+      title: snap.name || '自建歌单',
+      desc: '自建歌单《' + (snap.name || '') + '》 · 分享者：' + ownerName +
+        (ownerId ? '（ID ' + ownerId + '）' : '') + ' · 共 ' + cnt + ' 首',
+      img: toHttpsImg(snap.cover || ''),
+    };
+    const hash = '/index.html#/share/mp/' + id;
+    return sendHtml(200, previewHtml(meta.title, meta.desc, meta.img, hash));
+  }
   const label = TYPE_LABEL[type];
   if (!label || !/^\d+$/.test(id)) {
     return sendHtml(404, fallbackHtml('/index.html', '无效链接'));

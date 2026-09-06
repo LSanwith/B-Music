@@ -238,6 +238,7 @@
       if (root === 'search') return this.vSearch(params.get('q') || '');
       if (root === 'favorites') return this.vFavorites();
       if (root === 'myplaylist' && seg[1]) return this.vMyPlaylist(seg[1]);
+      if (root === 'share' && seg[1] === 'mp' && seg[2]) return this.vShareMp(seg[2]);
       if (root === 'song' && seg[1]) return this.vSong(seg[1]);
       if (root === 'playlist' && (seg[1] || params.get('id'))) return this.vPlaylist(seg[1] || params.get('id'));
       if (root === 'album' && (seg[1] || params.get('id'))) return this.vAlbum(seg[1] || params.get('id'));
@@ -247,7 +248,7 @@
 
     _highlightNav(root) {
       $$('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.nav === root));
-      const titles = { discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲' };
+      const titles = { discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单' };
       const t = $('#page-title');
       if (t) t.textContent = titles[root] || '发现';
       const cur = Player.current();
@@ -887,10 +888,11 @@
         '<span class="mp-count">' + pl.songs.length + ' 首</span></div>' +
         '<div class="mp-tools">' +
         (pl.songs.length ? '<button class="mini-btn" id="mp-play-all">播放全部</button>' : '') +
+        '<button class="mini-btn' + (Store.FavPlaylists.has(pl.id) ? ' mp-faved' : '') + '" id="mp-fav">' + (Store.FavPlaylists.has(pl.id) ? '已收藏' : '收藏') + '</button>' +
         '<button class="mini-btn" id="mp-rename">重命名</button>' +
         '<button class="mini-btn" id="mp-cover-btn">更换封面</button>' +
         (pl.cover ? '<button class="mini-btn" id="mp-cover-reset">恢复默认</button>' : '') +
-        '<button class="mini-btn' + (Store.FavPlaylists.has(pl.id) ? ' mp-faved' : '') + '" id="mp-fav">' + (Store.FavPlaylists.has(pl.id) ? '已收藏' : '收藏') + '</button>' +
+        '<button class="mini-btn" id="mp-share">分享</button>' +
         '</div>' +
         '<div class="mp-import"><div class="search-box"><form id="mp-import-form">' +
         '<input id="mp-import-input" placeholder="粘贴网易云 歌单/专辑/歌曲 链接或 ID，导入全部歌曲" maxlength="300"></form></div>' +
@@ -925,6 +927,22 @@
         Store.FavPlaylists.toggle({ id: pl.id, name: pl.name, cover: this._mpCoverSrc(pl), trackCount: pl.songs.length, mp: true });
         toast(wasFav ? '已取消收藏自建歌单' : '已收藏自建歌单，可在「我的收藏 → 收藏歌单」与侧边栏查看');
         this.vMyPlaylist(pl.id);
+      });
+      $('#mp-share').addEventListener('click', async () => {
+        if (!Store.Session.loggedIn) {
+          toast('请先登录后再分享自建歌单', 'warn');
+          this.openAuth('login');
+          return;
+        }
+        try {
+          const j = await Store.Session.shareMp(pl.id);
+          const origin = (location.origin && location.origin.indexOf('http') === 0) ? location.origin : 'https://www.bmusic.de5.net';
+          const url = origin + (j.url || '/s/mp/' + j.token);
+          const okCopy = navigator.clipboard && await navigator.clipboard.writeText(url).then(() => true).catch(() => false);
+          toast(okCopy ? '分享链接已复制，发送给好友即可（仅登录可分享；对方可直接查看）' : '链接：' + url);
+        } catch (e) {
+          toast('分享失败：' + e.message, 'warn');
+        }
       });
       const rcst = $('#mp-cover-reset');
       if (rcst) rcst.addEventListener('click', () => {
@@ -1230,6 +1248,46 @@
         $('#dt-share').addEventListener('click', () => this._sharePage('artist', id, '歌手', info.name, info.cover));
       } catch (e) {
         this._viewError('歌手加载失败：' + e.message, 'App.vArtist(\'' + id + '\')');
+      }
+    },
+
+    /** 其他用户分享的自建歌单（只读视图；未登录用户仅查看） */
+    async vShareMp(token) {
+      const seq = this._viewSeq;
+      this._viewLoading();
+      try {
+        const j = await Store.Session.fetchMpShare(token);
+        if (seq !== this._viewSeq) return;
+        if (!j || !j.ok) {
+          this._viewError((j && j.msg) || '分享不存在或已失效', 'App.vShareMp(\'' + token + '\')');
+          return;
+        }
+        const songs = (j.songs || []);
+        const owner = j.owner || {};
+        const rows = songs.map((s, i) =>
+          '<div class="song-row" data-id="' + s.id + '">' +
+          '<span class="sr-idx">' + (i + 1) + '</span>' +
+          '<div class="sr-main"><div class="sr-name">' + esc(s.name || '') + (s.vip ? ' <em class="sr-vip">VIP</em>' : '') + '</div>' +
+          '<div class="sr-artist">' + esc(s.artists || '') + '</div></div>' +
+          '<div class="sr-album">' + esc(s.album || '') + '</div>' +
+          '<span class="sr-dur">' + fmtDuration(s.duration || 0) + '</span>' +
+          '</div>').join('');
+        const html =
+          '<section class="view-section"><div class="sec-head mp-head">' +
+          '<img class="mp-head-cover" src="' + esc(coverUrl(j.cover || '')) + '" alt="">' +
+          '<h2>' + esc(j.name || '自建歌单') + '</h2>' +
+          '<span class="mp-count">' + songs.length + ' 首</span></div>' +
+          '<div class="mp-share-owner">分享者：' + esc(owner.name || '用户') +
+          (owner.id ? ' · 唯一ID ' + esc(owner.id) : '') + '</div>' +
+          (Store.Session.loggedIn ? '' :
+            '<div class="mp-share-tip">未登录仅可查看；登录后可分享自己的歌单</div>') +
+          (songs.length ? '<div class="song-list">' + rows + '</div>'
+            : UI.empty('该歌单没有歌曲')) +
+          '</section>';
+        this._setView(html);
+      } catch (e) {
+        if (seq !== this._viewSeq) return;
+        this._viewError('分享加载失败：' + e.message, 'App.vShareMp(\'' + token + '\')');
       }
     },
 
@@ -2604,6 +2662,8 @@
         return;
       }
       const email = Store.Session.email || '';
+      const nick = Store.Session.name || '';
+      const uid = Store.Session.uid || '';
       box.innerHTML =
         '<div class="set-account">' +
         '<div class="set-acc-top">' +
@@ -2613,6 +2673,14 @@
         '<div class="set-acc-info">' +
         '<div class="set-acc-mail">' + esc(email) + '</div>' +
         '<div class="set-acc-sub">点击头像更换 · 云端同步</div>' +
+        '<div class="set-acc-uid">唯一ID：' + esc(uid || '读取中…') + '</div>' +
+        '</div>' +
+        '</div>' +
+        '<div class="set-acc-nick">' +
+        '<div class="set-label">昵称（分享自建歌单时展示）</div>' +
+        '<div class="set-acc-nick-row">' +
+        '<input class="auth-input" id="set-nick" maxlength="20" placeholder="设置昵称" value="' + esc(nick) + '">' +
+        '<button type="button" class="btn primary" id="set-nick-btn">保存昵称</button>' +
         '</div>' +
         '</div>' +
         '<div class="set-acc-pw">' +
@@ -2626,7 +2694,25 @@
         '</div>';
       const av = $('#set-acc-avatar');
       if (av) av.addEventListener('click', () => this._changeAvatar());
+      const nickBtn = $('#set-nick-btn');
+      if (nickBtn) nickBtn.addEventListener('click', async () => {
+        const inp = $('#set-nick');
+        if (!inp) return;
+        try {
+          await Store.Session.setNickname(inp.value);
+          toast('昵称已保存');
+          this._renderSettingsAccount();
+        } catch (e) {
+          toast('保存失败：' + e.message, 'warn');
+        }
+      });
       const pwBtn = $('#set-pw-submit');
+      /* 老缓存缺 uid：异步补拉资料后重绘（成功后显示唯一ID） */
+      if (!Store.Session.uid) {
+        Store.Session.refreshProfile().then(() => {
+          if (Store.Session.uid) this._renderSettingsAccount();
+        });
+      }
       if (pwBtn) pwBtn.addEventListener('click', () => this._submitChangePassword());
       /* 回车快捷提交改密 */
       ['#set-pw-old', '#set-pw-new', '#set-pw-new2'].forEach(sel => {

@@ -1366,3 +1366,11 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   background: transparent;
 }
 .mini-btn.mp-faved:hover { background: var(--accent-soft); }
+/* share / nickname / uid styles */
+.mp-share-owner { margin: 10px 0 4px; color: var(--sub); font-size: 13px; }
+.mp-share-tip { margin: 4px 0 14px; color: rgba(255,255,255,.45); font-size: 12px; }
+.set-acc-uid { margin-top: 4px; font-size: 12px; color: rgba(255,255,255,.5); }
+.set-acc-nick { margin-top: 14px; }
+.set-acc-nick-row { display: flex; gap: 10px; margin-top: 8px; }
+.set-acc-nick-row .auth-input { flex: 1; max-width: 340px; }
+.set-acc-nick-row .btn { flex: none; }

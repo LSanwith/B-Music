@@ -68,6 +68,39 @@ function authUser(db, req) {
   const uid = db.sessions[m[1]];
   return uid ? db.users[uid] || null : null;
 }
+/* ---------- 独立 KV 键（分享快照等，避免占用主 db 1MB 上限） ---------- */
+let MEM_EXT = {};
+function kvGet(key) {
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    return fetch(process.env.KV_REST_API_URL + '/get/' + key, {
+      headers: { Authorization: 'Bearer ' + process.env.KV_REST_API_TOKEN },
+    }).then(r => r.json()).then(j => {
+      if (j && j.result) return JSON.parse(j.result);
+      return null;
+    }).catch(() => MEM_EXT[key] || null);
+  }
+  return Promise.resolve(MEM_EXT[key] || null);
+}
+function kvSet(key, val) {
+  MEM_EXT[key] = val;
+  if (process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN) {
+    return fetch(process.env.KV_REST_API_URL + '/set/' + key, {
+      method: 'POST',
+      body: JSON.stringify(val),
+      headers: {
+        Authorization: 'Bearer ' + process.env.KV_REST_API_TOKEN,
+        'Content-Type': 'application/json',
+      },
+    }).catch(() => {});
+  }
+  return Promise.resolve();
+}
+function shareSongs(pl) {
+  return (pl.songs || []).map(s => ({
+    id: s.id, name: s.name, artists: s.artists || '', album: s.album || '',
+    duration: s.duration || 0, vip: !!s.vip,
+  })).slice(0, 1500);
+}
 
 export default async function handler(req, res) {
   const r = String((req.query && req.query.r) || '');
@@ -96,7 +129,7 @@ export default async function handler(req, res) {
           const token = crypto.randomBytes(24).toString('hex');
           db.sessions[token] = existing.id;
           await saveDb(db);
-          return res.status(200).json({ token, email, existing: true, avatar: existing.avatar || '' });
+          return res.status(200).json({ token, email, existing: true, avatar: existing.avatar || '', name: existing.nickname || '', uid: existing.id });
         }
         return res.status(409).json({ msg: '该邮箱已注册，密码不正确；请返回登录' });
       }
@@ -116,7 +149,7 @@ export default async function handler(req, res) {
       const token = crypto.randomBytes(24).toString('hex');
       db.sessions[token] = id;
       await saveDb(db);
-      return res.status(200).json({ token, email, avatar: '' });
+      return res.status(200).json({ token, email, avatar: '', name: '', uid: id });
     }
     if (r === 'login' && method === 'POST') {
       const b = await readBody(req);
@@ -128,14 +161,55 @@ export default async function handler(req, res) {
       const token = crypto.randomBytes(24).toString('hex');
       db.sessions[token] = user.id;
       await saveDb(db);
-      return res.status(200).json({ token, email: user.email, avatar: user.avatar || '' });
+      return res.status(200).json({ token, email: user.email, avatar: user.avatar || '', name: user.nickname || '', uid: user.id });
     }
     const user = authUser(db, req);
     if (!user) return res.status(401).json({ msg: '未登录或登录已过期' });
     if (r === 'profile' && method === 'GET') {
-      // 当前账号公开资料（仅 email/avatar，绝不返回 salt/passHash），
-      // 供多端在启动/回前台时拉取最新头像，实现跨设备头像同步
-      return res.status(200).json({ email: user.email, avatar: user.avatar || '' });
+      // 当前账号公开资料（仅 email/avatar/nickname/uid，绝不返回 salt/passHash），
+      // 供多端在启动/回前台时拉取最新头像与昵称，实现跨设备同步
+      return res.status(200).json({
+        email: user.email,
+        avatar: user.avatar || '',
+        name: user.nickname || '',
+        uid: user.id,
+      });
+    }
+    if (r === 'nickname' && method === 'POST') {
+      const b = await readBody(req);
+      const nick = String(b.nick || '').trim().slice(0, 20);
+      if (!nick) return res.status(400).json({ msg: '昵称不能为空' });
+      user.nickname = nick;
+      await saveDb(db);
+      return res.status(200).json({ ok: true, name: nick });
+    }
+    /* 分享自建歌单：POST {mpId} → 生成短链 token（登录用户专用） */
+    if (r === 'share') {
+      if (method === 'POST') {
+        const b = await readBody(req);
+        const mpId = String(b.mpId || '');
+        const d = db.data[user.id] || {};
+        const pl = (d.myPlaylists || []).find(p => String(p.id) === mpId);
+        if (!pl) return res.status(404).json({ msg: '自建歌单不存在' });
+        const token = crypto.randomBytes(9).toString('hex');
+        const snap = {
+          name: pl.name,
+          cover: (pl.cover && pl.cover.indexOf('data:') === 0) ? '' : (pl.cover || ''),
+          songs: shareSongs(pl),
+          owner: { id: user.id, name: user.nickname || ('用户' + user.id) },
+          at: Date.now(),
+        };
+        await kvSet('share:' + token, snap);
+        return res.status(200).json({ token, url: '/s/mp/' + token });
+      }
+      if (method === 'GET') {
+        const t = String((req.query && req.query.t) || '');
+        if (!/^[0-9a-f]{16,}$/.test(t)) return res.status(400).json({ ok: false, msg: '链接无效' });
+        const snap = await kvGet('share:' + t);
+        if (!snap) return res.status(404).json({ ok: false, msg: '分享不存在或已失效' });
+        return res.status(200).json({ ok: true, ...snap });
+      }
+      return res.status(405).json({ msg: 'method not allowed' });
     }
     if (r === 'avatar' && method === 'POST') {
       const b = await readBody(req);

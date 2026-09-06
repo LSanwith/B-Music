@@ -10,6 +10,8 @@
     { "source": "/api/account/avatar", "destination": "/api/account?r=avatar" },
     { "source": "/api/account/profile", "destination": "/api/account?r=profile" },
     { "source": "/api/account/password", "destination": "/api/account?r=password" },
+    { "source": "/api/account/nickname", "destination": "/api/account?r=nickname" },
+    { "source": "/api/share", "destination": "/api/account?r=share" },
     { "source": "/s/:type/:id", "destination": "/api/preview?type=:type&id=:id" }
   ]
 }
