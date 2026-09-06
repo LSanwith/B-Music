@@ -67,7 +67,7 @@ function checkMaster(cookie) {
   const loginUrl = 'https://music.163.com/login?codekey=' + encodeURIComponent(unikey);
   console.log('② 二维码已生成，正在用浏览器打开（新标签）…');
   console.log('   请用【网易云音乐 App → 扫一扫】并确认登录…');
-  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&ts=' + Date.now() + '&data=' + encodeURIComponent(loginUrl);
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=' + encodeURIComponent(loginUrl);
   const out = path.join(__dirname, 'ncm-qr.png');
   await new Promise((resolve) => {
     https.get(qrUrl, (r) => {
