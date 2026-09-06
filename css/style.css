@@ -1295,3 +1295,8 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 #overlay input[type="range"] { accent-color: var(--accent); }
 #overlay input[type="range"]:focus, #overlay input[type="range"]:focus-visible,
 #overlay button:focus, #overlay .ly-line:focus, #overlay .ly-text:focus { outline: none; }
+/* kill any stray lines/decoration inside lyrics (mobile purple artifact) */
+#ov-lyrics-inner .ly-line,
+#ov-lyrics-inner .ly-line * { border: none !important; outline: none !important; text-decoration: none !important; }
+#ov-lyrics-inner hr, #ov-lyrics-inner > hr, #ov-lyrics-inner .ly-line hr { display: none !important; }
+#ov-lyrics-inner a { color: inherit !important; }
