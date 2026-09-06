@@ -1456,3 +1456,6 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .set-cap-box input[type="range"] { width: 100%; max-width: 440px; }
 .set-cap-skala { display: flex; justify-content: space-between; max-width: 440px; margin-top: 4px; font-size: 11px; color: rgba(255,255,255,.38); }
 .set-cap-tip { margin-top: 8px; font-size: 12px; color: var(--accent); opacity: .85; }
+/* cache slider: full width to right edge + red fill paint */
+.set-cap-box input[type="range"] { width: 100%; max-width: none; }
+.set-cap-box .set-cap-val { margin-bottom: 10px; }

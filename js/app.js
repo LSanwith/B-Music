@@ -3078,13 +3078,19 @@
             val.textContent = this._fmtCap(mb);
             slider.dataset.mb = mb;
           };
-          slider.addEventListener('input', fmt);
+          const paint = () => {
+            const p = +slider.value;
+            slider.style.background = 'linear-gradient(to right, #fa2d3c 0%, #fa2d3c ' + p +
+              '%, rgba(255,255,255,.22) ' + p + '%, rgba(255,255,255,.22) 100%)';
+          };
+          slider.addEventListener('input', () => { fmt(); paint(); });
           slider.addEventListener('change', () => {
             const mb = posToMb(+slider.value);
             Store.Settings.set({ cacheCapMB: mb });
             AudioCache.evict().then(refreshUsed);
             toast('缓存上限已更新为 ' + this._fmtCap(mb));
           });
+          paint(); // 初始填充
         }
       }
       const clearBtn = $('#set-clear-cache');
