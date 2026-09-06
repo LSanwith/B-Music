@@ -68,15 +68,16 @@ function checkMaster(cookie) {
   console.log('② 二维码已生成，正在用浏览器打开（新标签）…');
   console.log('   请用【网易云音乐 App → 扫一扫】并确认登录…');
   const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=' + encodeURIComponent(loginUrl);
-  const out = path.join(__dirname, 'ncm-qr.png');
+  // 每次下载到【新文件名】（防图片查看器缓存旧图），再打开本地文件（路径无 &，规避 cmd start 转义）
+  const out = path.join(__dirname, 'ncm-qr-' + unikey.slice(0, 8) + '.png');
   await new Promise((resolve) => {
     https.get(qrUrl, (r) => {
       const w = fs.createWriteStream(out);
       r.pipe(w); w.on('finish', resolve);
     }).on('error', () => resolve());
   });
-  // 用浏览器打开带时间戳的二维码 URL（浏览器每次请求新图，避免照片查看器缓存旧二维码）
-  try { execFile('cmd', ['/c', 'start', '', qrUrl]); } catch (e) { console.log('请手动打开二维码图片：' + out); }
+  // 打开本地二维码图片（无 & 转义问题，新文件名必为最新）
+  try { execFile('cmd', ['/c', 'start', '', out]); } catch (e) { console.log('请手动打开二维码图片：' + out); }
 
   for (let i = 0; i < 90; i++) {
     await sleep(2000);
