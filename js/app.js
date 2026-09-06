@@ -1536,7 +1536,7 @@
       else if (b.url) window.open(b.url, '_blank');
     },
 
-    /* ---------------- 下载 ---------------- */
+    /* ---------------- 下载（流式 + 实时进度浮层） ---------------- */
     async _downloadSong(song) {
       toast('正在获取下载地址…');
       try {
@@ -1549,27 +1549,52 @@
           info = await API.resolveUrl(song, Store.Settings.quality);
         }
         if (!info || !info.url) throw new Error('无可用地址');
+        const label = song.name + ' - ' + artistList(song.artists).map(x => x.name).join('/');
+        // 进度浮层
+        const bar = document.createElement('div');
+        bar.className = 'dl-card';
+        bar.innerHTML = '<div class="dl-name">' + esc(label) + '</div>' +
+          '<div class="dl-track"><i></i></div><div class="dl-pct">0%</div>';
+        document.body.appendChild(bar);
+        const setPct = (pct, bytes) => {
+          const i = bar.querySelector('.dl-track i');
+          const p = bar.querySelector('.dl-pct');
+          if (i) i.style.width = pct + '%';
+          if (p) p.textContent = pct ? (pct + '%') : ((bytes / 1048576).toFixed(1) + 'MB');
+        };
+        try {
+          const res = await fetch(info.url, { mode: 'cors' });
+          if (res.ok) {
+            const total = +(res.headers.get('content-length') || 0);
+            const reader = res.body.getReader();
+            const chunks = [];
+            let received = 0;
+            for (;;) {
+              const r = await reader.read();
+              if (r.done) break;
+              chunks.push(r.value);
+              received += r.value.length;
+              setPct(total ? Math.min(100, Math.round(received / total * 100)) : 0, received);
+            }
+            const blob = new Blob(chunks, { type: res.headers.get('content-type') || 'audio/mpeg' });
+            const ext = (info.type || blob.type.split('/')[1] || 'mp3').replace('mpeg', 'mp3');
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = label + '.' + ext;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 4000);
+            toast('下载完成《' + song.name + '》');
+            bar.remove();
+            return;
+          }
+        } catch (e) { /* 走新标签页 */ }
+        bar.remove();
         const a = document.createElement('a');
         a.href = info.url;
         a.target = '_blank';
         a.rel = 'noopener';
-        a.download = song.name + '.' + (info.type || 'mp3');
-        // 尝试 blob 方式下载（跨域 CORS 已放开），失败则新标签页打开
-        try {
-          const res = await fetch(info.url, { mode: 'cors' });
-          if (res.ok) {
-            const blob = await res.blob();
-            const ext = (info.type || blob.type.split('/')[1] || 'mp3').replace('mpeg', 'mp3');
-            const url = URL.createObjectURL(blob);
-            a.href = url;
-            a.download = song.name + ' - ' + artistList(song.artists).map(x => x.name).join('/') + '.' + ext;
-            document.body.appendChild(a);
-            a.click();
-            setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 4000);
-            toast('开始下载《' + song.name + '》');
-            return;
-          }
-        } catch (e) { /* 走新标签页 */ }
         a.click();
         toast('已在新标签页打开下载链接（' + (info.source || '') + '）');
       } catch (e) {
