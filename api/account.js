@@ -163,6 +163,14 @@ export default async function handler(req, res) {
       await saveDb(db);
       return res.status(200).json({ token, email: user.email, avatar: user.avatar || '', name: user.nickname || '', uid: user.id });
     }
+    /* 分享读取：公开接口（任何人可查看），无需登录；鉴权在下方 */
+    if (r === 'share' && method === 'GET') {
+      const t = String((req.query && req.query.t) || '');
+      if (!/^[0-9a-f]{16,}$/.test(t)) return res.status(400).json({ ok: false, msg: '链接无效' });
+      const snap = await kvGet('share:' + t);
+      if (!snap) return res.status(404).json({ ok: false, msg: '分享不存在或已失效' });
+      return res.status(200).json({ ok: true, ...snap });
+    }
     const user = authUser(db, req);
     if (!user) return res.status(401).json({ msg: '未登录或登录已过期' });
     if (r === 'profile' && method === 'GET') {
@@ -183,33 +191,23 @@ export default async function handler(req, res) {
       await saveDb(db);
       return res.status(200).json({ ok: true, name: nick });
     }
-    /* 分享自建歌单：POST {mpId} → 生成短链 token（登录用户专用） */
-    if (r === 'share') {
-      if (method === 'POST') {
-        const b = await readBody(req);
-        const mpId = String(b.mpId || '');
-        const d = db.data[user.id] || {};
-        const pl = (d.myPlaylists || []).find(p => String(p.id) === mpId);
-        if (!pl) return res.status(404).json({ msg: '自建歌单不存在' });
-        const token = crypto.randomBytes(9).toString('hex');
-        const snap = {
-          name: pl.name,
-          cover: (pl.cover && pl.cover.indexOf('data:') === 0) ? '' : (pl.cover || ''),
-          songs: shareSongs(pl),
-          owner: { id: user.id, name: user.nickname || ('用户' + user.id) },
-          at: Date.now(),
-        };
-        await kvSet('share:' + token, snap);
-        return res.status(200).json({ token, url: '/s/mp/' + token });
-      }
-      if (method === 'GET') {
-        const t = String((req.query && req.query.t) || '');
-        if (!/^[0-9a-f]{16,}$/.test(t)) return res.status(400).json({ ok: false, msg: '链接无效' });
-        const snap = await kvGet('share:' + t);
-        if (!snap) return res.status(404).json({ ok: false, msg: '分享不存在或已失效' });
-        return res.status(200).json({ ok: true, ...snap });
-      }
-      return res.status(405).json({ msg: 'method not allowed' });
+    /* 分享自建歌单：POST {mpId} → 生成短链 token（登录用户专用；GET 已在上方公开处理） */
+    if (r === 'share' && method === 'POST') {
+      const b = await readBody(req);
+      const mpId = String(b.mpId || '');
+      const d = db.data[user.id] || {};
+      const pl = (d.myPlaylists || []).find(p => String(p.id) === mpId);
+      if (!pl) return res.status(404).json({ msg: '自建歌单不存在' });
+      const token = crypto.randomBytes(9).toString('hex');
+      const snap = {
+        name: pl.name,
+        cover: (pl.cover && pl.cover.indexOf('data:') === 0) ? '' : (pl.cover || ''),
+        songs: shareSongs(pl),
+        owner: { id: user.id, name: user.nickname || ('用户' + user.id) },
+        at: Date.now(),
+      };
+      await kvSet('share:' + token, snap);
+      return res.status(200).json({ token, url: '/s/mp/' + token });
     }
     if (r === 'avatar' && method === 'POST') {
       const b = await readBody(req);
