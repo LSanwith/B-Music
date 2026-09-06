@@ -2504,7 +2504,11 @@
       if ((cur && name === '') || (!cur && curPg === name)) { switchNow(); return; }
       const outEl = cur || (curPg ? $('#set-page-' + curPg) : null);
       // 高度与模糊：旧页淡出 → 切换 → 新页淡入 + 面板高度过渡
-      if (panel) { panel.style.height = panel.offsetHeight + 'px'; panel.style.overflow = 'hidden'; }
+      if (panel) {
+        panel.style.height = panel.offsetHeight + 'px'; // 先固定当前高度（强制刷新确保已提交）
+        void panel.offsetHeight;
+        panel.style.overflow = 'hidden';
+      }
       if (outEl) {
         outEl.style.transition = 'filter .24s ease, opacity .24s ease';
         outEl.style.filter = 'blur(10px)';
@@ -2525,8 +2529,11 @@
         }
         if (panel) {
           const h = panel.scrollHeight;
-          requestAnimationFrame(() => { panel.style.height = h + 'px'; });
-          setTimeout(() => { panel.style.height = ''; panel.style.overflow = ''; }, 440);
+          // double rAF：确保"旧高度"已绘制后再改高度，transition 才能起步
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            panel.style.height = h + 'px';
+          }));
+          setTimeout(() => { panel.style.height = ''; panel.style.overflow = ''; }, 460);
         }
       }, outEl ? 220 : 0);
     },

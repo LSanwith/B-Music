@@ -1400,3 +1400,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .set-acc-pw { border-top: 1px solid var(--border); padding-top: 18px; }
 /* settings page-switch: panel height morph */
 #settings .modal-panel { transition: height .36s cubic-bezier(.22,.61,.36,1); }
+/* settings panel height morph: reliable transition */
+#settings .modal-panel { transition: height .36s cubic-bezier(.22,.61,.36,1); will-change: height; }
+/* smaller camera icon on account avatar */
+.usr-avatar.lg .cam svg { width: 38%; }
