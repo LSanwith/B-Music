@@ -1387,3 +1387,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .set-acc-nick-row .btn.primary:active { transform: translateY(0); }
 /* nick save: keep pill shape (999px), shift up 2px to align with input */
 .set-acc-nick-row .btn.primary { border-radius: 999px; position: relative; top: -2px; }
+/* nick save: shrink ~3px taller fit */
+.set-acc-nick-row .btn.primary { height: 41px; padding: 0 13px; font-size: 12.5px; }
