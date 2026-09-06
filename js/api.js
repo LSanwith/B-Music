@@ -527,7 +527,12 @@
      */
     _urlCache: new Map(),
     async resolveUrl(song, level) {
-      const lv = level || Store.Settings.quality;
+      let lv = level || Store.Settings.quality;
+      // 无损及以上=登录专属：未登录请求自动降到极高(320k)
+      if (!(window.Store && window.Store.Session && window.Store.Session.loggedIn)) {
+        const RANK = { standard: 0, higher: 1, exhigh: 2, lossless: 3, hires: 4, jyeffect: 5, sky: 6, dolby: 7, jymaster: 8 };
+        if ((RANK[lv] || 0) >= 3) lv = 'exhigh';
+      }
       const key = song.id + '|' + lv;
       const hit = API._urlCache.get(key);
       if (hit && Date.now() - hit.t < 10 * 60 * 1000) return hit.v;

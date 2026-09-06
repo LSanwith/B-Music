@@ -1446,3 +1446,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   0% { margin-left: -26%; }
   100% { margin-left: 100%; }
 }
+/* locked quality item */
+.q-item.q-locked { opacity: .55; }
+.q-item.q-locked .q-lock { font-style: normal; font-size: 10px; color: var(--accent); margin-left: 6px; }
+.q-item.q-locked:hover { opacity: .8; }

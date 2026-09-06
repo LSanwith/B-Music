@@ -1554,12 +1554,18 @@
       const removeBar = () => { if (bar.parentNode) bar.remove(); };
       try {
         let info = null;
+        // 无损及以上=登录专属：未登录下载自动降到极高(320k)
+        let dlQ = Store.Settings.quality;
+        if (!Store.Session.loggedIn) {
+          const R = { standard: 0, higher: 1, exhigh: 2, lossless: 3, hires: 4, jyeffect: 5, sky: 6, dolby: 7, jymaster: 8 };
+          if ((R[dlQ] || 0) >= 3) dlQ = 'exhigh';
+        }
         // 下载优先走红云点歌（下载专用接口），失败再走网易云
         try {
-          info = await API.hongyunUrl(song.id, Store.Settings.quality);
+          info = await API.hongyunUrl(song.id, dlQ);
           info.source = '红云点歌';
         } catch (e1) {
-          info = await API.resolveUrl(song, Store.Settings.quality);
+          info = await API.resolveUrl(song, dlQ);
         }
         if (!info || !info.url) throw new Error('无可用地址');
         try {
@@ -2689,6 +2695,9 @@
       if (user) user.classList.toggle('hidden', !logged);
       // 有昵称显示昵称，否则显示邮箱
       if (mail) mail.textContent = (Store.Session.name || Store.Session.email || '');
+      // 登录/登出后：音质菜单锁定状态重渲染
+      const qb = $('#set-quality');
+      if (qb) { delete qb.dataset.bound; this._applySettingsToUI(); }
       this._renderSidebarAvatar();
       this._renderSettingsAccount();
     },
@@ -2938,14 +2947,25 @@
       }
     },
     _applySettingsToUI() {
-      /* 音质选项 */
+      /* 音质选项（无损及以上 = 登录专属：未登录显示🔒，点击提示登录） */
       const box = $('#set-quality');
       if (box && !box.dataset.bound) {
         box.dataset.bound = '1';
-        box.innerHTML = window.APP_CONFIG.QUALITY_LEVELS.map(q =>
-          '<button class="q-item" data-q="' + q.key + '"><span class="q-name">' + q.label + '</span>' +
-          '<span class="q-check">✓</span></button>').join('');
+        const LV_RANK = { standard: 0, higher: 1, exhigh: 2, lossless: 3, hires: 4, jyeffect: 5, sky: 6, dolby: 7, jymaster: 8 };
+        const locked = !Store.Session.loggedIn;
+        box.innerHTML = window.APP_CONFIG.QUALITY_LEVELS.map(q => {
+          const isLock = locked && (LV_RANK[q.key] || 0) >= 3;
+          return '<button class="q-item' + (isLock ? ' q-locked' : '') + '" data-q="' + q.key + '">' +
+            '<span class="q-name">' + q.label + (isLock ? ' <em class="q-lock">🔒 登录</em>' : '') + '</span>' +
+            '<span class="q-check">✓</span></button>';
+        }).join('');
         box.querySelectorAll('.q-item').forEach(el => el.addEventListener('click', () => {
+          const isLock = el.classList.contains('q-locked');
+          if (isLock) {
+            toast('无损及以上音质仅登录后可用', 'warn');
+            this.openAuth('login');
+            return;
+          }
           Player.setQuality(el.dataset.q);
           toast('默认音质：' + Player.qualityLabel(el.dataset.q));
         }));
