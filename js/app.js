@@ -1835,9 +1835,10 @@
           }
         };
         const merged = Lrc.mergeLyrics(base || '', trans || '');
-        // 逐字（YRC）接入：按时间把 yrc 词挂到对应行；无匹配的行插入为独立逐字行
+        // 逐字（YRC）接入：只做【行匹配补词】，绝不插入新行（避免歌词重复/时间轴错乱）；
+        // 匹配率不足 60% 时整体放弃逐字（防止"部分行逐字、部分行整段"的混乱）
         if (yrows && yrows.length) {
-          const extra = [];
+          let matched = 0;
           for (const r of yrows) {
             let best = null, bd = 0.35;
             for (const o of merged) {
@@ -1845,15 +1846,12 @@
               if (d < bd) { bd = d; best = o; }
             }
             if (best) {
+              matched++;
               if (!best.words) best.words = r.words;
-            } else {
-              extra.push({ t: r.t, l: r.words.map(w => w.w).join(''), tl: '', words: r.words });
             }
           }
-          if (extra.length) {
-            merged.push(...extra);
-            merged.sort((a, b) => a.t - b.t);
-          }
+          const ok = matched / yrows.length >= 0.6;
+          for (const o of merged) if (!ok || !o.words) delete o.words;
         }
         this._lyricLines = merged;
         if (!box) return;

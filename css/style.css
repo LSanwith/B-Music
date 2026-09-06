@@ -1290,3 +1290,8 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 /* YRC word brightness follows singing progress: start ~30% -> 100% at word end */
 .ly-line.active .ly-w { color: #fff; opacity: calc(.3 + .7 * var(--wp, 0)); transition: opacity .08s linear; }
 .ly-line.active .ly-w.on { opacity: 1; }
+/* mobile purple artifacts: kill tap-highlight & default range accent/focus ring in player */
+* { -webkit-tap-highlight-color: transparent; }
+#overlay input[type="range"] { accent-color: var(--accent); }
+#overlay input[type="range"]:focus, #overlay input[type="range"]:focus-visible,
+#overlay button:focus, #overlay .ly-line:focus, #overlay .ly-text:focus { outline: none; }
