@@ -2480,20 +2480,55 @@
       $('#settings').classList.add('hidden');
       document.body.classList.remove('no-scroll');
     },
-    /** 设置弹窗二级页导航：'' → 一级列表（默认）；account/prefs/cache → 对应二级页 */
+    /** 设置弹窗二级页导航：'' → 一级列表（默认）；account/prefs/cache → 对应二级页
+     *  带过渡动画：当前页高斯模糊淡出 → 目标页高斯模糊淡入，面板高度平滑拉长/缩短 */
     _showSetPage(name) {
       const pages = ['account', 'prefs', 'cache'];
       const main = $('#set-page-main');
-      if (main) main.classList.toggle('hidden', pages.indexOf(name) !== -1);
-      pages.forEach(p => {
-        const pg = $('#set-page-' + p);
-        if (pg) pg.classList.toggle('hidden', p !== name);
-      });
+      if (!main) return;
       const panel = $('.modal-panel', $('#settings'));
-      if (panel) panel.scrollTop = 0;
-      if (name === 'account') this._renderSettingsAccount(); // 进账号页按最新登录态重绘
-      if (name === 'cache') this._bindCacheSettings();       // 进缓存页刷新用量
-      if (!name) this._refreshSettingsMenuAccount();         // 回一级列表刷新账号行副标题
+      const switchNow = () => {
+        main.classList.toggle('hidden', pages.indexOf(name) !== -1);
+        pages.forEach(p => {
+          const pg = $('#set-page-' + p);
+          if (pg) pg.classList.toggle('hidden', p !== name);
+        });
+        if (panel) panel.scrollTop = 0;
+        if (name === 'account') this._renderSettingsAccount();
+        if (name === 'cache') this._bindCacheSettings();
+        if (!name) this._refreshSettingsMenuAccount();
+      };
+      // 若非切换（打开时首次 / 连续点击同一页）→ 直接切换
+      const cur = main.classList.contains('hidden') ? null : main;
+      const curPg = (pages.find(p => { const el = $('#set-page-' + p); return el && !el.classList.contains('hidden'); }) || '');
+      if ((cur && name === '') || (!cur && curPg === name)) { switchNow(); return; }
+      const outEl = cur || (curPg ? $('#set-page-' + curPg) : null);
+      // 高度与模糊：旧页淡出 → 切换 → 新页淡入 + 面板高度过渡
+      if (panel) { panel.style.height = panel.offsetHeight + 'px'; panel.style.overflow = 'hidden'; }
+      if (outEl) {
+        outEl.style.transition = 'filter .24s ease, opacity .24s ease';
+        outEl.style.filter = 'blur(10px)';
+        outEl.style.opacity = '0';
+      }
+      setTimeout(() => {
+        switchNow();
+        const nextEl = main.classList.contains('hidden') ? $('#set-page-' + name) : main;
+        if (nextEl) {
+          nextEl.style.transition = 'none';
+          nextEl.style.filter = 'blur(10px)';
+          nextEl.style.opacity = '0';
+          requestAnimationFrame(() => {
+            nextEl.style.transition = 'filter .3s ease, opacity .3s ease';
+            nextEl.style.filter = 'blur(0)';
+            nextEl.style.opacity = '1';
+          });
+        }
+        if (panel) {
+          const h = panel.scrollHeight;
+          requestAnimationFrame(() => { panel.style.height = h + 'px'; });
+          setTimeout(() => { panel.style.height = ''; panel.style.overflow = ''; }, 440);
+        }
+      }, outEl ? 220 : 0);
     },
 
     /* ============================================================

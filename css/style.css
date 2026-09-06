@@ -1398,3 +1398,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .set-acc-nick { margin-top: 0; margin-bottom: 18px; }
 .set-acc-top { margin-bottom: 20px; }
 .set-acc-pw { border-top: 1px solid var(--border); padding-top: 18px; }
+/* settings page-switch: panel height morph */
+#settings .modal-panel { transition: height .36s cubic-bezier(.22,.61,.36,1); }
