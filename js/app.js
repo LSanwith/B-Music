@@ -2141,7 +2141,11 @@
       }
     },
 
-    /** 活动行应处的滚动目标（base + 行高/2 居中 + 随唱上滑 travel） */
+    /** 活动行应处的滚动目标：
+     *  手机（≤800px）：以主句【上边缘】为准——第一行固定在可视区 36% 线，
+     *    多行（长句+译文）向下展开，第一行永不被裁/遮；
+     *  桌面：块中心对齐可视区中心；
+     *  均含随唱上滑 travel */
     _lyricTargetFor(li, p) {
       const wrap = $('.ov-lyrics');
       const el = this._lyricEls && this._lyricEls[li];
@@ -2152,8 +2156,15 @@
       const scrollH = this._wrapScrollH || wrap.scrollHeight;
       const lineH = m ? m.h : (el.offsetHeight || 42);
       const base = m ? m.top : el.offsetTop;
-      return Math.max(0, Math.min(Math.max(0, scrollH - wrapH),
-        base + lineH - wrapH / 2 + 10 + (p || 0) * travel));
+      let target;
+      if (window.matchMedia && window.matchMedia('(max-width: 800px)').matches) {
+        // 以上边缘为准：第一行恒在 36% 线
+        target = base - wrapH * 0.36 + 8 + (p || 0) * travel;
+      } else {
+        // 桌面：块中心对齐
+        target = base + lineH / 2 - wrapH / 2 + 10 + (p || 0) * travel;
+      }
+      return Math.max(0, Math.min(Math.max(0, scrollH - wrapH), target));
     },
 
     /** 立即把活动行定格到居中位置（翻译/原文本切换后消除滚动追赶动画） */
