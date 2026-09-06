@@ -2515,9 +2515,10 @@
         panel.style.overflow = 'hidden';
       }
       if (outEl) {
-        outEl.style.transition = 'filter .24s ease, opacity .24s ease';
+        outEl.style.transition = 'filter .24s ease, opacity .24s ease, transform .24s ease';
         outEl.style.filter = 'blur(10px)';
         outEl.style.opacity = '0';
+        outEl.style.transform = 'translateY(-14px)';
       }
       setTimeout(() => {
         switchNow();
@@ -2526,10 +2527,12 @@
           nextEl.style.transition = 'none';
           nextEl.style.filter = 'blur(10px)';
           nextEl.style.opacity = '0';
+          nextEl.style.transform = 'translateY(16px)';
           requestAnimationFrame(() => {
-            nextEl.style.transition = 'filter .3s ease, opacity .3s ease';
+            nextEl.style.transition = 'filter .3s ease, opacity .3s ease, transform .3s ease';
             nextEl.style.filter = 'blur(0)';
             nextEl.style.opacity = '1';
+            nextEl.style.transform = 'translateY(0)';
           });
         }
         if (panel) {
