@@ -2158,8 +2158,8 @@
       const base = m ? m.top : el.offsetTop;
       let target;
       if (window.matchMedia && window.matchMedia('(max-width: 700px)').matches) {
-        // 以上边缘为准：第一行恒在 36% 线（仅 ≤700 手机）
-        target = base - wrapH * 0.36 + 8 + (p || 0) * travel;
+        // 以上边缘为准：第一行恒在 30% 线（用户标注：主句继续上移，绿框内多显示一行）
+        target = base - wrapH * 0.30 + 8 + (p || 0) * travel;
       } else {
         // 桌面：块中心对齐
         target = base + lineH / 2 - wrapH / 2 + 10 + (p || 0) * travel;
