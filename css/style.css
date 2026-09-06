@@ -1391,3 +1391,6 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .set-acc-nick-row .btn.primary { height: 41px; padding: 0 13px; font-size: 12.5px; }
 /* nick save: font down, button down 1px */
 .set-acc-nick-row .btn.primary { font-size: 12px; top: -1px; }
+/* nick save row: under the input */
+.set-acc-nick-row { margin-top: 10px; }
+.set-acc-nick .auth-input { max-width: 340px; width: 100%; }

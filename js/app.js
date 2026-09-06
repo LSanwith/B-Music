@@ -2700,8 +2700,8 @@
         '</div>' +
         '<div class="set-acc-nick">' +
         '<div class="set-label">昵称（分享自建歌单时展示）</div>' +
-        '<div class="set-acc-nick-row">' +
         '<input class="auth-input" id="set-nick" maxlength="20" placeholder="设置昵称" value="' + esc(nick) + '">' +
+        '<div class="set-acc-nick-row">' +
         '<button type="button" class="btn primary" id="set-nick-btn">保存昵称</button>' +
         '</div>' +
         '</div>' +
