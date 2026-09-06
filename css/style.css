@@ -1466,3 +1466,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .set-cap-box { width: 100%; max-width: 520px; }
 .set-cap-box input[type="range"] { width: 100%; max-width: none; }
 .set-cap-skala { width: 100%; max-width: 520px; }
+/* cache slider: right edge aligned with other controls (same width?) */
+.set-cap-box { width: 100%; max-width: none; }
+.set-cap-box input[type="range"] { width: 100%; max-width: none; }
+.set-cap-skala { width: 100%; max-width: none; }
