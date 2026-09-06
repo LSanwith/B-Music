@@ -1353,3 +1353,6 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
     align-items: center; text-align: center; gap: 6px;
   }
 }
+/* fav self-built playlist button state */
+.mini-btn.mp-faved { color: var(--accent); border-color: rgba(250,45,60,.45); }
+.side-pl-mp { font-style: normal; font-size: 10px; color: var(--accent); border: 1px solid rgba(250,45,60,.4); border-radius: 4px; padding: 0 4px; margin-left: 6px; vertical-align: 1px; }

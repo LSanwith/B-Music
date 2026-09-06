@@ -640,7 +640,15 @@
      * ============================================================ */
     vFavorites() {
       const favSongs = Store.FavSongs.all;
-      const favPls = Store.FavPlaylists.all;
+      // 收藏歌单：自建歌单（mp:true）实时取自建数据（名称/封面/数量），已删除的自动剔除
+      const favPls = Store.FavPlaylists.all.map(p => {
+        if (p.mp) {
+          const mp = Store.MyPlaylists.get(p.id);
+          if (!mp) return null;
+          return { id: p.id, name: mp.name, cover: this._mpCoverSrc(mp), trackCount: mp.songs.length, mp: true };
+        }
+        return p;
+      }).filter(Boolean);
       const recents = Store.Recent.all;
       const myPls = Store.MyPlaylists.all;
       const tab = this._favTab || 'songs'; // 记住上次所在分页（自建歌单操作后刷新不跳走）
@@ -726,12 +734,14 @@
     },
 
     _mpCard(p) {
+      const fav = Store.FavPlaylists.has(p.id);
       return '<div class="pl-card mp-card" data-mp="' + p.id + '">' +
         '<div class="pl-cover"><img src="' + esc(this._mpCoverSrc(p)) + '" alt="" loading="lazy">' +
         '<span class="pl-count">' + p.songs.length + ' 首</span>' +
         '<span class="pl-hover">' + Icons.icon('playTri') + '</span></div>' +
         '<div class="mp-name">' + esc(p.name) + '</div>' +
-        '<div class="mp-acts"><button class="mini-btn" data-mp-rename="' + p.id + '">重命名</button>' +
+        '<div class="mp-acts"><button class="mini-btn' + (fav ? ' mp-faved' : '') + '" data-mpfav="' + p.id + '">' + (fav ? '已收藏' : '收藏') + '</button>' +
+        '<button class="mini-btn" data-mp-rename="' + p.id + '">重命名</button>' +
         '<button class="mini-btn danger" data-mp-del="' + p.id + '">删除</button>' +
         '<button class="mini-btn danger" data-mp-clear="' + p.id + '">清空</button></div></div>';
     },
@@ -1370,6 +1380,18 @@
         }
         const mpClrNoEl = e.target.closest('[data-mp-clear-no]');
         if (mpClrNoEl) { this.vFavorites(); return; }
+        const mpFavEl = e.target.closest('[data-mpfav]');
+        if (mpFavEl) {
+          const pid = mpFavEl.dataset.mpfav;
+          const p = Store.MyPlaylists.get(pid);
+          if (p) {
+            const wasFav = Store.FavPlaylists.has(pid);
+            Store.FavPlaylists.toggle({ id: pid, name: p.name, cover: this._mpCoverSrc(p), trackCount: p.songs.length, mp: true });
+            toast(wasFav ? '已取消收藏自建歌单' : '已收藏自建歌单，可在「我的收藏 → 收藏歌单」与侧边栏查看');
+            this.vFavorites();
+          }
+          return;
+        }
         const mpEl = e.target.closest('[data-mp]');
         if (mpEl) { this.nav('myplaylist/' + mpEl.dataset.mp); return; }
         const playEl = e.target.closest('[data-play]');
@@ -1380,7 +1402,13 @@
           return;
         }
         const plEl = e.target.closest('[data-pl]');
-        if (plEl) { this.nav('playlist/' + plEl.dataset.pl); return; }
+        if (plEl) {
+          const pid = plEl.dataset.pl;
+          // 自建歌单（mp 前缀）跳自建详情；其余跳网易云歌单
+          if (pid && pid.indexOf('mp') === 0) this.nav('myplaylist/' + pid);
+          else this.nav('playlist/' + pid);
+          return;
+        }
         const alEl = e.target.closest('[data-album]');
         if (alEl) { this.nav('album/' + alEl.dataset.album); return; }
         const arEl = e.target.closest('[data-artist]');
@@ -2873,7 +2901,15 @@
     /* ---------------- 侧边栏收藏歌单 ---------------- */
     _renderSidePlaylists() {
       const box = $('#side-playlists');
-      const pls = Store.FavPlaylists.all.slice(0, 15);
+      // 自建歌单（mp:true）实时取自建数据；已删除的剔除
+      const pls = Store.FavPlaylists.all.map(p => {
+        if (p.mp) {
+          const mp = Store.MyPlaylists.get(p.id);
+          if (!mp) return null;
+          return { id: p.id, name: mp.name, cover: this._mpCoverSrc(mp), mp: true };
+        }
+        return p;
+      }).filter(Boolean).slice(0, 15);
       if (!pls.length) {
         box.innerHTML = '<div class="side-empty">收藏的歌单会显示在这里</div>';
         return;
@@ -2881,9 +2917,12 @@
       box.innerHTML = pls.map(p =>
         '<div class="side-pl" data-spl="' + p.id + '">' +
         '<img src="' + esc(coverUrl(p.cover)) + '" alt="" loading="lazy">' +
-        '<span>' + esc(p.name) + '</span></div>').join('');
-      box.querySelectorAll('[data-spl]').forEach(el => el.addEventListener('click', () =>
-        this.nav('playlist/' + el.dataset.spl)));
+        '<span>' + esc(p.name) + (p.mp ? ' <em class="side-pl-mp">自建</em>' : '') + '</span></div>').join('');
+      box.querySelectorAll('[data-spl]').forEach(el => el.addEventListener('click', () => {
+        const sid = el.dataset.spl;
+        if (sid && sid.indexOf('mp') === 0) this.nav('myplaylist/' + sid);
+        else this.nav('playlist/' + sid);
+      }));
     },
 
     /* 云端数据变化后的界面刷新（自动同步可见性）：

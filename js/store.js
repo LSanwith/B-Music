@@ -184,6 +184,8 @@
     remove(id) {
       myPlaylists = myPlaylists.filter(p => !idEq(p.id, id));
       write('myPlaylists', myPlaylists);
+      // 自建歌单删除 → 一并取消其在"收藏歌单"中的收藏
+      if (FavPlaylists.has(id)) FavPlaylists.remove(id);
       document.dispatchEvent(new CustomEvent('ym:mypls'));
       Session.sync();
     },
