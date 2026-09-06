@@ -2698,6 +2698,12 @@
       // 登录/登出后：音质菜单锁定状态重渲染
       const qb = $('#set-quality');
       if (qb) { delete qb.dataset.bound; this._applySettingsToUI(); }
+      // 登录/登出后：缓存上限滑杆立即按最新登录态重建（免刷新）
+      ['#set-cache-on', '#set-cache-cap', '#set-clear-cache'].forEach(sel => {
+        const el = $(sel);
+        if (el) delete el.dataset.bound;
+      });
+      if ($('#set-cache-cap')) this._bindCacheSettings();
       this._renderSidebarAvatar();
       this._renderSettingsAccount();
     },
