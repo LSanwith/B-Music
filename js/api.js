@@ -451,14 +451,25 @@
      *  响应结构：{ code:200, message, data:{ urls:[{ id,url,br,level,size,md5,time }], count } }
      *  —— 取 urls[0].url；code!=200 或 url 为空串视为失败（版权/VIP 限制返回空 url）。 */
     async nt18Url(id, level) {
+      // 健康熔断：连续故障（如上游 502/不可达）后 5 分钟内竞速自动跳过，恢复后自动回归
+      if (API._nt18DownAt && Date.now() - API._nt18DownAt < 5 * 60 * 1000) {
+        throw new Error('落七七暂不可用（熔断中）');
+      }
       const NT_MAP = {
         standard: 'standard', higher: 'exhigh', exhigh: 'exhigh', lossless: 'lossless',
         hires: 'hires', jyeffect: 'lossless', sky: 'lossless', dolby: 'lossless', jymaster: 'jymaster',
       };
       const want = NT_MAP[level] || 'lossless';
-      const j = await request(CFG.NT18_ENDPOINT, '', { action: 'url', id: id, quality: want }, 20000);
+      let j;
+      try {
+        j = await request(CFG.NT18_ENDPOINT, '', { action: 'url', id: id, quality: want }, 20000);
+      } catch (e) {
+        API._nt18DownAt = Date.now(); // 触发熔断
+        throw e;
+      }
       const d = j && j.data && Array.isArray(j.data.urls) ? j.data.urls[0] : null;
       if (j && j.code === 200 && d && d.url) {
+        API._nt18DownAt = 0; // 恢复健康
         return {
           url: d.url,
           br: d.br || 0,
