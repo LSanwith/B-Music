@@ -65,9 +65,9 @@ function checkMaster(cookie) {
   const { unikey } = await getJSON('https://music.163.com/api/login/qrcode/unikey?type=1');
   if (!unikey) { console.error('申请二维码失败'); process.exit(1); }
   const loginUrl = 'https://music.163.com/login?codekey=' + encodeURIComponent(unikey);
-  console.log('② 二维码已生成（ncm-qr.png 已自动打开）。');
+  console.log('② 二维码已生成，正在用浏览器打开（新标签）…');
   console.log('   请用【网易云音乐 App → 扫一扫】并确认登录…');
-  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=' + encodeURIComponent(loginUrl);
+  const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=320x320&ts=' + Date.now() + '&data=' + encodeURIComponent(loginUrl);
   const out = path.join(__dirname, 'ncm-qr.png');
   await new Promise((resolve) => {
     https.get(qrUrl, (r) => {
@@ -75,7 +75,8 @@ function checkMaster(cookie) {
       r.pipe(w); w.on('finish', resolve);
     }).on('error', () => resolve());
   });
-  try { execFile('cmd', ['/c', 'start', '', out]); } catch (e) { console.log('请手动打开 ncm-qr.png'); }
+  // 用浏览器打开带时间戳的二维码 URL（浏览器每次请求新图，避免照片查看器缓存旧二维码）
+  try { execFile('cmd', ['/c', 'start', '', qrUrl]); } catch (e) { console.log('请手动打开二维码图片：' + out); }
 
   for (let i = 0; i < 90; i++) {
     await sleep(2000);
