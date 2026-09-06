@@ -367,7 +367,7 @@
       const j = await requestNetease('/artist/detail', { id: id });
       const a = j.data && (j.data.artist || j.data);
       return {
-        id: a.id, name: a.name, cover: (a.picUrl || a.img1v1Url || '').replace(/^http:/, 'https:'),
+        id: a.id, name: a.name, cover: (a.cover || a.picUrl || a.img1v1Url || '').replace(/^http:/, 'https:'),
         songCount: a.musicSize, albumCount: a.albumSize,
         briefDesc: (a.briefDesc || (j.data && j.data.artist && j.data.artist.briefDesc)) || '',
       };
