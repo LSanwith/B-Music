@@ -1331,3 +1331,11 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   #ov-body:not(.lyrics-hidden) .ov-right { height: calc(100vh - 380px); min-height: 300px; }
   #ov-lyrics-inner { padding: 30vh 24px 34vh; }
 }
+/* mobile lyrics v3: clip lyric content above controls (touch/visual), raise controls layer */
+@media (max-width: 700px) {
+  #ov-body:not(.lyrics-hidden) .ov-right { overflow: hidden; }
+  #ov-body:not(.lyrics-hidden) .ov-progress,
+  #ov-body:not(.lyrics-hidden) .ov-quality,
+  #ov-body:not(.lyrics-hidden) .ov-btns,
+  #ov-body:not(.lyrics-hidden) .ov-vol { z-index: 6; }
+}
