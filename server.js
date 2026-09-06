@@ -69,7 +69,8 @@ async function handleApi(req, res, urlPath) {
   if (API_PATHS.indexOf(urlPath) < 0) return false;
   const method = req.method;
   try {
-    /* 网易云会员音源（黑胶 cookie 仅存本地 netease_cookie.txt，不随仓库分发） */
+    /* 网易云会员音源（黑胶 cookie 仅存本地 netease_cookie.txt，不随仓库分发；
+     *  经 Silence 增强库 eapi 通道 → 母带级音源） */
     if (urlPath === '/api/cookieurl' && method === 'GET') {
       const fsx = require('fs');
       const pts = require('path');
@@ -79,21 +80,21 @@ async function handleApi(req, res, urlPath) {
       const id = String((req.url.match(/[?&]id=(\d+)/) || [])[1] || '');
       const lvl = String(((req.url.match(/[?&]level=([a-z]+)/) || [])[1]) || 'lossless');
       if (!id) return res.status(400).json({ msg: 'bad id' });
-      const BR = { jymaster: [999000, 'jymaster'], hires: [190000, 'hires'], lossless: [999000, 'lossless'], exhigh: [320000, 'exhigh'], higher: [192000, 'higher'], standard: [128000, 'standard'] };
-      const [br, lv] = BR[lvl] || BR.lossless;
       try {
-        const r = await fetch('https://music.163.com/api/song/enhance/player/url?ids=' +
-          encodeURIComponent('[' + id + ']') + '&br=' + br + '&level=' + lv, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            Referer: 'https://music.163.com/',
-            Cookie: cookie,
-          },
-          signal: AbortSignal.timeout(15000),
+        const u2 = new URL('https://silence-music-api.cc.cd/song/url/v1');
+        u2.searchParams.set('id', id);
+        u2.searchParams.set('level', lvl);
+        u2.searchParams.set('unlock', '1');
+        u2.searchParams.set('cookie', cookie);
+        const r = await fetch(u2.toString(), {
+          headers: { 'User-Agent': 'BMusicWeb/1.0' },
+          signal: AbortSignal.timeout(20000),
         });
         const j = await r.json().catch(() => ({}));
         const d = (j && j.data && j.data[0]) || {};
-        if (d && d.url) return res.status(200).json({ url: d.url, br: d.br || 0, level: d.level || lv, type: d.type || '' });
+        if (d && d.url) {
+          return res.status(200).json({ url: String(d.url).replace(/^http:\/\//i, 'https://'), br: d.br || 0, level: d.level || lvl, type: d.type || '' });
+        }
         return res.status(404).json({ msg: '无源' });
       } catch (e) {
         return res.status(502).json({ msg: e.message || 'upstream error' });
