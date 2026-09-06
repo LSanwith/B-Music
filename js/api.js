@@ -396,12 +396,21 @@
           return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
         }
       } catch (e) { /* 继续尝试播放直链 */ }
-      // 2) 播放直链：仅接受完整音频
-      const q = { id: id, level: level, realIP: REAL_IP };
+      // 2) 播放直链：仅接受完整音频；unlock=1 请求增强版解锁（VIP/版权歌返回完整源）
+      const q = { id: id, level: level, realIP: REAL_IP, unlock: 1 };
       const j = await request(base, '/song/url/v1', q, 20000);
       const d = (j.data || [])[0];
       if (d && d.url && !isTrial(d)) {
         return { url: d.url, br: d.br || 0, type: d.type || '', level: d.level || level };
+      }
+      // 3) 解锁未生效时退级试试低档（部分歌高低档源情况不同）
+      if (level !== 'standard') {
+        const q2 = { id: id, level: 'standard', realIP: REAL_IP, unlock: 1 };
+        const j2 = await request(base, '/song/url/v1', q2, 20000);
+        const d2 = (j2.data || [])[0];
+        if (d2 && d2.url && !isTrial(d2)) {
+          return { url: d2.url, br: d2.br || 0, type: d2.type || '', level: d2.level || 'standard' };
+        }
       }
       const err = new Error(isTrial(d) ? '仅返回试听片段' : 'unavailable');
       err.trial = isTrial(d);
