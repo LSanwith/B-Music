@@ -1835,14 +1835,30 @@
           }
         };
         const merged = Lrc.mergeLyrics(base || '', trans || '');
-        // 逐字（YRC）接入：只做【行匹配补词】，绝不插入新行（避免歌词重复/时间轴错乱）；
-        // 匹配率不足 60% 时整体放弃逐字（防止"部分行逐字、部分行整段"的混乱）
+        // 逐字（YRC）接入【根治】：逐字时间轴与 LRC 常有固定偏移（如 ±0.2~1.5s），
+        // 先求两轴时间差的中位数并校正，再以 0.5s 窗口匹配——杜绝"未匹配行"导致的
+        // 重复插入/混排；只补词、不插入行；匹配率 <85% 才整体放弃
         if (yrows && yrows.length) {
-          let matched = 0;
+          const diffs = [];
           for (const r of yrows) {
-            let best = null, bd = 0.35;
+            let bd = Infinity, bt = 0;
             for (const o of merged) {
               const d = Math.abs(o.t - r.t);
+              if (d < bd) { bd = d; bt = o.t; }
+            }
+            if (bd < 2) diffs.push(bt - r.t);
+          }
+          let off = 0;
+          if (diffs.length) {
+            diffs.sort((a, b) => a - b);
+            off = diffs[Math.floor(diffs.length / 2)];
+          }
+          off = Math.max(-2, Math.min(2, off)); // 防御错配偏移
+          let matched = 0;
+          for (const r of yrows) {
+            let best = null, bd = 0.5;
+            for (const o of merged) {
+              const d = Math.abs((r.t + off) - o.t);
               if (d < bd) { bd = d; best = o; }
             }
             if (best) {
@@ -1850,8 +1866,6 @@
               if (!best.words) best.words = r.words;
             }
           }
-          // 匹配率 ≥85% 才启用逐字（yrc 行与 lrc 行时间轴需高度吻合；
-          // 否则整首歌统一走原 LRC 整段显示，避免"部分行逐字/部分行整段"或重复错乱）
           const ok = matched / yrows.length >= 0.85;
           for (const o of merged) if (!ok || !o.words) delete o.words;
         }
