@@ -549,8 +549,8 @@
         Session._pollRetryT = setTimeout(Session._pollSafe, 1500);
         return;
       }
-      // 上传进行中 / 刚完成 1.5s 内：本地是最新权威，这时拉云端旧数据会回滚本地改动
-      if (Session._pushT && Date.now() - Session._pushT < 1500) return;
+      // 上传进行中 / 刚完成 3s 内：本地是最新权威，这时拉云端旧数据会回滚本地改动
+      if (Session._pushT && Date.now() - Session._pushT < 3000) return;
       Session._lastPollAt = Date.now();
       Session._polling = true;
       Session.pull()

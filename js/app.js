@@ -1560,12 +1560,11 @@
           const R = { standard: 0, higher: 1, exhigh: 2, lossless: 3, hires: 4, jyeffect: 5, sky: 6, dolby: 7, jymaster: 8 };
           if ((R[dlQ] || 0) >= 3) dlQ = 'exhigh';
         }
-        // 下载优先走红云点歌（下载专用接口），失败再走网易云
+        // 下载音质优先级：会员/镜像(真实高清) → 红云仅兜底（其免费档固定 320k）
         try {
-          info = await API.hongyunUrl(song.id, dlQ);
-          info.source = '红云点歌';
-        } catch (e1) {
           info = await API.resolveUrl(song, dlQ);
+        } catch (e1) {
+          info = await API.hongyunUrl(song.id, dlQ);
         }
         if (!info || !info.url) throw new Error('无可用地址');
         try {

@@ -211,8 +211,9 @@
       this.quality = q;
       Store.Settings.set({ quality: q });
       this._emit('quality');
-      if (this.current()) {
-        const keep = this.audio.currentTime || 0;
+      if (this.current() && this.state !== 'idle') {
+        const keep = (this.audio.currentTime || this.curTime || 0);
+        // 重新解析新音质直链并续播（保留进度）；解析失败自动降级链兜底
         this._loadCurrent(keep);
         UI.toast('已切换音质：' + this.qualityLabel(q));
       }
