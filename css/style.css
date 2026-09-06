@@ -1406,3 +1406,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .usr-avatar.lg .cam svg { width: 38%; }
 /* settings panel: higher cap so page-switch height morph is visible */
 #settings .modal-panel { max-height: 96vh; }
+/* secondary set pages: min height ? every switch has visible panel morph */
+#set-page-prefs, #set-page-cache, #set-page-account { min-height: 620px; }
