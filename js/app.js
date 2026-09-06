@@ -3049,7 +3049,7 @@
       if (capBox && !capBox.dataset.bound) {
         capBox.dataset.bound = '1';
         const isLogin = Store.Session.loggedIn;
-        const max = isLogin ? 51200 : 1024; // 登录 50GB；未登录 1GB
+        const max = isLogin ? 51200 : 2048; // 登录 50GB；未登录 2GB
         const cur = Math.min(max, Math.max(100, Store.Settings.cacheCapMB || 500));
         capBox.innerHTML =
           '<div class="set-cap-box">' +
