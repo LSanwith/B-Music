@@ -537,14 +537,16 @@
           API.neteaseUrl(PRIMARY, song.id, lv).then(r => { r.source = '镜像接口'; return r; }),
           API.hongyunUrl(song.id, lv).then(r => { r.source = '红云点歌'; return r; }),
           API.nt18Url(song.id, lv).then(r => { r.source = '落七七'; return r; }),
+          API.bugpkUrl(song.id, lv).then(r => { r.source = 'bugpk'; return r; }),
         ];
         let settled = 0;
         tasks.forEach((p) => {
           p.then((r) => {
             if (result) return;
             if (r.source === '镜像接口') { result = r; done(); return; }
-            // 第三方源先到：给镜像源 300ms 优先窗口
-            setTimeout(() => { if (!result) { result = r; done(); } }, 300);
+            // 第三方源先到：给镜像源 600ms 优先窗口（bugpk 为外链兜底，延后最久）
+            const delay = r.source === 'bugpk' ? 600 : 300;
+            setTimeout(() => { if (!result) { result = r; done(); } }, delay);
           }).catch((e) => {
             errors.push(e.message);
             if (++settled === tasks.length && !result) done();
@@ -582,13 +584,15 @@
           API.neteaseUrl(PRIMARY, id, lv).then(r => { r.source = '镜像接口'; return r; }),
           API.hongyunUrl(id, lv).then(r => { r.source = '红云点歌'; return r; }),
           API.nt18Url(id, lv).then(r => { r.source = '落七七'; return r; }),
+          API.bugpkUrl(id, lv).then(r => { r.source = 'bugpk'; return r; }),
         ];
         let settled = 0;
         tasks.forEach((p) => {
           p.then((r) => {
             if (result) return;
             if (r.source === '镜像接口') { result = r; done(); return; }
-            setTimeout(() => { if (!result) { result = r; done(); } }, 300);
+            const delay = r.source === 'bugpk' ? 600 : 300;
+            setTimeout(() => { if (!result) { result = r; done(); } }, delay);
           }).catch((e) => {
             errors.push(e.message);
             if (++settled === tasks.length && !result) done();
@@ -600,6 +604,17 @@
         result.url = 'https://' + result.url.slice(7);
       }
       return result;
+    },
+
+    /** bugpk 网易云直链源（兜底；无损及以下，outer 直链 mp3；无需密钥，经同源代理） */
+    async bugpkUrl(id, level) {
+      const want = (level === 'standard' || level === 'higher' || level === 'exhigh') ? 'standard' : 'lossless';
+      const j = await request(CFG.BUGPK_ENDPOINT, '/api/163_music', { id: id, level: want, type: 'url' }, 20000);
+      const d = j && Array.isArray(j.data) ? j.data[0] : null;
+      if (j && j.code === 200 && d && d.url) {
+        return { url: d.url, br: d.br || 0, type: d.type || 'mp3', level: d.level || want };
+      }
+      throw new Error('bugpk 无有效链接');
     },
 
     /** 红云点歌 lrc 兜底（已缓存于 hongyunUrl 结果） */

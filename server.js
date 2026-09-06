@@ -217,6 +217,7 @@ const PROXY_ALLOWED = [
   'https://silence-music-api.cc.cd',
   'https://api.xunjinlu.fun',
   'https://api.18years.ink',
+  'https://api.bugpk.com',
 ];
 
 /** /proxy?u=<完整URL>[&hk=1][&nt=1] —— 同源转发上游 API，规避上游 CORS 响应头不稳定问题。

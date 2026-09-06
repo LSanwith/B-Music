@@ -25,6 +25,9 @@ window.APP_CONFIG = {
   /* 客户端不保存密钥：代理注入（nt=1，见上方说明） */
   NT18_KEY: '',
 
+  /* bugpk 网易云直链源（兜底播放源，无损及以下；无需密钥，经同源代理转发） */
+  BUGPK_ENDPOINT: 'https://api.bugpk.com',
+
   /*
    * 本地代理路径：各上游接口的 CORS 响应头不稳定（CDN 层共享缓存 / 格式错误），
    * 因此通过同源代理转发（server.js 提供 /proxy）。

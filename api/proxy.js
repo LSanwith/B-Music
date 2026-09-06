@@ -9,6 +9,7 @@ const PROXY_ALLOWED = [
   'https://silence-music-api.cc.cd',
   'https://api.xunjinlu.fun',
   'https://api.18years.ink',
+  'https://api.bugpk.com',
 ];
 
 export default async function handler(req, res) {
