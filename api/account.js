@@ -107,12 +107,17 @@ function shareAlbumText(a) {
   return a.name || '';
 }
 function shareSongs(pl) {
-  return (pl.songs || []).map(s => ({
-    id: s.id, name: s.name,
-    artists: shareArtistText(s.artists),
-    album: shareAlbumText(s.album),
-    duration: s.duration || 0, vip: !!s.vip,
-  })).slice(0, 1500);
+  return (pl.songs || []).map(s => {
+    let cover = typeof s.cover === 'string' ? s.cover : '';
+    if (cover.indexOf('data:') === 0) cover = ''; // 自定义大图不入快照
+    return {
+      id: s.id, name: s.name,
+      artists: shareArtistText(s.artists),
+      album: shareAlbumText(s.album),
+      cover: cover.replace(/^http:\/\//i, 'https://'),
+      duration: s.duration || 0, vip: !!s.vip,
+    };
+  }).slice(0, 1500);
 }
 
 export default async function handler(req, res) {

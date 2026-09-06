@@ -1264,17 +1264,17 @@
         }
         const songs = (j.songs || []);
         const owner = j.owner || {};
-        const rows = songs.map((s, i) =>
-          '<div class="song-row" data-id="' + s.id + '">' +
-          '<span class="sr-idx">' + (i + 1) + '</span>' +
-          '<div class="sr-main"><div class="sr-name">' + esc(s.name || '') + (s.vip ? ' <em class="sr-vip">VIP</em>' : '') + '</div>' +
-          '<div class="sr-artist">' + esc(this._shareArtistText(s.artists)) + '</div></div>' +
-          '<div class="sr-album">' + esc(this._shareAlbumText(s.album)) + '</div>' +
-          '<span class="sr-dur">' + fmtDuration(s.duration || 0) + '</span>' +
-          '</div>').join('');
+        // 播放用歌曲对象标准化（快照字段 → 播放器可认结构）
+        const playable = songs.map(s => ({
+          id: s.id, name: s.name, artists: s.artists || '',
+          artistsArr: (s.artists || '').split(' / ').map(a => ({ name: a })),
+          album: s.album || '', cover: s.cover || '', duration: s.duration || 0, vip: !!s.vip,
+        }));
+        this._ctx.songs = playable;
+        const headCover = (j.cover || (songs[0] && songs[0].cover) || '');
         const html =
           '<section class="view-section"><div class="sec-head mp-head">' +
-          '<img class="mp-head-cover" src="' + esc(coverUrl(j.cover || '') || DEFAULT_PL_COVER) + '" alt="">' +
+          '<img class="mp-head-cover" src="' + esc(coverUrl(headCover) || DEFAULT_PL_COVER) + '" alt="">' +
           '<h2>' + esc(j.name || '自建歌单') + '</h2>' +
           '<span class="mp-count">' + songs.length + ' 首</span></div>' +
           '<div class="mp-tools">' +
@@ -1284,18 +1284,12 @@
           (owner.id ? ' · 唯一ID ' + esc(owner.id) : '') + '</div>' +
           (Store.Session.loggedIn ? '' :
             '<div class="mp-share-tip">未登录仅可查看；登录后可分享自己的歌单</div>') +
-          (songs.length ? '<div class="song-list">' + rows + '</div>'
+          (songs.length ? this._songListHtml(playable, { cover: true, album: true })
             : UI.empty('该歌单没有歌曲')) +
           '</section>';
         this._setView(html);
         const pa = $('#share-playall');
-        if (pa) pa.addEventListener('click', () => {
-          Player.playQueue(songs.map(s => ({
-            id: s.id, name: s.name, artists: s.artists || '',
-            artistsArr: (s.artists || '').split(' / ').map(a => ({ name: a })),
-            album: s.album || '', cover: j.cover || '', duration: s.duration || 0, vip: !!s.vip,
-          })), 0);
-        });
+        if (pa) pa.addEventListener('click', () => Player.playQueue(playable, 0));
       } catch (e) {
         if (seq !== this._viewSeq) return;
         this._viewError('分享加载失败：' + e.message, 'App.vShareMp(\'' + token + '\')');
