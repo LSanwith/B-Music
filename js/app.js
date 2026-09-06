@@ -1268,8 +1268,8 @@
           '<div class="song-row" data-id="' + s.id + '">' +
           '<span class="sr-idx">' + (i + 1) + '</span>' +
           '<div class="sr-main"><div class="sr-name">' + esc(s.name || '') + (s.vip ? ' <em class="sr-vip">VIP</em>' : '') + '</div>' +
-          '<div class="sr-artist">' + esc(s.artists || '') + '</div></div>' +
-          '<div class="sr-album">' + esc(s.album || '') + '</div>' +
+          '<div class="sr-artist">' + esc(this._shareArtistText(s.artists)) + '</div></div>' +
+          '<div class="sr-album">' + esc(this._shareAlbumText(s.album)) + '</div>' +
           '<span class="sr-dur">' + fmtDuration(s.duration || 0) + '</span>' +
           '</div>').join('');
         const html =
@@ -1289,6 +1289,20 @@
         if (seq !== this._viewSeq) return;
         this._viewError('分享加载失败：' + e.message, 'App.vShareMp(\'' + token + '\')');
       }
+    },
+
+    /** 分享快照字段容错：artists 可能是数组/对象数组/字符串 */
+    _shareArtistText(a) {
+      if (!a) return '';
+      if (typeof a === 'string') return a;
+      if (Array.isArray(a)) return a.map(x => (x && typeof x === 'object' ? x.name : x)).filter(Boolean).join(' / ');
+      return a.name || '';
+    },
+    /** 分享快照字段容错：album 可能是对象/字符串 */
+    _shareAlbumText(a) {
+      if (!a) return '';
+      if (typeof a === 'string') return a;
+      return a.name || '';
     },
 
     /* ============================================================

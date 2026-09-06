@@ -95,9 +95,22 @@ function kvSet(key, val) {
   }
   return Promise.resolve();
 }
+function shareArtistText(a) {
+  if (!a) return '';
+  if (typeof a === 'string') return a;
+  if (Array.isArray(a)) return a.map(x => (x && typeof x === 'object' ? x.name : x)).filter(Boolean).join(' / ');
+  return a.name || '';
+}
+function shareAlbumText(a) {
+  if (!a) return '';
+  if (typeof a === 'string') return a;
+  return a.name || '';
+}
 function shareSongs(pl) {
   return (pl.songs || []).map(s => ({
-    id: s.id, name: s.name, artists: s.artists || '', album: s.album || '',
+    id: s.id, name: s.name,
+    artists: shareArtistText(s.artists),
+    album: shareAlbumText(s.album),
     duration: s.duration || 0, vip: !!s.vip,
   })).slice(0, 1500);
 }
