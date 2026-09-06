@@ -3016,12 +3016,9 @@
       this._applyLyricStyle();
       this._bindCacheSettings();
     },
-    /** 缓存容量显示：≥1GB 自动换算 GB（保留 1 位小数，整则省略） */
+    /** 缓存容量显示：≥1GB 换算 GB（两位小数），否则 MB */
     _fmtCap(mb) {
-      if (mb >= 1024) {
-        const g = mb / 1024;
-        return (Math.round(g * 10) / 10).toString().replace(/\.0$/, '') + 'GB';
-      }
+      if (mb >= 1024) return (mb / 1024).toFixed(2) + 'GB';
       return mb + 'MB';
     },
     /** 音频缓存设置：开关 / 上限滑杆 / 用量显示 / 清空 */
@@ -3061,13 +3058,15 @@
         const isLogin = Store.Session.loggedIn;
         const MAX_MB = isLogin ? 51200 : 2048;      // 登录 50GB；未登录 2GB
         const cur = Math.min(MAX_MB, Math.max(100, Store.Settings.cacheCapMB || 500));
-        // 位置↔容量（非线性）：前 50% 区间 = 100MB~2GB，后 50% = 2GB~50GB（登录时）
+        // 位置↔容量：登录=非线性（前 50% 100MB~2GB / 后 50% 2GB~50GB）；未登录=线性 100MB~2GB
         const mbToPos = (mb) => {
-          if (mb <= 2048) return (mb - 100) / (2048 - 100) * (isLogin ? 50 : 100);
+          if (!isLogin) return (mb - 100) / (2048 - 100) * 100;
+          if (mb <= 2048) return (mb - 100) / (2048 - 100) * 50;
           return 50 + (mb - 2048) / (MAX_MB - 2048) * 50;
         };
         const posToMb = (pos) => {
-          if (pos <= 50) return Math.round(100 + (2048 - 100) * pos / (isLogin ? 50 : 100));
+          if (!isLogin) return Math.round(100 + (2048 - 100) * pos / 100);
+          if (pos <= 50) return Math.round(100 + (2048 - 100) * pos / 50);
           return Math.round(2048 + (MAX_MB - 2048) * (pos - 50) / 50);
         };
         capBox.innerHTML =
