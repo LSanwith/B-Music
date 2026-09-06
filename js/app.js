@@ -3049,24 +3049,41 @@
       if (capBox && !capBox.dataset.bound) {
         capBox.dataset.bound = '1';
         const isLogin = Store.Session.loggedIn;
-        const max = isLogin ? 51200 : 2048; // 登录 50GB；未登录 2GB
-        const cur = Math.min(max, Math.max(100, Store.Settings.cacheCapMB || 500));
+        const MAX_MB = isLogin ? 51200 : 2048;      // 登录 50GB；未登录 2GB
+        const cur = Math.min(MAX_MB, Math.max(100, Store.Settings.cacheCapMB || 500));
+        // 位置↔容量（非线性）：前 50% 区间 = 100MB~2GB，后 50% = 2GB~50GB（登录时）
+        const mbToPos = (mb) => {
+          if (mb <= 2048) return (mb - 100) / (2048 - 100) * (isLogin ? 50 : 100);
+          return 50 + (mb - 2048) / (MAX_MB - 2048) * 50;
+        };
+        const posToMb = (pos) => {
+          if (pos <= 50) return Math.round(100 + (2048 - 100) * pos / (isLogin ? 50 : 100));
+          return Math.round(2048 + (MAX_MB - 2048) * (pos - 50) / 50);
+        };
         capBox.innerHTML =
           '<div class="set-cap-box">' +
           '<div class="set-cap-val" id="set-cap-val">' + this._fmtCap(cur) + '</div>' +
-          '<input type="range" id="set-cap-slider" min="100" max="' + max + '" step="100" value="' + cur + '"' + (isLogin ? '' : ' disabled') + '>' +
-          '<div class="set-cap-skala"><span>100MB</span><span>' + this._fmtCap(max) + '</span></div>' +
+          '<input type="range" id="set-cap-slider" min="0" max="100" step="0.5" value="' + mbToPos(cur) + '"' + (isLogin ? '' : ' disabled') + '>' +
+          '<div class="set-cap-skala">' +
+          (isLogin ? '<span>100MB</span><span>2GB</span><span>50GB</span>'
+            : '<span>100MB</span><span>2GB</span>') +
+          '</div>' +
           (!isLogin ? '<div class="set-cap-tip">登录后可将缓存上限提高到 50GB</div>' : '') +
           '</div>';
         const slider = $('#set-cap-slider');
         const val = $('#set-cap-val');
         if (slider && val) {
-          const fmt = () => { val.textContent = this._fmtCap(+slider.value); };
+          const fmt = () => {
+            const mb = posToMb(+slider.value);
+            val.textContent = this._fmtCap(mb);
+            slider.dataset.mb = mb;
+          };
           slider.addEventListener('input', fmt);
           slider.addEventListener('change', () => {
-            Store.Settings.set({ cacheCapMB: +slider.value });
+            const mb = posToMb(+slider.value);
+            Store.Settings.set({ cacheCapMB: mb });
             AudioCache.evict().then(refreshUsed);
-            toast('缓存上限已更新为 ' + this._fmtCap(+slider.value));
+            toast('缓存上限已更新为 ' + this._fmtCap(mb));
           });
         }
       }
