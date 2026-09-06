@@ -76,6 +76,10 @@ async function handleApi(req, res, urlPath) {
       const pts = require('path');
       let cookie = '';
       try { cookie = fsx.readFileSync(pts.join(__dirname, 'netease_cookie.txt'), 'utf8').trim(); } catch (e) {}
+      // 最小化：仅转发 MUSIC_U + __csrf 两个字段
+      const muM = /MUSIC_U=([^;]+)/.exec(cookie);
+      const csM = /__csrf=([^;]+)/.exec(cookie);
+      cookie = (muM ? 'MUSIC_U=' + muM[1] : '') + (csM ? (muM ? '; ' : '') + '__csrf=' + csM[1] : '');
       if (!cookie) return res.status(503).json({ msg: 'cookie 未配置' });
       const id = String((req.url.match(/[?&]id=(\d+)/) || [])[1] || '');
       const lvl = String(((req.url.match(/[?&]level=([a-z]+)/) || [])[1]) || 'lossless');

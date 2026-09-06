@@ -2,15 +2,23 @@
  *
  * 实现：服务端带 cookie 请求 Silence 增强库（其实现了网易 eapi 母带通道）
  *      /song/url/v1?id=&level=&unlock=1&cookie=<NETEASE_COOKIE>
- *  - cookie 仅存于服务端环境变量 NETEASE_COOKIE，客户端/URL 不出现；
- *  - 未配置 cookie → 503（前端静默跳过该路）；
- *  - 档位：jymaster/hires/lossless/exhigh/higher/standard 直传。
+ *  安全：只向第三方转发 MUSIC_U + __csrf 两个字段（最小暴露面），
+ *  其余 cookie 字段永不离开服务器；不写入任何日志/客户端。
  */
 const SILENCE = 'https://silence-music-api.cc.cd';
 
+/** 从完整 cookie 串裁剪为最小会话（仅 MUSIC_U + __csrf） */
+function minimizeCookie(full) {
+  const mu = /MUSIC_U=([^;]+)/.exec(full);
+  const cs = /__csrf=([^;]+)/.exec(full);
+  let out = mu ? 'MUSIC_U=' + mu[1] : '';
+  if (cs) out += (out ? '; ' : '') + '__csrf=' + cs[1];
+  return out;
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ msg: 'method not allowed' });
-  const cookie = (process.env.NETEASE_COOKIE || '').trim();
+  const cookie = minimizeCookie((process.env.NETEASE_COOKIE || '').trim());
   if (!cookie) return res.status(503).json({ msg: 'cookie 未配置' });
   const id = String((req.query && req.query.id) || '');
   const level = String((req.query && req.query.level) || 'lossless');
