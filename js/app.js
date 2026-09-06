@@ -890,6 +890,7 @@
         '<button class="mini-btn" id="mp-rename">重命名</button>' +
         '<button class="mini-btn" id="mp-cover-btn">更换封面</button>' +
         (pl.cover ? '<button class="mini-btn" id="mp-cover-reset">恢复默认</button>' : '') +
+        '<button class="mini-btn' + (Store.FavPlaylists.has(pl.id) ? ' mp-faved' : '') + '" id="mp-fav">' + (Store.FavPlaylists.has(pl.id) ? '已收藏' : '收藏') + '</button>' +
         '</div>' +
         '<div class="mp-import"><div class="search-box"><form id="mp-import-form">' +
         '<input id="mp-import-input" placeholder="粘贴网易云 歌单/专辑/歌曲 链接或 ID，导入全部歌曲" maxlength="300"></form></div>' +
@@ -919,6 +920,12 @@
         input.focus(); input.select();
       });
       $('#mp-cover-btn').addEventListener('click', () => this._changePlCover(pl.id));
+      $('#mp-fav').addEventListener('click', () => {
+        const wasFav = Store.FavPlaylists.has(pl.id);
+        Store.FavPlaylists.toggle({ id: pl.id, name: pl.name, cover: this._mpCoverSrc(pl), trackCount: pl.songs.length, mp: true });
+        toast(wasFav ? '已取消收藏自建歌单' : '已收藏自建歌单，可在「我的收藏 → 收藏歌单」与侧边栏查看');
+        this.vMyPlaylist(pl.id);
+      });
       const rcst = $('#mp-cover-reset');
       if (rcst) rcst.addEventListener('click', () => {
         Store.MyPlaylists.clearCover(pl.id);
