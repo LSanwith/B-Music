@@ -1408,3 +1408,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 #settings .modal-panel { max-height: 96vh; }
 /* secondary set pages: min height ? every switch has visible panel morph */
 #set-page-prefs, #set-page-cache, #set-page-account { min-height: 620px; }
+/* remove unified secondary-page height: panel follows content again */
+#set-page-prefs, #set-page-cache, #set-page-account { min-height: 0; }
