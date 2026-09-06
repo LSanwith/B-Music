@@ -162,7 +162,10 @@ export default async function handler(req, res) {
       cp.used = true;
       const id = String(Object.keys(db.users).reduce((m, k) => Math.max(m, parseInt(k, 10) || 0), 0) + 1);
       const salt = crypto.randomBytes(16).toString('hex');
-      db.users[id] = { id, email, salt, passHash: hashPass(password, salt), createdAt: Date.now() };
+      db.users[id] = {
+        id, email, salt, passHash: hashPass(password, salt), createdAt: Date.now(),
+        nickname: '用户' + id, // 新账号默认昵称 = 用户+UID
+      };
       db.data[id] = { settings: {}, favSongs: [], favPlaylists: [] };
       const token = crypto.randomBytes(24).toString('hex');
       db.sessions[token] = id;

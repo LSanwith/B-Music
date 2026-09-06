@@ -2670,11 +2670,14 @@
     /* ============================================================
      * 头像（侧栏 + 设置弹窗账号分区）
      * ============================================================ */
-    /** 头像圆形内层内容：有头像 → <img>，无头像 → 邮箱首字母 */
+    /** 头像圆形内层内容：有头像 → <img>，无头像 → 默认灰色人形占位（图1） */
     _avatarInner(email, avatar) {
       if (avatar) return '<img src="' + esc(avatar) + '" alt="">';
-      const ch = String(email || '?').trim().charAt(0) || '?';
-      return '<b>' + esc(ch.toUpperCase()) + '</b>';
+      return '<svg viewBox="0 0 200 200" aria-hidden="true" style="width:100%;height:100%;display:block">' +
+        '<circle cx="100" cy="100" r="100" fill="#e3e4e6"/>' +
+        '<circle cx="100" cy="76" r="34" fill="#fff"/>' +
+        '<path d="M100 122c-40 0-64 22-69 44a100 100 0 0 0 138 0c-5-22-29-44-69-44z" fill="#fff"/>' +
+        '</svg>';
     },
     /** 刷新主页侧栏的头像（邮箱右侧） */
     _renderSidebarAvatar() {
