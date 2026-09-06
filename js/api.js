@@ -424,10 +424,11 @@
      *    新版：{ code:200, music_url, cover, quality, lyric, fee }（扁平）
      *    旧版：{ code:0, data:{ data:{ url, type, level, lrc, cover } } }（嵌套） */
     async hongyunUrl(id, level) {
-      // 应用档位 → 红云 v4 档位（standard/high/lossless）
+      // 应用档位 → 红云 v4 档位（standard/high/lossless；按文档 v4 亦支持
+      // jymaster/hires 等超清档 —— 高档直传，歌源实际最高档为准，接受参数无副作用）
       const HY_MAP = {
         standard: 'standard', higher: 'high', exhigh: 'high', lossless: 'lossless',
-        hires: 'lossless', jyeffect: 'lossless', sky: 'lossless', dolby: 'lossless', jymaster: 'lossless',
+        hires: 'hires', jyeffect: 'jymaster', sky: 'jymaster', dolby: 'jymaster', jymaster: 'jymaster',
       };
       const want = HY_MAP[level] || 'lossless';
       const fetchLevel = async (lv) => {
