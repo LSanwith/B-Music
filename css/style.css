@@ -1413,3 +1413,6 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 /* settings panel: unified width & top-left aligned controls */
 #settings .modal-panel { width: min(94vw, 700px) !important; }
 #settings .modal-body { text-align: left; }
+/* settings panel: FIXED height (content scrolls inside) */
+#settings .modal-panel { height: min(560px, 84vh); }
+#settings .modal-panel { transition: none; }
