@@ -2782,6 +2782,7 @@
         '<input class="auth-input" id="set-pw-new2" type="password" placeholder="再次输入新密码" autocomplete="new-password">' +
         '<div class="set-acc-pw-btns"><button type="button" class="btn primary" id="set-pw-submit">确认修改</button></div>' +
         '</div>' +
+        '<div class="set-acc-foot"><button type="button" class="btn" id="set-logout">退出登录</button></div>' +
         '</div>';
       const av = $('#set-acc-avatar');
       if (av) av.addEventListener('click', () => this._changeAvatar());
@@ -2798,6 +2799,15 @@
         }
       });
       const pwBtn = $('#set-pw-submit');
+      const loBtn = $('#set-logout');
+      if (loBtn) loBtn.addEventListener('click', async () => {
+        try {
+          await Store.Session.logout();
+          toast('已退出登录');
+        } catch (e) {
+          toast('退出失败：' + e.message, 'warn');
+        }
+      });
       /* 老缓存缺 uid：异步补拉资料后重绘（成功后显示唯一ID） */
       if (!Store.Session.uid) {
         Store.Session.refreshProfile().then(() => {

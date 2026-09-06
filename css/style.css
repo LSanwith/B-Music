@@ -1470,3 +1470,6 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .set-cap-box { width: 100%; max-width: none; }
 .set-cap-box input[type="range"] { width: 100%; max-width: none; }
 .set-cap-skala { width: 100%; max-width: none; }
+/* account page logout button at footer */
+.set-acc-foot { margin-top: 22px; border-top: 1px solid var(--border); padding-top: 16px; }
+.set-acc-foot .btn { min-width: 130px; justify-content: center; }
