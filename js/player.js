@@ -69,10 +69,13 @@
     },
 
     snapshot(song) {
+      const ar = Array.isArray(song.artists) ? song.artists
+        : (typeof song.artists === 'string' ? song.artists.split(' / ').map(a => ({ name: a })) : []);
+      const al = song.album && typeof song.album === 'object' ? song.album : { name: song.album || '' };
       return {
         id: song.id, name: song.name,
-        artists: (song.artists || []).map(x => x.name).join(' / '),
-        album: song.album ? song.album.name : '',
+        artists: ar.map(x => x.name).join(' / '),
+        album: al.name || '', // 容错：album 可能为字符串
         cover: song.cover || '',
         duration: song.duration || 0,
       };

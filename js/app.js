@@ -1264,11 +1264,13 @@
         }
         const songs = (j.songs || []);
         const owner = j.owner || {};
-        // 播放用歌曲对象标准化（快照字段 → 播放器可认结构）
+        // 播放用歌曲对象：artists 必须为对象数组、album 为对象（播放器 snapshot 要求），
+        // 列表显示则使用原始快照（字符串 artists/album）
         const playable = songs.map(s => ({
-          id: s.id, name: s.name, artists: s.artists || '',
-          artistsArr: (s.artists || '').split(' / ').map(a => ({ name: a })),
-          album: s.album || '', cover: s.cover || '', duration: s.duration || 0, vip: !!s.vip,
+          id: s.id, name: s.name,
+          artists: (s.artists || '').split(' / ').filter(Boolean).map(a => ({ name: a })),
+          album: { name: s.album || '' },
+          cover: s.cover || '', duration: s.duration || 0, vip: !!s.vip,
         }));
         this._ctx.songs = playable;
         const headCover = (j.cover || (songs[0] && songs[0].cover) || '');
@@ -1284,7 +1286,7 @@
           (owner.id ? ' · 唯一ID ' + esc(owner.id) : '') + '</div>' +
           (Store.Session.loggedIn ? '' :
             '<div class="mp-share-tip">未登录仅可查看；登录后可分享自己的歌单</div>') +
-          (songs.length ? this._songListHtml(playable, { cover: true, album: true })
+          (songs.length ? this._songListHtml(songs, { cover: true, album: true })
             : UI.empty('该歌单没有歌曲')) +
           '</section>';
         this._setView(html);
