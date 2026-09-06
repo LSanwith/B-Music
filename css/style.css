@@ -1339,3 +1339,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   #ov-body:not(.lyrics-hidden) .ov-btns,
   #ov-body:not(.lyrics-hidden) .ov-vol { z-index: 6; }
 }
+/* cover mode (lyrics hidden): whole group centered, no scrollbar, no page scroll */
+@media (max-width: 700px) {
+  #ov-body.lyrics-hidden { overflow: hidden; justify-content: center; align-items: center; }
+}
