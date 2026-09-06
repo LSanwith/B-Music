@@ -2157,8 +2157,8 @@
       const lineH = m ? m.h : (el.offsetHeight || 42);
       const base = m ? m.top : el.offsetTop;
       let target;
-      if (window.matchMedia && window.matchMedia('(max-width: 800px)').matches) {
-        // 以上边缘为准：第一行恒在 36% 线
+      if (window.matchMedia && window.matchMedia('(max-width: 700px)').matches) {
+        // 以上边缘为准：第一行恒在 36% 线（仅 ≤700 手机）
         target = base - wrapH * 0.36 + 8 + (p || 0) * travel;
       } else {
         // 桌面：块中心对齐

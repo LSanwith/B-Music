@@ -1301,7 +1301,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 #ov-lyrics-inner hr, #ov-lyrics-inner > hr, #ov-lyrics-inner .ly-line hr { display: none !important; }
 #ov-lyrics-inner a { color: inherit !important; }
 /* mobile lyrics mode: mini cover row on top, controls fixed bottom, max space to lyrics */
-@media (max-width: 720px) {
+@media (max-width: 700px) {
   #ov-body:not(.lyrics-hidden) { justify-content: flex-start; padding-bottom: 210px; }
   #ov-body:not(.lyrics-hidden) .ov-left {
     flex-direction: row; align-items: center; gap: 14px;
@@ -1326,7 +1326,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
   #ov-body:not(.lyrics-hidden) .ov-right { height: calc(100vh - 118px); }
 }
 /* mobile lyrics mode v2: bounded lyric viewport (no overflow into controls), no scrollbar */
-@media (max-width: 720px) {
+@media (max-width: 700px) {
   #ov-body:not(.lyrics-hidden) { overflow: hidden; padding-bottom: 0; }
   #ov-body:not(.lyrics-hidden) .ov-right { height: calc(100vh - 380px); min-height: 300px; }
   #ov-lyrics-inner { padding: 30vh 24px 34vh; }
