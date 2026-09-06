@@ -3073,7 +3073,7 @@
         capBox.innerHTML =
           '<div class="set-cap-box">' +
           '<div class="set-cap-val" id="set-cap-val">' + this._fmtCap(cur) + '</div>' +
-          '<input type="range" id="set-cap-slider" min="0" max="100" step="0.5" value="' + mbToPos(cur) + '"' + (isLogin ? '' : ' disabled') + '>' +
+          '<input type="range" id="set-cap-slider" min="0" max="100" step="0.5" value="' + mbToPos(cur) + '">' +
           '<div class="set-cap-skala">' +
           (isLogin ? '<span>100MB</span><span>2GB</span><span>50GB</span>'
             : '<span>100MB</span><span>2GB</span>') +
