@@ -227,7 +227,7 @@
       this._highlightNav(root);
       // 顶栏返回按钮：仅在 歌单/专辑/歌手/单曲/自建歌单 等详情页显示（位于顶部标题文本左侧）
       const topBack = $('#btn-topback');
-      if (topBack) topBack.classList.toggle('hidden', !(root === 'playlist' || root === 'album' || root === 'artist' || root === 'song' || root === 'myplaylist'));
+      if (topBack) topBack.classList.toggle('hidden', !(root === 'playlist' || root === 'album' || root === 'artist' || root === 'song' || root === 'myplaylist' || root === 'share'));
       // 分享深度链接的 ?song= 参数：页面就绪后在原列表定位并自动播放该曲
       this._autoSong = params.get('song') ? String(params.get('song')) : null;
       this._autoSongTries = 0;
@@ -1274,9 +1274,12 @@
           '</div>').join('');
         const html =
           '<section class="view-section"><div class="sec-head mp-head">' +
-          '<img class="mp-head-cover" src="' + esc(coverUrl(j.cover || '')) + '" alt="">' +
+          '<img class="mp-head-cover" src="' + esc(coverUrl(j.cover || '') || DEFAULT_PL_COVER) + '" alt="">' +
           '<h2>' + esc(j.name || '自建歌单') + '</h2>' +
           '<span class="mp-count">' + songs.length + ' 首</span></div>' +
+          '<div class="mp-tools">' +
+          (songs.length ? '<button class="mini-btn" id="share-playall">播放全部</button>' : '') +
+          '</div>' +
           '<div class="mp-share-owner">分享者：' + esc(owner.name || '用户') +
           (owner.id ? ' · 唯一ID ' + esc(owner.id) : '') + '</div>' +
           (Store.Session.loggedIn ? '' :
@@ -1285,6 +1288,14 @@
             : UI.empty('该歌单没有歌曲')) +
           '</section>';
         this._setView(html);
+        const pa = $('#share-playall');
+        if (pa) pa.addEventListener('click', () => {
+          Player.playQueue(songs.map(s => ({
+            id: s.id, name: s.name, artists: s.artists || '',
+            artistsArr: (s.artists || '').split(' / ').map(a => ({ name: a })),
+            album: s.album || '', cover: j.cover || '', duration: s.duration || 0, vip: !!s.vip,
+          })), 0);
+        });
       } catch (e) {
         if (seq !== this._viewSeq) return;
         this._viewError('分享加载失败：' + e.message, 'App.vShareMp(\'' + token + '\')');

@@ -212,9 +212,16 @@ export default async function handler(req, res) {
       const pl = (d.myPlaylists || []).find(p => String(p.id) === mpId);
       if (!pl) return res.status(404).json({ msg: '自建歌单不存在' });
       const token = crypto.randomBytes(9).toString('hex');
+      // 封面：自定义(dataless) → 首曲封面（https 化）；均无则空
+      let cover = (typeof pl.cover === 'string' && pl.cover.indexOf('data:') !== 0) ? pl.cover : '';
+      if (!cover && pl.songs && pl.songs[0] && pl.songs[0].cover) {
+        const c = String(pl.songs[0].cover);
+        cover = c.indexOf('data:') === 0 ? '' : c;
+      }
+      cover = cover.replace(/^http:\/\//i, 'https://');
       const snap = {
         name: pl.name,
-        cover: (pl.cover && pl.cover.indexOf('data:') === 0) ? '' : (pl.cover || ''),
+        cover: cover,
         songs: shareSongs(pl),
         owner: { id: user.id, name: user.nickname || ('用户' + user.id) },
         at: Date.now(),
