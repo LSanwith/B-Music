@@ -1404,3 +1404,5 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 #settings .modal-panel { transition: height .36s cubic-bezier(.22,.61,.36,1); will-change: height; }
 /* smaller camera icon on account avatar */
 .usr-avatar.lg .cam svg { width: 38%; }
+/* settings panel: higher cap so page-switch height morph is visible */
+#settings .modal-panel { max-height: 96vh; }
