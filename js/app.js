@@ -3031,8 +3031,8 @@
           const el = $('#set-cache-used');
           if (el) {
             const mb = b / 1048576;
-            el.textContent = '已用 ' + (mb >= 100 ? Math.round(mb) : mb.toFixed(1)) + ' MB / 上限 ' +
-              this._fmtCap(Store.Settings.cacheCapMB);
+            const fmtUsed = (m) => (m >= 1024 ? (m / 1024).toFixed(2) + 'GB' : Math.round(m) + 'MB');
+            el.textContent = '已用 ' + fmtUsed(mb) + ' / 上限 ' + this._fmtCap(Store.Settings.cacheCapMB);
           }
         });
       };
