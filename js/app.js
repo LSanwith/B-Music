@@ -1850,7 +1850,9 @@
               if (!best.words) best.words = r.words;
             }
           }
-          const ok = matched / yrows.length >= 0.6;
+          // 匹配率 ≥85% 才启用逐字（yrc 行与 lrc 行时间轴需高度吻合；
+          // 否则整首歌统一走原 LRC 整段显示，避免"部分行逐字/部分行整段"或重复错乱）
+          const ok = matched / yrows.length >= 0.85;
           for (const o of merged) if (!ok || !o.words) delete o.words;
         }
         this._lyricLines = merged;
