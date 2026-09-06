@@ -1360,3 +1360,9 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .mp-acts { flex-wrap: nowrap; }
 .mp-acts .mini-btn { white-space: nowrap; font-size: 11px; padding: 3px 7px; }
 .mp-card .pl-fav { position: absolute; top: 8px; right: 8px; opacity: .9; }
+/* faved state keeps outlined style on hover (not solid red block) */
+.mini-btn.mp-faved, .mini-btn.mp-faved:hover {
+  color: var(--accent); border-color: rgba(250,45,60,.45);
+  background: transparent;
+}
+.mini-btn.mp-faved:hover { background: var(--accent-soft); }
