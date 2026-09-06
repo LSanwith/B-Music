@@ -1536,9 +1536,22 @@
       else if (b.url) window.open(b.url, '_blank');
     },
 
-    /* ---------------- 下载（流式 + 实时进度浮层） ---------------- */
+    /* ---------------- 下载（点击即出进度浮层：取址 → 流式下载 → 完成） ---------------- */
     async _downloadSong(song) {
-      toast('正在获取下载地址…');
+      const label = song.name + ' - ' + artistList(song.artists).map(x => x.name).join('/');
+      // 点击立即创建进度浮层：先显示“获取地址中”流动动画，随后无缝转下载百分比
+      const bar = document.createElement('div');
+      bar.className = 'dl-card';
+      bar.innerHTML = '<div class="dl-name">' + esc(label) + '</div>' +
+        '<div class="dl-track"><i class="loading"></i></div><div class="dl-pct">获取中</div>';
+      document.body.appendChild(bar);
+      const setPct = (pct, bytes) => {
+        const i = bar.querySelector('.dl-track i');
+        const p = bar.querySelector('.dl-pct');
+        if (i) { i.classList.remove('loading'); i.style.width = pct + '%'; }
+        if (p) p.textContent = pct ? (pct + '%') : ((bytes / 1048576).toFixed(1) + 'MB');
+      };
+      const removeBar = () => { if (bar.parentNode) bar.remove(); };
       try {
         let info = null;
         // 下载优先走红云点歌（下载专用接口），失败再走网易云
@@ -1549,19 +1562,6 @@
           info = await API.resolveUrl(song, Store.Settings.quality);
         }
         if (!info || !info.url) throw new Error('无可用地址');
-        const label = song.name + ' - ' + artistList(song.artists).map(x => x.name).join('/');
-        // 进度浮层
-        const bar = document.createElement('div');
-        bar.className = 'dl-card';
-        bar.innerHTML = '<div class="dl-name">' + esc(label) + '</div>' +
-          '<div class="dl-track"><i></i></div><div class="dl-pct">0%</div>';
-        document.body.appendChild(bar);
-        const setPct = (pct, bytes) => {
-          const i = bar.querySelector('.dl-track i');
-          const p = bar.querySelector('.dl-pct');
-          if (i) i.style.width = pct + '%';
-          if (p) p.textContent = pct ? (pct + '%') : ((bytes / 1048576).toFixed(1) + 'MB');
-        };
         try {
           const res = await fetch(info.url, { mode: 'cors' });
           if (res.ok) {
@@ -1586,11 +1586,11 @@
             a.click();
             setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 4000);
             toast('下载完成《' + song.name + '》');
-            bar.remove();
+            removeBar();
             return;
           }
         } catch (e) { /* 走新标签页 */ }
-        bar.remove();
+        removeBar();
         const a = document.createElement('a');
         a.href = info.url;
         a.target = '_blank';
@@ -1598,6 +1598,7 @@
         a.click();
         toast('已在新标签页打开下载链接（' + (info.source || '') + '）');
       } catch (e) {
+        removeBar();
         toast('下载失败：' + e.message, 'warn');
       }
     },
