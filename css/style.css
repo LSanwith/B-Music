@@ -1394,3 +1394,7 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 /* nick save row: under the input */
 .set-acc-nick-row { margin-top: 10px; }
 .set-acc-nick .auth-input { max-width: 340px; width: 100%; }
+/* settings account: even spacing between blocks, divider sits between blocks (not on save btn) */
+.set-acc-nick { margin-top: 0; margin-bottom: 18px; }
+.set-acc-top { margin-bottom: 20px; }
+.set-acc-pw { border-top: 1px solid var(--border); padding-top: 18px; }

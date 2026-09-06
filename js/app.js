@@ -889,10 +889,10 @@
         '<div class="mp-tools">' +
         (pl.songs.length ? '<button class="mini-btn" id="mp-play-all">播放全部</button>' : '') +
         '<button class="mini-btn' + (Store.FavPlaylists.has(pl.id) ? ' mp-faved' : '') + '" id="mp-fav">' + (Store.FavPlaylists.has(pl.id) ? '已收藏' : '收藏') + '</button>' +
+        '<button class="mini-btn" id="mp-share">分享</button>' +
         '<button class="mini-btn" id="mp-rename">重命名</button>' +
         '<button class="mini-btn" id="mp-cover-btn">更换封面</button>' +
         (pl.cover ? '<button class="mini-btn" id="mp-cover-reset">恢复默认</button>' : '') +
-        '<button class="mini-btn" id="mp-share">分享</button>' +
         '</div>' +
         '<div class="mp-import"><div class="search-box"><form id="mp-import-form">' +
         '<input id="mp-import-input" placeholder="粘贴网易云 歌单/专辑/歌曲 链接或 ID，导入全部歌曲" maxlength="300"></form></div>' +
@@ -2699,7 +2699,7 @@
         '</div>' +
         '</div>' +
         '<div class="set-acc-nick">' +
-        '<div class="set-label">昵称（分享自建歌单时展示）</div>' +
+        '<div class="set-label">昵称</div>' +
         '<input class="auth-input" id="set-nick" maxlength="20" placeholder="设置昵称" value="' + esc(nick) + '">' +
         '<div class="set-acc-nick-row">' +
         '<button type="button" class="btn primary" id="set-nick-btn">保存昵称</button>' +
