@@ -537,16 +537,17 @@
           API.neteaseUrl(PRIMARY, song.id, lv).then(r => { r.source = '镜像接口'; return r; }),
           API.hongyunUrl(song.id, lv).then(r => { r.source = '红云点歌'; return r; }),
           API.nt18Url(song.id, lv).then(r => { r.source = '落七七'; return r; }),
+          API.oiapiUrl(song.id, lv).then(r => { r.source = 'oiapi'; return r; }),
           API.bugpkUrl(song.id, lv).then(r => { r.source = 'bugpk'; return r; }),
         ];
         let settled = 0;
+        const delayFor = (src) => src === '镜像接口' ? 0 : (src === 'bugpk' ? 600 : (src === 'oiapi' ? 450 : 300));
         tasks.forEach((p) => {
           p.then((r) => {
             if (result) return;
             if (r.source === '镜像接口') { result = r; done(); return; }
-            // 第三方源先到：给镜像源 600ms 优先窗口（bugpk 为外链兜底，延后最久）
-            const delay = r.source === 'bugpk' ? 600 : 300;
-            setTimeout(() => { if (!result) { result = r; done(); } }, delay);
+            // 第三方源先到：给镜像源优先窗口（bugpk 兜底最久）
+            setTimeout(() => { if (!result) { result = r; done(); } }, delayFor(r.source));
           }).catch((e) => {
             errors.push(e.message);
             if (++settled === tasks.length && !result) done();
@@ -584,15 +585,16 @@
           API.neteaseUrl(PRIMARY, id, lv).then(r => { r.source = '镜像接口'; return r; }),
           API.hongyunUrl(id, lv).then(r => { r.source = '红云点歌'; return r; }),
           API.nt18Url(id, lv).then(r => { r.source = '落七七'; return r; }),
+          API.oiapiUrl(id, lv).then(r => { r.source = 'oiapi'; return r; }),
           API.bugpkUrl(id, lv).then(r => { r.source = 'bugpk'; return r; }),
         ];
         let settled = 0;
+        const delayFor = (src) => src === '镜像接口' ? 0 : (src === 'bugpk' ? 600 : (src === 'oiapi' ? 450 : 300));
         tasks.forEach((p) => {
           p.then((r) => {
             if (result) return;
             if (r.source === '镜像接口') { result = r; done(); return; }
-            const delay = r.source === 'bugpk' ? 600 : 300;
-            setTimeout(() => { if (!result) { result = r; done(); } }, delay);
+            setTimeout(() => { if (!result) { result = r; done(); } }, delayFor(r.source));
           }).catch((e) => {
             errors.push(e.message);
             if (++settled === tasks.length && !result) done();
@@ -604,6 +606,17 @@
         result.url = 'https://' + result.url.slice(7);
       }
       return result;
+    },
+
+    /** oiapi 网易云完整直链源（兜底；无损及以下，m801 完整 mp3；无 level 参数，经同源代理） */
+    async oiapiUrl(id, level) {
+      const j = await request(CFG.OIAPI_ENDPOINT, '/api/Music_163', { id: id }, 20000);
+      const body = Array.isArray(j) ? j[0] : j; // 该接口响应外层为数组
+      const d = body && Array.isArray(body.data) ? body.data[0] : null;
+      if (body && body.code === 0 && d && d.url) {
+        return { url: d.url, br: d.br || 0, type: 'mp3', level: 'standard' };
+      }
+      throw new Error('oiapi 无有效链接');
     },
 
     /** bugpk 网易云直链源（兜底；无损及以下，outer 直链 mp3；无需密钥，经同源代理） */

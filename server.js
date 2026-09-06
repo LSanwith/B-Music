@@ -218,6 +218,7 @@ const PROXY_ALLOWED = [
   'https://api.xunjinlu.fun',
   'https://api.18years.ink',
   'https://api.bugpk.com',
+  'https://oiapi.net',
 ];
 
 /** /proxy?u=<完整URL>[&hk=1][&nt=1] —— 同源转发上游 API，规避上游 CORS 响应头不稳定问题。

@@ -28,6 +28,9 @@ window.APP_CONFIG = {
   /* bugpk 网易云直链源（兜底播放源，无损及以下；无需密钥，经同源代理转发） */
   BUGPK_ENDPOINT: 'https://api.bugpk.com',
 
+  /* oiapi 网易云完整直链源（兜底，无损及以下；无需密钥，经同源代理转发） */
+  OIAPI_ENDPOINT: 'https://oiapi.net',
+
   /*
    * 本地代理路径：各上游接口的 CORS 响应头不稳定（CDN 层共享缓存 / 格式错误），
    * 因此通过同源代理转发（server.js 提供 /proxy）。

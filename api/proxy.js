@@ -10,6 +10,7 @@ const PROXY_ALLOWED = [
   'https://api.xunjinlu.fun',
   'https://api.18years.ink',
   'https://api.bugpk.com',
+  'https://oiapi.net',
 ];
 
 export default async function handler(req, res) {
