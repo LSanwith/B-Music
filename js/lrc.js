@@ -77,7 +77,8 @@
         }
         if (best && bestDiff <= 1.5 && !best.tl) best.tl = tr.l;
         else if (best && bestDiff <= 1.5 && best.tl) {
-          // 同一时间已有译文，追加为独立行
+          // 同一时间已有译文：若译文与原文相同（占位如 "Oh oh"/"Oh oh"），不新增行（防视觉重复）
+          if (tr.l && best.l && tr.l.trim() === best.l.trim()) continue;
           out.push({ t: tr.t + 0.001, l: '', tl: tr.l });
         } else if (bestDiff <= 1.5) {
           out.push({ t: tr.t, l: '', tl: tr.l });
