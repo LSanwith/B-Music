@@ -13,5 +13,13 @@
     { "source": "/api/account/nickname", "destination": "/api/account?r=nickname" },
     { "source": "/api/share", "destination": "/api/account?r=share" },
     { "source": "/s/:type/:id", "destination": "/api/preview?type=:type&id=:id" }
+  ],
+  "headers": [
+    {
+      "source": "/(js|css)/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+      ]
+    }
   ]
 }
