@@ -2501,13 +2501,13 @@
       // 若非切换（打开时首次 / 连续点击同一页）→ 直接切换
       const cur = main.classList.contains('hidden') ? null : main;
       const curPg = (pages.find(p => { const el = $('#set-page-' + p); return el && !el.classList.contains('hidden'); }) || '');
-      toast('DBGSW: name=' + name + ' cur=' + !!cur + ' curPg=' + curPg);
       if ((cur && name === '') || (!cur && curPg === name)) { switchNow(); return; }
       const outEl = cur || (curPg ? $('#set-page-' + curPg) : null);
-      toast('DBGSW anim: out=' + (outEl ? 'Y' : 'N'));
       // 高度与模糊：旧页淡出 → 切换 → 新页淡入 + 面板高度过渡
       if (panel) {
-        // 动画期间解除尺寸钳制（max-height / min-height）：让两级内容【真实高度差】可见并平滑过渡
+        // 内联强制高度过渡（防止被任何 CSS 规则覆盖），并解除尺寸钳制：
+        // 动画期间允许真实高度差，pin 当前高度 → 目标高度平滑过渡
+        panel.style.transition = 'height .38s cubic-bezier(.22,.61,.36,1)';
         panel.style.maxHeight = 'none';
         panel.style.minHeight = '0';
         panel.style.height = panel.offsetHeight + 'px';
@@ -2541,7 +2541,8 @@
           setTimeout(() => {
             panel.style.height = ''; panel.style.overflow = '';
             panel.style.maxHeight = ''; panel.style.minHeight = '';
-          }, 460);
+            panel.style.transition = '';
+          }, 500);
         }
       }, outEl ? 220 : 0);
     },
