@@ -457,18 +457,33 @@
       return r.json();
     },
 
-    /** 拉取云端数据并应用到本地（登录时云端为准；未变化则不重绘，供 1s 轮询） */
-    async pull() {
+    /** 拉取云端数据并应用到本地。
+     *  mergeCloud=false（登录时）：云端为准，settings 全量覆盖；
+     *  mergeCloud=true（1s 轮询）：本地为准（保护用户刚做的修改不被上传失败
+     *  的云端旧值回滚），只补充本地缺失的新键。 */
+    async pull(mergeCloud) {
       const j = await Session._api('/data');
       const arr = (local, key) => {
         if (!Array.isArray(j[key]) || JSON.stringify(j[key]) === JSON.stringify(local)) return local;
         return j[key];
       };
-      if (j.settings && typeof j.settings === 'object' && JSON.stringify(j.settings) !== JSON.stringify(SETTINGS)) {
-        Object.keys(SETTINGS).forEach(k => delete SETTINGS[k]);
-        Object.assign(SETTINGS, j.settings);
-        write('settings', SETTINGS);
-        document.dispatchEvent(new CustomEvent('ym:settings', { detail: j.settings }));
+      if (j.settings && typeof j.settings === 'object') {
+        if (mergeCloud) {
+          // 轮询：仅补充缺失字段，冲突以本地为权威（不再回滚用户刚改的设置）
+          let ch = false;
+          Object.keys(j.settings).forEach(k => {
+            if (!(k in SETTINGS)) { SETTINGS[k] = j.settings[k]; ch = true; }
+          });
+          if (ch) {
+            write('settings', SETTINGS);
+            document.dispatchEvent(new CustomEvent('ym:settings', { detail: {} }));
+          }
+        } else if (JSON.stringify(j.settings) !== JSON.stringify(SETTINGS)) {
+          Object.keys(SETTINGS).forEach(k => delete SETTINGS[k]);
+          Object.assign(SETTINGS, j.settings);
+          write('settings', SETTINGS);
+          document.dispatchEvent(new CustomEvent('ym:settings', { detail: j.settings }));
+        }
       }
       const nf = arr(favSongs, 'favSongs');
       if (nf !== favSongs) {
@@ -553,7 +568,7 @@
       if (Session._pushT && Date.now() - Session._pushT < 3000) return;
       Session._lastPollAt = Date.now();
       Session._polling = true;
-      Session.pull()
+      Session.pull(true)
         .catch(() => {}) // 拉取失败下轮重试
         .finally(() => { Session._polling = false; });
     },
