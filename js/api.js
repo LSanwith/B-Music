@@ -535,6 +535,7 @@
       const errors = [];
       await new Promise((done) => {
         const tasks = [
+          API.cookieUrl(song.id, lv).then(r => { r.source = '会员源'; return r; }),
           API.neteaseUrl(PRIMARY, song.id, lv).then(r => { r.source = '镜像接口'; return r; }),
           API.hongyunUrl(song.id, lv).then(r => { r.source = '红云点歌'; return r; }),
           API.nt18Url(song.id, lv).then(r => { r.source = '落七七'; return r; }),
@@ -542,15 +543,15 @@
           API.bugpkUrl(song.id, lv).then(r => { r.source = 'bugpk'; return r; }),
         ];
         let settled = 0;
-        const delayFor = (src) => src === '镜像接口' ? 0 : (src === 'bugpk' ? 600 : (src === 'oiapi' ? 450 : 300));
+        const delayFor = (src) => src === '会员源' || src === '镜像接口' ? 0 : (src === 'bugpk' ? 600 : (src === 'oiapi' ? 450 : 300));
         tasks.forEach((p) => {
           p.then((r) => {
             if (result) return;
-            if (r.source === '镜像接口') { result = r; done(); return; }
+            if (r.source === '会员源' || r.source === '镜像接口') { result = r; done(); return; }
             // 第三方源先到：给镜像源优先窗口（bugpk 兜底最久）
             setTimeout(() => { if (!result) { result = r; done(); } }, delayFor(r.source));
           }).catch((e) => {
-            errors.push(e.message);
+            if (!(e && e.cookieNotSet)) errors.push(e.message); // 未配置 cookie → 静默
             if (++settled === tasks.length && !result) done();
           });
         });
@@ -583,6 +584,7 @@
       const errors = [];
       await new Promise((done) => {
         const tasks = [
+          API.cookieUrl(id, lv).then(r => { r.source = '会员源'; return r; }),
           API.neteaseUrl(PRIMARY, id, lv).then(r => { r.source = '镜像接口'; return r; }),
           API.hongyunUrl(id, lv).then(r => { r.source = '红云点歌'; return r; }),
           API.nt18Url(id, lv).then(r => { r.source = '落七七'; return r; }),
@@ -590,14 +592,14 @@
           API.bugpkUrl(id, lv).then(r => { r.source = 'bugpk'; return r; }),
         ];
         let settled = 0;
-        const delayFor = (src) => src === '镜像接口' ? 0 : (src === 'bugpk' ? 600 : (src === 'oiapi' ? 450 : 300));
+        const delayFor = (src) => src === '会员源' || src === '镜像接口' ? 0 : (src === 'bugpk' ? 600 : (src === 'oiapi' ? 450 : 300));
         tasks.forEach((p) => {
           p.then((r) => {
             if (result) return;
-            if (r.source === '镜像接口') { result = r; done(); return; }
+            if (r.source === '会员源' || r.source === '镜像接口') { result = r; done(); return; }
             setTimeout(() => { if (!result) { result = r; done(); } }, delayFor(r.source));
           }).catch((e) => {
-            errors.push(e.message);
+            if (!(e && e.cookieNotSet)) errors.push(e.message);
             if (++settled === tasks.length && !result) done();
           });
         });
@@ -607,6 +609,21 @@
         result.url = 'https://' + result.url.slice(7);
       }
       return result;
+    },
+
+    /** 网易云会员音源（黑胶 cookie 由服务端持有：本地 server.js 读 netease_cookie.txt，
+     *  线上 Vercel 读环境变量 NETEASE_COOKIE；未配置返回 503 静默跳过） */
+    async cookieUrl(id, level) {
+      const base = (location.protocol === 'file:' && window.APP_LOCAL_SERVER) ? window.APP_LOCAL_SERVER : '';
+      const r = await fetch(base + '/api/cookieurl?id=' + encodeURIComponent(id) + '&level=' + encodeURIComponent(level));
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        const err = new Error(j.msg || ('HTTP ' + r.status));
+        err.cookieNotSet = (r.status === 503);
+        throw err;
+      }
+      if (!j.url) throw new Error('会员无源');
+      return { url: j.url, br: j.br || 0, type: j.type || '', level: j.level || level };
     },
 
     /** oiapi 网易云完整直链源（兜底；无损及以下，m801 完整 mp3；无 level 参数，经同源代理） */
