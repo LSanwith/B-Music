@@ -538,8 +538,48 @@
         API._urlCache.set(key, { t: Date.now(), v: result });
         return result;
       }
-      // 三源全挂：VIP/版权歌多由落七七/红云解锁，全挂则报错并列出各源原因
+      // 三源全挂：VIP/版权歌多由落七七/红云解锁，全挂则报错并列出各源原因；
+      // 502/瞬时故障常见：等待 800ms 后整体【再竞速一轮】兜底（成功则正常播放）
+      if (errors.join('；').indexOf('502') !== -1) {
+        await new Promise(r => setTimeout(r, 800));
+        try {
+          const retry = await API._resolveRound(song.id, lv);
+          if (retry) {
+            API._urlCache.set(key, { t: Date.now(), v: retry });
+            return retry;
+          }
+        } catch (e2) { errors.push('重试：' + e2.message); }
+      }
       throw new Error('无法获取播放地址（' + errors.join('；') + '）');
+    },
+
+    /** 单轮三源竞速（resolveUrl 内部/兜底复用） */
+    async _resolveRound(id, lv) {
+      let result = null;
+      const errors = [];
+      await new Promise((done) => {
+        const tasks = [
+          API.neteaseUrl(PRIMARY, id, lv).then(r => { r.source = '镜像接口'; return r; }),
+          API.hongyunUrl(id, lv).then(r => { r.source = '红云点歌'; return r; }),
+          API.nt18Url(id, lv).then(r => { r.source = '落七七'; return r; }),
+        ];
+        let settled = 0;
+        tasks.forEach((p) => {
+          p.then((r) => {
+            if (result) return;
+            if (r.source === '镜像接口') { result = r; done(); return; }
+            setTimeout(() => { if (!result) { result = r; done(); } }, 300);
+          }).catch((e) => {
+            errors.push(e.message);
+            if (++settled === tasks.length && !result) done();
+          });
+        });
+      });
+      if (!result) return null;
+      if (location.protocol === 'https:' && result.url.startsWith('http://')) {
+        result.url = 'https://' + result.url.slice(7);
+      }
+      return result;
     },
 
     /** 红云点歌 lrc 兜底（已缓存于 hongyunUrl 结果） */
