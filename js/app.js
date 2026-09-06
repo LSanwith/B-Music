@@ -738,10 +738,10 @@
       return '<div class="pl-card mp-card" data-mp="' + p.id + '">' +
         '<div class="pl-cover"><img src="' + esc(this._mpCoverSrc(p)) + '" alt="" loading="lazy">' +
         '<span class="pl-count">' + p.songs.length + ' 首</span>' +
-        '<span class="pl-hover">' + Icons.icon('playTri') + '</span></div>' +
+        '<span class="pl-hover">' + Icons.icon('playTri') + '</span>' +
+        '<button class="pl-fav' + (fav ? ' on' : '') + '" data-mpfav="' + p.id + '" aria-label="收藏自建歌单">' + Icons.icon('heart') + '</button></div>' +
         '<div class="mp-name">' + esc(p.name) + '</div>' +
-        '<div class="mp-acts"><button class="mini-btn' + (fav ? ' mp-faved' : '') + '" data-mpfav="' + p.id + '">' + (fav ? '已收藏' : '收藏') + '</button>' +
-        '<button class="mini-btn" data-mp-rename="' + p.id + '">重命名</button>' +
+        '<div class="mp-acts"><button class="mini-btn" data-mp-rename="' + p.id + '">重命名</button>' +
         '<button class="mini-btn danger" data-mp-del="' + p.id + '">删除</button>' +
         '<button class="mini-btn danger" data-mp-clear="' + p.id + '">清空</button></div></div>';
     },
