@@ -3006,14 +3006,23 @@
       this._applyLyricStyle();
       this._bindCacheSettings();
     },
-    /** 音频缓存设置：开关 / 上限 / 用量显示 / 清空 */
+    /** 缓存容量显示：≥1GB 自动换算 GB（保留 1 位小数，整则省略） */
+    _fmtCap(mb) {
+      if (mb >= 1024) {
+        const g = mb / 1024;
+        return (Math.round(g * 10) / 10).toString().replace(/\.0$/, '') + 'GB';
+      }
+      return mb + 'MB';
+    },
+    /** 音频缓存设置：开关 / 上限滑杆 / 用量显示 / 清空 */
     _bindCacheSettings() {
       const refreshUsed = () => {
         AudioCache.used().then((b) => {
           const el = $('#set-cache-used');
           if (el) {
             const mb = b / 1048576;
-            el.textContent = '已用 ' + (mb >= 100 ? Math.round(mb) : mb.toFixed(1)) + ' MB / 上限 ' + Store.Settings.cacheCapMB + ' MB';
+            el.textContent = '已用 ' + (mb >= 100 ? Math.round(mb) : mb.toFixed(1)) + ' MB / 上限 ' +
+              this._fmtCap(Store.Settings.cacheCapMB);
           }
         });
       };
@@ -3039,22 +3048,27 @@
       const capBox = $('#set-cache-cap');
       if (capBox && !capBox.dataset.bound) {
         capBox.dataset.bound = '1';
-        const opts = [[100, '100MB'], [300, '300MB'], [500, '500MB'], [1000, '1GB']];
-        const draw = () => {
-          const cur = Store.Settings.cacheCapMB;
-          capBox.innerHTML = opts.map(o =>
-            '<button class="q-item' + (cur === o[0] ? ' active' : '') + '" data-v="' + o[0] + '"><span class="q-name">' +
-            o[1] + '</span><span class="q-check">✓</span></button>').join('');
-        };
-        draw();
-        capBox.addEventListener('click', (e) => {
-          const it = e.target.closest('.q-item');
-          if (!it) return;
-          Store.Settings.set({ cacheCapMB: +it.dataset.v });
-          draw();
-          AudioCache.evict().then(refreshUsed);
-          toast('缓存上限已更新为 ' + it.textContent.trim().replace('✓', ''));
-        });
+        const isLogin = Store.Session.loggedIn;
+        const max = isLogin ? 51200 : 1024; // 登录 50GB；未登录 1GB
+        const cur = Math.min(max, Math.max(100, Store.Settings.cacheCapMB || 500));
+        capBox.innerHTML =
+          '<div class="set-cap-box">' +
+          '<div class="set-cap-val" id="set-cap-val">' + this._fmtCap(cur) + '</div>' +
+          '<input type="range" id="set-cap-slider" min="100" max="' + max + '" step="100" value="' + cur + '"' + (isLogin ? '' : ' disabled') + '>' +
+          '<div class="set-cap-skala"><span>100MB</span><span>' + this._fmtCap(max) + '</span></div>' +
+          (!isLogin ? '<div class="set-cap-tip">登录后可将缓存上限提高到 50GB</div>' : '') +
+          '</div>';
+        const slider = $('#set-cap-slider');
+        const val = $('#set-cap-val');
+        if (slider && val) {
+          const fmt = () => { val.textContent = this._fmtCap(+slider.value); };
+          slider.addEventListener('input', fmt);
+          slider.addEventListener('change', () => {
+            Store.Settings.set({ cacheCapMB: +slider.value });
+            AudioCache.evict().then(refreshUsed);
+            toast('缓存上限已更新为 ' + this._fmtCap(+slider.value));
+          });
+        }
       }
       const clearBtn = $('#set-clear-cache');
       if (clearBtn && !clearBtn.dataset.bound) {

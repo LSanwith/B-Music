@@ -1450,3 +1450,9 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .q-item.q-locked { opacity: .55; }
 .q-item.q-locked .q-lock { font-style: normal; font-size: 10px; color: var(--accent); margin-left: 6px; }
 .q-item.q-locked:hover { opacity: .8; }
+/* cache capacity slider */
+.set-cap-box { margin-top: 12px; }
+.set-cap-val { font-size: 15px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+.set-cap-box input[type="range"] { width: 100%; max-width: 440px; }
+.set-cap-skala { display: flex; justify-content: space-between; max-width: 440px; margin-top: 4px; font-size: 11px; color: rgba(255,255,255,.38); }
+.set-cap-tip { margin-top: 8px; font-size: 12px; color: var(--accent); opacity: .85; }
