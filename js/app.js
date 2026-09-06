@@ -2630,7 +2630,8 @@
       const mail = $('#side-user-mail');
       if (btns) btns.classList.toggle('hidden', logged);
       if (user) user.classList.toggle('hidden', !logged);
-      if (mail) mail.textContent = Store.Session.email || '';
+      // 有昵称显示昵称，否则显示邮箱
+      if (mail) mail.textContent = (Store.Session.name || Store.Session.email || '');
       this._renderSidebarAvatar();
       this._renderSettingsAccount();
     },
