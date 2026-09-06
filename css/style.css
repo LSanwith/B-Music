@@ -1374,3 +1374,14 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 .set-acc-nick-row { display: flex; gap: 10px; margin-top: 8px; }
 .set-acc-nick-row .auth-input { flex: 1; max-width: 340px; }
 .set-acc-nick-row .btn { flex: none; }
+/* nickname save button: matched input height, compact, gradient + glow */
+.set-acc-nick-row .btn.primary {
+  height: 44px; padding: 0 18px; min-width: 0;
+  font-size: 13px; font-weight: 600; letter-spacing: .3px;
+  border-radius: 12px; line-height: 1;
+  background: var(--accent-grad);
+  box-shadow: 0 4px 14px rgba(250, 45, 60, .28), inset 0 1px 0 rgba(255,255,255,.12);
+  transition: transform .15s ease, box-shadow .2s ease, opacity .2s ease;
+}
+.set-acc-nick-row .btn.primary:hover { transform: translateY(-1px); opacity: .94; box-shadow: 0 6px 18px rgba(250,45,60,.36); }
+.set-acc-nick-row .btn.primary:active { transform: translateY(0); }
