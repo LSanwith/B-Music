@@ -1300,3 +1300,28 @@ button.vol-icon:hover { color: #fff; background: var(--panel2); }
 #ov-lyrics-inner .ly-line * { border: none !important; outline: none !important; text-decoration: none !important; }
 #ov-lyrics-inner hr, #ov-lyrics-inner > hr, #ov-lyrics-inner .ly-line hr { display: none !important; }
 #ov-lyrics-inner a { color: inherit !important; }
+/* mobile lyrics mode: mini cover row on top, controls fixed bottom, max space to lyrics */
+@media (max-width: 720px) {
+  #ov-body:not(.lyrics-hidden) { justify-content: flex-start; padding-bottom: 210px; }
+  #ov-body:not(.lyrics-hidden) .ov-left {
+    flex-direction: row; align-items: center; gap: 14px;
+    padding: 10px 20px 0; width: 100%;
+  }
+  #ov-body:not(.lyrics-hidden) .ov-disc { width: 84px; height: 84px; margin: 0; flex: none; }
+  #ov-body:not(.lyrics-hidden) .ov-song { text-align: left; flex: 1; min-width: 0; }
+  #ov-body:not(.lyrics-hidden) .ov-progress {
+    position: fixed; bottom: 196px; left: 50%; transform: translateX(-50%);
+    width: min(400px, 88vw); margin: 0;
+  }
+  #ov-body:not(.lyrics-hidden) .ov-quality {
+    position: fixed; bottom: 158px; left: 50%; transform: translateX(-50%); margin: 0;
+  }
+  #ov-body:not(.lyrics-hidden) .ov-btns {
+    position: fixed; bottom: 108px; left: 50%; transform: translateX(-50%); margin: 0;
+  }
+  #ov-body:not(.lyrics-hidden) .ov-vol {
+    position: fixed; bottom: 56px; left: 50%; transform: translateX(-50%);
+    width: min(400px, 88vw); margin: 0;
+  }
+  #ov-body:not(.lyrics-hidden) .ov-right { height: calc(100vh - 118px); }
+}
