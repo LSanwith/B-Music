@@ -1283,7 +1283,7 @@
           (songs.length ? '<button class="mini-btn" id="share-playall">播放全部</button>' : '') +
           '</div>' +
           '<div class="mp-share-owner">分享者：' + esc(owner.name || '用户') +
-          (owner.id ? ' · 唯一ID ' + esc(owner.id) : '') + '</div>' +
+          (owner.id ? ' · UID ' + esc(owner.id) : '') + '</div>' +
           (Store.Session.loggedIn ? '' :
             '<div class="mp-share-tip">未登录仅可查看；登录后可分享自己的歌单</div>') +
           (songs.length ? this._songListHtml(songs, { cover: true, album: true })
@@ -2694,7 +2694,7 @@
         '<div class="set-acc-info">' +
         '<div class="set-acc-mail">' + esc(email) + '</div>' +
         '<div class="set-acc-sub">点击头像更换 · 云端同步</div>' +
-        '<div class="set-acc-uid">唯一ID：' + esc(uid || '读取中…') + '</div>' +
+        '<div class="set-acc-uid">UID：' + esc(uid || '读取中…') + '</div>' +
         '</div>' +
         '</div>' +
         '<div class="set-acc-nick">' +
