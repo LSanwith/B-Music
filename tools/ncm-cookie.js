@@ -80,7 +80,7 @@ function checkMaster(cookie) {
   for (let i = 0; i < 90; i++) {
     await sleep(2000);
     let r;
-    try { r = await getWithCookie('https://music.163.com/api/login/qrcode/client/login?key=' + unikey); }
+    try { r = await getWithCookie('https://music.163.com/api/login/qrcode/client/login?key=' + unikey + '&type=1'); }
     catch (e) { continue; }
     const code = (r.json && r.json.code) || 0;
     if (code === 801) { process.stdout.write('·'); continue; }
