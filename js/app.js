@@ -1581,8 +1581,20 @@
               received += r.value.length;
               setPct(total ? Math.min(100, Math.round(received / total * 100)) : 0, received);
             }
-            const blob = new Blob(chunks, { type: res.headers.get('content-type') || 'audio/mpeg' });
-            const ext = (info.type || blob.type.split('/')[1] || 'mp3').replace('mpeg', 'mp3');
+            // 拼合分块 → 按文件头魔数识别真实格式（CDN 的 content-type 常不可靠，
+            // 会把 flac 标成 audio/mpeg，导致浏览器给文件名再补一个 .mp3）
+            const raw = new Uint8Array(received);
+            let off = 0;
+            for (const c of chunks) { raw.set(c, off); off += c.length; }
+            const kind = (window.Metadata && window.Metadata.detectType(raw.buffer)) || '';
+            const pctEl = bar.querySelector('.dl-pct');
+            if (pctEl) pctEl.textContent = '写入元信息…';
+            const meta = await this._songMeta(song);
+            const outBuf = (window.Metadata && window.Metadata.write)
+              ? await window.Metadata.write(raw.buffer, meta) : raw.buffer;
+            const ext = kind || (info.type || 'mp3').replace('mpeg', 'mp3');
+            // Blob MIME 必须与扩展名一致，否则 Chrome 保存时会追加“纠正”后缀
+            const blob = new Blob([outBuf], { type: ext === 'flac' ? 'audio/flac' : 'audio/mpeg' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -1606,6 +1618,43 @@
         removeBar();
         toast('下载失败：' + e.message, 'warn');
       }
+    },
+
+    /* 下载写入用元信息：标题/歌手/专辑/歌词/封面（任一失败静默跳过，不阻塞下载） */
+    async _songMeta(song) {
+      const meta = {
+        title: song.name || '',
+        artist: artistList(song.artists).map(x => x.name).join(' / '),
+        album: (song.album && song.album.name) || '',
+        lyrics: '',
+        cover: null,
+        coverMime: 'image/jpeg',
+      };
+      try {
+        const [lyr, cover] = await Promise.all([
+          API.lyric(song.id).then(v => v.base || '').catch(() => ''),
+          song.cover ? this._fetchCover(song.cover) : Promise.resolve(null),
+        ]);
+        meta.lyrics = lyr;
+        if (cover) { meta.cover = cover.buf; meta.coverMime = cover.mime; }
+      } catch (e) { /* 静默 */ }
+      return meta;
+    },
+
+    /* 抓取封面二进制（网易云缩略参数 500y500；CORS/网络失败则放弃封面） */
+    async _fetchCover(url) {
+      try {
+        let u = String(url || '').replace(/^http:\/\//i, 'https://');
+        if (!u) return null;
+        if (/music\.126\.net/i.test(u)) u = u.split('?')[0] + '?param=500y500';
+        const r = await fetch(u, { mode: 'cors' });
+        if (!r.ok) return null;
+        const ab = await r.arrayBuffer();
+        if (ab.byteLength < 100) return null;
+        const d = new Uint8Array(ab);
+        const mime = (d[0] === 0x89 && d[1] === 0x50) ? 'image/png' : 'image/jpeg';
+        return { buf: ab, mime };
+      } catch (e) { return null; }
     },
 
     /* ============================================================
