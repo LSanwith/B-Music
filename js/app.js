@@ -4150,11 +4150,14 @@
       this._bindSettingsAIDelegate(); // 保证操作始终可用
       const list = this._aiProfiles();
       const active = this._aiActiveId();
+      const opened = this._aiOpen || (this._aiOpen = {});
       const card = (p) => (
-        '<div class="set-ai-card' + (p.id === active ? ' active' : '') + '" data-ai-id="' + esc(p.id) + '">' +
+        '<div class="set-ai-card' + (p.id === active ? ' active' : '') + (opened[p.id] ? ' open' : '') + '" data-ai-id="' + esc(p.id) + '">' +
         '<label class="set-ai-head"><input type="radio" name="ai-active" value="' + esc(p.id) + '"' + (p.id === active ? ' checked' : '') + '>' +
         '<span class="set-ai-name">' + esc(p.name || '未命名模型') + '</span>' +
-        '<span class="set-ai-tag">' + (p.id === active ? '使用中' : '点击启用') + '</span></label>' +
+        '<span class="set-ai-sum">' + esc(p.model || (p.baseUrl ? '已填网址' : '未配置')) + '</span>' +
+        '<span class="set-ai-tag">' + (p.id === active ? '使用中' : '未启用') + '</span>' +
+        '<button type="button" class="set-ai-toggle" data-ai-toggle="' + esc(p.id) + '" aria-label="展开/收起">' + (opened[p.id] ? '收起' : '展开') + '</button></label>' +
         '<div class="set-ai-fields">' +
         '<input class="auth-input" data-ai-f="name" placeholder="配置名称（如 我的 GPT-4o）" value="' + esc(p.name || '') + '">' +
         '<input class="auth-input" data-ai-f="baseUrl" placeholder="API 网址（如 https://api.openai.com/v1）" value="' + esc(p.baseUrl || '') + '">' +
@@ -4171,7 +4174,7 @@
         '<div class="set-ai-card' + (!active ? ' active' : '') + '" data-ai-id="">' +
         '<label class="set-ai-head"><input type="radio" name="ai-active" value=""' + (!active ? ' checked' : '') + '>' +
         '<span class="set-ai-name">内置默认（DeepSeek · 本站提供 · 无需密钥）</span>' +
-        '<span class="set-ai-tag">' + (!active ? '使用中' : '点击启用') + '</span></label>' +
+        '<span class="set-ai-tag">' + (!active ? '使用中' : '未启用') + '</span></label>' +
         '</div>' + list.map(card).join('');
       const collect = () => Array.from(box.querySelectorAll('[data-ai-id]')).filter(c => c.dataset.aiId).map((c) => {
         const get = (f) => { const el = c.querySelector('[data-ai-f="' + f + '"]'); return el ? el.value.trim() : ''; };
@@ -4187,10 +4190,13 @@
         if (addBtn) {
           e.preventDefault();
           const list = this._aiProfiles();
-          list.push({ id: 'ai' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: '新模型 ' + (list.length + 1), baseUrl: '', model: '', apiKey: '', effort: '' });
+          const nid = 'ai' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+          list.push({ id: nid, name: '新模型 ' + (list.length + 1), baseUrl: '', model: '', apiKey: '', effort: '' });
           this._aiSave(list);
+          this._aiOpen = this._aiOpen || {};
+          this._aiOpen[nid] = true; // 新建后自动展开
           this._renderSettingsAI();
-          toast('已添加一条模型配置，填写后点“点击启用”即可使用');
+          toast('已添加模型配置，填好后点左侧圆点启用');
           return;
         }
         const rstBtn = e.target.closest && e.target.closest('#set-ai-reset');
@@ -4199,6 +4205,15 @@
           this._aiSave([], '');
           this._renderSettingsAI();
           toast('已恢复内置默认模型');
+          return;
+        }
+        const tg = e.target.closest && e.target.closest('[data-ai-toggle]');
+        if (tg) {
+          e.preventDefault(); e.stopPropagation();
+          const id = tg.dataset.aiToggle;
+          this._aiOpen = this._aiOpen || {};
+          this._aiOpen[id] = !this._aiOpen[id];
+          this._renderSettingsAI();
           return;
         }
         const delBtn = e.target.closest && e.target.closest('[data-ai-del]');
