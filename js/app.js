@@ -675,47 +675,49 @@
     /** 把卡片穿插进文字：文案里提到哪首，卡片就出现在那一行下面 */
     _hbInlineCards(html, cards) {
       const norm = (s) => String(s || '').toLowerCase().replace(/[\s\-—_·・,，.。:：;；()（）\[\]【】"'“”‘’!！?？]/g, '');
+      const isSongLine = (plain) => /——|—|--|-\s|－/.test(plain) && plain.trim().length > 3;
       const used = cards.map(() => false);
       const lines = String(html).split('<br>');
-      const out = lines.map((line) => {
-        const plain = norm(line.replace(/<[^>]+>/g, ''));
+      const out = [];
+      // 第一轮：把卡片插到对应行下面（歌名或歌手命中）
+      lines.forEach((line) => {
+        const plain = line.replace(/<[^>]+>/g, '');
+        const np = norm(plain);
+        let card = '';
+        // 只按“歌名”匹配（歌手名匹配容易张冠李戴，例如同歌手的不同歌）
         for (let i = 0; i < cards.length; i++) {
           if (used[i]) continue;
           const s = cards[i];
           const nm = norm(s.name);
-          const ar = norm((artistList(s.artists)[0] || {}).name);
-          const hitName = nm && nm.length >= 2 && plain.indexOf(nm) >= 0;
-          const hitArtist = ar && ar.length >= 2 && plain.indexOf(ar) >= 0;
-          if (hitName || hitArtist) {
+          if (!nm || nm.length < 2) continue;
+          // 行内出现歌名，或歌名包含行内歌名片段（如“西湖漫步（纯音乐）”↔“西湖漫步”）
+          if (np.indexOf(nm) >= 0) {
             used[i] = true;
-            return line + this._hbCardOne(s, i);
+            card = this._hbCardOne(s, i);
+            break;
           }
         }
-        return line; // 未匹配：不强行配卡（避免张冠李戴）
+        out.push({ line: line, card: card, isSong: isSongLine(plain) });
       });
-      const matched = used.filter(Boolean).length;
-      // 全部未匹配（AI 没逐条描述）→ 卡片统一列在末尾
-      if (!matched && cards.length) {
-        // AI 正文没提到任何真实结果（多为幻觉）→ 只展示真实卡片，避免图文不符
-        let all = '';
-        cards.forEach((s, i) => { all += this._hbCardOne(s, i); });
-        const intro = out.filter(l => l.indexOf('hb-icard') < 0 && !/——|--|—/.test(l.replace(/<[^>]+>/g, ''))).join('<br>');
-        return (intro ? intro + '<br>' : '') + '<div class="hb-cards-title">🎵 为你找到以下歌曲</div><div class="hb-cards">' + all + '</div>';
+      // 第二轮：清理——没有卡片支撑的“歌曲行”一律隐藏（AI 幻觉防护）
+      let kept = [];
+      let hiddenSongs = 0;
+      out.forEach((r) => {
+        if (!r.card && r.isSong) { hiddenSongs++; return; }
+        kept.push(r.line + r.card);
+      });
+      // 未使用的卡片：若还有空位就顺次贴到“无卡的非歌曲行”之后，否则统一列在末尾
+      const rest = [];
+      cards.forEach((s, i) => { if (!used[i]) rest.push(i); });
+      let tail = '';
+      if (rest.length === cards.length) {
+        // 一张都没匹配上：只展示真实结果（避免全部图文不符）
+        rest.forEach((i) => { tail += this._hbCardOne(cards[i], i); });
+        if (hiddenSongs) console.log('[hibetter] 隐藏了', hiddenSongs, '行与真实结果不符的歌曲描述');
+        return (tail ? '<div class="hb-cards-title">🎵 为你找到以下歌曲</div><div class="hb-cards">' + tail + '</div>' : '');
       }
-      // 部分匹配：把“像歌名但没有真实结果”的行隐藏，避免图文不符（只保留有卡片支撑的歌曲行）
-      if (matched && cards.length) {
-        const linesKept = [];
-        const rawLines = String(html).split('<br>');
-        out.forEach((line, i) => {
-          const hasCard = line.indexOf('hb-icard') >= 0;
-          const plain = rawLines[i] ? rawLines[i].replace(/<[^>]+>/g, '').trim() : '';
-          const songLike = /——|--|—/.test(plain) && plain.length > 4;
-          if (songLike && !hasCard) return; // 该行是 AI 编的（没有真实结果）→ 丢弃
-          linesKept.push(line);
-        });
-        return linesKept.join('<br>');
-      }
-      return out.join('<br>');
+      rest.forEach((i) => { tail += this._hbCardOne(cards[i], i); });
+      return kept.join('<br>') + (tail ? '<div class="hb-cards">' + tail + '</div>' : '');
     },
     /** 单张内嵌卡片（点击即播；索引与所属消息的歌曲数组对齐） */
     _hbCardOne(s, i) {
