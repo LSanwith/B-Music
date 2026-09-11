@@ -4141,6 +4141,7 @@
     _renderSettingsAI() {
       const box = $('#set-ai-list');
       if (!box) return;
+      this._bindSettingsAIDelegate(); // 保证操作始终可用
       const list = this._aiProfiles();
       const active = this._aiActiveId();
       const card = (p) => (
@@ -4166,43 +4167,66 @@
         '<span class="set-ai-name">内置默认（DeepSeek · 本站提供 · 无需密钥）</span>' +
         '<span class="set-ai-tag">' + (!active ? '使用中' : '点击启用') + '</span></label>' +
         '</div>' + list.map(card).join('');
-      box.querySelectorAll('input[name="ai-active"]').forEach((r) => r.addEventListener('change', () => {
-        this._aiSave(this._aiProfiles(), r.value);
-        this._renderSettingsAI();
-        const nm = r.value ? ((this._aiProfiles().find(x => x.id === r.value) || {}).name || '自定义模型') : '内置默认模型';
-        toast('已切换到：' + nm);
-      }));
       const collect = () => Array.from(box.querySelectorAll('[data-ai-id]')).filter(c => c.dataset.aiId).map((c) => {
         const get = (f) => { const el = c.querySelector('[data-ai-f="' + f + '"]'); return el ? el.value.trim() : ''; };
         return { id: c.dataset.aiId, name: get('name'), baseUrl: get('baseUrl'), model: get('model'), apiKey: get('apiKey'), effort: get('effort') };
       });
-      box.querySelectorAll('[data-ai-f]').forEach((el) => el.addEventListener('change', () => {
-        this._aiSave(collect(), this._aiActiveId());
-        toast('配置已保存（云端同步）');
-      }));
-      box.querySelectorAll('[data-ai-del]').forEach((btn) => btn.addEventListener('click', () => {
-        const id = btn.dataset.aiDel;
-        if (!confirm('删除这条模型配置？')) return;
-        const list2 = this._aiProfiles().filter(x => x.id !== id);
-        this._aiSave(list2, this._aiActiveId() === id ? '' : this._aiActiveId());
-        this._renderSettingsAI();
-        toast('已删除该配置');
-      }));
-      const addBtn = $('#set-ai-add');
-      if (addBtn && !addBtn._bound) {
-        addBtn._bound = true;
-        addBtn.addEventListener('click', () => {
-          const list2 = this._aiProfiles();
-          list2.push({ id: 'ai' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: '新模型 ' + (list2.length + 1), baseUrl: '', model: '', apiKey: '', effort: '' });
-          this._aiSave(list2);
+    },
+    /** AI 助手配置页：事件委托（页面/按钮随时重建都能响应） */
+    _bindSettingsAIDelegate() {
+      if (this._aiDelegateBound) return;
+      this._aiDelegateBound = true;
+      document.addEventListener('click', (e) => {
+        const addBtn = e.target.closest && e.target.closest('#set-ai-add');
+        if (addBtn) {
+          e.preventDefault();
+          const list = this._aiProfiles();
+          list.push({ id: 'ai' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: '新模型 ' + (list.length + 1), baseUrl: '', model: '', apiKey: '', effort: '' });
+          this._aiSave(list);
           this._renderSettingsAI();
-        });
-      }
-      const rst = $('#set-ai-reset');
-      if (rst && !rst._bound) {
-        rst._bound = true;
-        rst.addEventListener('click', () => { this._aiSave([], ''); this._renderSettingsAI(); toast('已恢复内置默认模型'); });
-      }
+          toast('已添加一条模型配置，填写后点“点击启用”即可使用');
+          return;
+        }
+        const rstBtn = e.target.closest && e.target.closest('#set-ai-reset');
+        if (rstBtn) {
+          e.preventDefault();
+          this._aiSave([], '');
+          this._renderSettingsAI();
+          toast('已恢复内置默认模型');
+          return;
+        }
+        const delBtn = e.target.closest && e.target.closest('[data-ai-del]');
+        if (delBtn) {
+          e.preventDefault();
+          const id = delBtn.dataset.aiDel;
+          if (!confirm('删除这条模型配置？')) return;
+          const list2 = this._aiProfiles().filter(x => x.id !== id);
+          this._aiSave(list2, this._aiActiveId() === id ? '' : this._aiActiveId());
+          this._renderSettingsAI();
+          toast('已删除该配置');
+        }
+      });
+      document.addEventListener('change', (e) => {
+        const t = e.target;
+        if (!t) return;
+        if (t.name === 'ai-active') {
+          this._aiSave(this._aiProfiles(), t.value);
+          this._renderSettingsAI();
+          const nm = t.value ? ((this._aiProfiles().find(x => x.id === t.value) || {}).name || '自定义模型') : '内置默认模型';
+          toast('已切换到：' + nm);
+          return;
+        }
+        if (t.dataset && t.dataset.aiF) {
+          const box = $('#set-ai-list');
+          if (!box) return;
+          const list = Array.from(box.querySelectorAll('[data-ai-id]')).filter(c => c.dataset.aiId).map((c) => {
+            const get = (f) => { const el = c.querySelector('[data-ai-f="' + f + '"]'); return el ? el.value.trim() : ''; };
+            return { id: c.dataset.aiId, name: get('name'), baseUrl: get('baseUrl'), model: get('model'), apiKey: get('apiKey'), effort: get('effort') };
+          });
+          this._aiSave(list, this._aiActiveId());
+          toast('配置已保存（云端同步）');
+        }
+      });
     },
     _renderSettingsAccount() {
       const box = $('#set-account');
