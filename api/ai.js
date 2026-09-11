@@ -67,7 +67,7 @@ export default async function handler(req, res) {
   const useModel = (custom && custom.model) ? String(custom.model).trim() : MODEL;
   const payload = {
     model: useModel,
-    messages: sanitizeMessages(sanitizeMessages(body.messages.slice(-30)).slice(-24)), // 清洗→限长→再清洗（截断不破坏配对）
+    messages: sanitizeMessages(sanitizeMessages(body.messages.slice(-16)).slice(-12)), // 清洗→限长→再清洗（截断不破坏配对）
     reasoning_effort: (function () {
       const e = (custom && custom.effort) ? String(custom.effort).trim() : '';
       if (!e) return process.env.AI_EFFORT || 'low';

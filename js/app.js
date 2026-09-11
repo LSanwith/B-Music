@@ -844,7 +844,7 @@
     },
     async _hbApi(messages, tools) {
       const base = (location.protocol === 'file:' && window.APP_LOCAL_SERVER) ? window.APP_LOCAL_SERVER : '';
-      const clean = this._hbSanitize(messages);
+      const clean = this._hbSanitize(messages).slice(-12); // 上下文只保留最近 12 条（约 3~4 轮），刷新/换号会清空
       const body = {
         messages: [{ role: 'system', content: this.HB_SYS() }].concat(clean.map(m => {
           const o = { role: m.role, content: m.content || '' };

@@ -157,7 +157,7 @@ async function handleApi(req, res, urlPath) {
       const useModel = (custom && custom.model) ? String(custom.model).trim() : (process.env.AI_MODEL || 'deepseek-flash');
       const payload = {
         model: useModel,
-        messages: sanitizeAiMessages(sanitizeAiMessages(body.messages.slice(-30)).slice(-24)),
+        messages: sanitizeAiMessages(sanitizeAiMessages(body.messages.slice(-16)).slice(-12)),
         reasoning_effort: (function () {
           const e = (custom && custom.effort) ? String(custom.effort).trim() : '';
           if (!e) return process.env.AI_EFFORT || 'low';
