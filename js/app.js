@@ -1437,7 +1437,7 @@
     },
     _stopWaveLoop() {
       if (this._waveRaf) { try { cancelAnimationFrame(this._waveRaf); } catch (e) {} this._waveRaf = 0; }
-      $$$('#rec-wave i').forEach(b => { b.style.height = '5px'; });
+      $$('#rec-wave i').forEach(b => { b.style.height = '5px'; });
     },
 
     /** 指纹 → POST 识曲接口 → 结果卡片（结果结构：data.result 为 [{song:{...}}]） */
