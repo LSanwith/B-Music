@@ -20,6 +20,30 @@
 import crypto from 'crypto';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/* ===== Altcha 人机验证（开源 PoW，MIT）：签发 + 校验 ===== */
+const ALTCHA_KEY = process.env.ALTCHA_HMAC_KEY || 'bmusic-altcha-hmac-2026-secret';
+function altchaCreate(maxnumber) {
+  const mx = maxnumber || 100000;
+  const salt = crypto.randomBytes(12).toString('hex') + '&';
+  const number = crypto.randomInt(mx);
+  const challenge = crypto.createHash('sha256').update(salt + number).digest('hex');
+  const signature = crypto.createHmac('sha256', ALTCHA_KEY).update(challenge).digest('hex');
+  return { algorithm: 'SHA-256', challenge, maxnumber: mx, salt, signature };
+}
+function altchaVerify(payload) {
+  try {
+    let p = payload;
+    if (typeof p === 'string') p = JSON.parse(Buffer.from(p, 'base64').toString('utf8'));
+    if (!p || !p.salt || p.number === undefined || p.number === null || !p.challenge || !p.signature) return false;
+    const challenge = crypto.createHash('sha256').update(String(p.salt) + String(p.number)).digest('hex');
+    const signature = crypto.createHmac('sha256', ALTCHA_KEY).update(String(p.challenge)).digest('hex');
+    return challenge === p.challenge && signature === p.signature;
+  } catch (e) { return false; }
+}
+
+const QQ_MAIL_RE = /^[A-Za-z0-9._%+-]+@(qq\.com|foxmail\.com)$/i; // 仅允许 QQ 邮箱（含 foxmail 别名）
+const QQ_MAIL_MSG = '仅支持 QQ 邮箱注册（@qq.com / @foxmail.com）';
 let MEM = null; // 内存兜底
 
 function readBody(req) {
@@ -127,12 +151,8 @@ export default async function handler(req, res) {
   try {
     /* 人机验证（滑块拼图）：一次一题，5 分钟有效 */
     if (r === 'captcha' && method === 'GET') {
-      const target = 35 + Math.floor(Math.random() * 45);
-      const id = crypto.randomBytes(8).toString('hex');
-      db.captchas = db.captchas || {};
-      db.captchas[id] = { target, exp: Date.now() + 5 * 60 * 1000, used: false };
-      await saveDb(db);
-      return res.status(200).json({ id, target });
+      // Altcha 人机验证：签发 PoW challenge
+      return res.status(200).json(altchaCreate(100000));
     }
     /* 注册：滑动验证通过后直接注册并登录；同邮箱+正确密码 = 二次注册直接登录 */
     if (r === 'register' && method === 'POST') {
@@ -140,7 +160,17 @@ export default async function handler(req, res) {
       const email = String(b.email || '').trim().toLowerCase();
       const password = String(b.password || '');
       if (!EMAIL_RE.test(email)) return res.status(400).json({ msg: '邮箱格式不正确' });
+      if (!QQ_MAIL_RE.test(email)) return res.status(400).json({ msg: QQ_MAIL_MSG });
       if (password.length < 6) return res.status(400).json({ msg: '密码至少 6 位' });
+      let qqNick = '';
+      try {
+        const qq = (email.split('@')[0] || '').replace(/\D/g, '');
+        if (qq) {
+          const qr = await fetch('https://api.xunjinlu.fun/api/qq/name.php?qq=' + qq, { signal: AbortSignal.timeout(6000) });
+          const qj = await qr.json().catch(() => ({}));
+          qqNick = (qj && qj.data && (qj.data.nickname || qj.data.name)) || '';
+        }
+      } catch (e) { /* QQ 资料查询失败不影响注册 */ }
       const existing = Object.values(db.users).find(u => u.email === email);
       if (existing) {
         if (hashPass(password, existing.salt) === existing.passHash) {
@@ -151,20 +181,12 @@ export default async function handler(req, res) {
         }
         return res.status(409).json({ msg: '该邮箱已注册，密码不正确；请返回登录' });
       }
-      const cp = db.captchas && db.captchas[String(b.captchaId || '')];
-      const pos = Number(b.pos);
-      const dur = Number(b.duration);
-      if (!cp || cp.used || cp.exp < Date.now() ||
-          !(pos >= 0 && pos <= 100) || Math.abs(pos - cp.target) > 6 ||
-          !(dur >= 300 && dur <= 15000)) {
-        return res.status(400).json({ msg: '请完成滑动验证' });
-      }
-      cp.used = true;
+      if (!altchaVerify(b.altcha)) return res.status(400).json({ msg: '请完成人机验证' });
       const id = String(Object.keys(db.users).reduce((m, k) => Math.max(m, parseInt(k, 10) || 0), 0) + 1);
       const salt = crypto.randomBytes(16).toString('hex');
       db.users[id] = {
         id, email, salt, passHash: hashPass(password, salt), createdAt: Date.now(),
-        nickname: '用户' + id, // 新账号默认昵称 = 用户+UID
+        nickname: qqNick || ('用户' + id), // 优先用 QQ 昵称，取不到则 用户+UID
       };
       db.data[id] = { settings: {}, favSongs: [], favPlaylists: [] };
       const token = crypto.randomBytes(24).toString('hex');
@@ -175,6 +197,7 @@ export default async function handler(req, res) {
     if (r === 'login' && method === 'POST') {
       const b = await readBody(req);
       const email = String(b.email || '').trim().toLowerCase();
+      if (!QQ_MAIL_RE.test(email)) return res.status(403).json({ msg: '本服务仅接受 QQ 邮箱账号（@qq.com / @foxmail.com），其它邮箱一律无效' });
       const user = Object.values(db.users).find(u => u.email === email);
       if (!user || hashPass(String(b.password || ''), user.salt) !== user.passHash) {
         return res.status(401).json({ msg: '邮箱或密码错误' });

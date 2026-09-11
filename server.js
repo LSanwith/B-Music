@@ -59,16 +59,121 @@ function readBody(req) {
   });
 }
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const QQ_MAIL_RE = /^[A-Za-z0-9._%+-]+@(qq\.com|foxmail\.com)$/i; // 仅允许 QQ 邮箱
+const QQ_MAIL_MSG = '仅支持 QQ 邮箱注册（@qq.com / @foxmail.com）';
+
+
+/** ===== Altcha 人机验证（开源 PoW，MIT）=====
+ *  签发：salt=hex(rand12)+'&'，challenge=SHA256(salt+number)，signature=HMAC_SHA256(key, challenge)
+ *  校验：用 payload 的 salt+number 重算 challenge，并重算 signature 比对
+ */
+const ALTCHA_KEY = process.env.ALTCHA_HMAC_KEY || 'bmusic-altcha-hmac-2026-secret';
+function altchaCreate(maxnumber) {
+  const mx = maxnumber || 100000;
+  const salt = crypto.randomBytes(12).toString('hex') + '&';
+  const number = crypto.randomInt(mx);
+  const challenge = crypto.createHash('sha256').update(salt + number).digest('hex');
+  const signature = crypto.createHmac('sha256', ALTCHA_KEY).update(challenge).digest('hex');
+  return { algorithm: 'SHA-256', challenge, maxnumber: mx, salt, signature };
+}
+function altchaVerify(payload) {
+  try {
+    let p = payload;
+    if (typeof p === 'string') p = JSON.parse(Buffer.from(p, 'base64').toString('utf8'));
+    if (!p || !p.salt || p.number === undefined || p.number === null || !p.challenge || !p.signature) return false;
+    const challenge = crypto.createHash('sha256').update(String(p.salt) + String(p.number)).digest('hex');
+    const signature = crypto.createHmac('sha256', ALTCHA_KEY).update(String(p.challenge)).digest('hex');
+    return challenge === p.challenge && signature === p.signature;
+  } catch (e) { return false; }
+}
+
+/** 清洗 AI 历史消息：保证 assistant(tool_calls) 与 tool 响应严格配对（否则上游 400） */
+function sanitizeAiMessages(list) {
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    const m = list[i];
+    if (!m || !m.role) continue;
+    if (m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length) {
+      const need = m.tool_calls.map(tc => tc.id);
+      const got = [];
+      let j = i + 1;
+      while (j < list.length && list[j] && list[j].role === 'tool') { got.push(list[j].tool_call_id); j++; }
+      if (!need.every(id => got.indexOf(id) >= 0)) continue;
+      out.push({
+        role: 'assistant', content: m.content || '',
+        tool_calls: m.tool_calls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function && tc.function.name, arguments: tc.function && tc.function.arguments } })),
+      });
+      for (let k = i + 1; k < j; k++) out.push({ role: 'tool', tool_call_id: list[k].tool_call_id, content: String(list[k].content == null ? '' : list[k].content) });
+      i = j - 1;
+    } else if (m.role === 'tool') {
+      continue;
+    } else {
+      out.push({ role: m.role, content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content == null ? '' : m.content) });
+    }
+  }
+  return out;
+}
 
 /** 账号 + 数据同步 API（设置/收藏上传下载；最近播放仅存本地） */
 async function handleApi(req, res, urlPath) {
   const API_PATHS = ['/api/register', '/api/captcha', '/api/login',
     '/api/logout', '/api/account/delete', '/api/data',
     '/api/account/avatar', '/api/account/password', '/api/account/profile',
-    '/api/cookieurl'];
+    '/api/cookieurl', '/api/ai'];
   if (API_PATHS.indexOf(urlPath) < 0) return false;
   const method = req.method;
   try {
+    /* HiBetter AI 助手：服务端注入 DeepSeek 密钥（本地读 ai.local，环境变量优先） */
+    if (urlPath === '/api/ai' && method === 'POST') {
+      const sendJson = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); return true; };
+      let key = process.env.DEEPSEEK_KEY || '';
+      if (!key) {
+        try { key = require('fs').readFileSync(require('path').join(__dirname, 'ai.local'), 'utf8').trim(); } catch (e) {}
+      }
+      if (!key) return sendJson(503, { ok: false, msg: 'AI 未配置（缺少 ai.local / DEEPSEEK_KEY）' });
+      let body = null;
+      try {
+        const chunks = [];
+        await new Promise((resolve, reject) => {
+          req.on('data', (c) => chunks.push(c));
+          req.on('end', resolve);
+          req.on('error', reject);
+        });
+        body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
+      } catch (e) { return sendJson(400, { ok: false, msg: 'bad body' }); }
+      if (!body || !Array.isArray(body.messages)) return sendJson(400, { ok: false, msg: 'bad body' });
+      const payload = {
+        model: 'deepseek-flash',
+        messages: sanitizeAiMessages(sanitizeAiMessages(body.messages.slice(-30)).slice(-24)),
+        reasoning_effort: 'low',
+        temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
+        max_tokens: Math.min(2048, body.max_tokens || 900),
+      };
+      if (Array.isArray(body.tools) && body.tools.length) {
+        payload.tools = body.tools;
+        payload.tool_choice = body.tool_choice || 'auto';
+      }
+      try {
+        const r = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(60000),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) return sendJson(r.status, { ok: false, msg: (j && j.error && j.error.message) || ('HTTP ' + r.status) });
+        const choice = (j.choices && j.choices[0]) || {};
+        const msg = choice.message || {};
+        return sendJson(200, {
+          ok: true,
+          message: { role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls || null, reasoning: msg.reasoning_content || '' },
+          finish_reason: choice.finish_reason || '',
+          usage: j.usage || null,
+        });
+      } catch (e) {
+        return sendJson(502, { ok: false, msg: e.message || 'upstream error' });
+      }
+    }
     /* 网易云会员音源（黑胶 cookie 仅存本地 netease_cookie.txt，不随仓库分发；
      *  经 Silence 增强库 eapi 通道 → 母带级音源） */
     if (urlPath === '/api/cookieurl' && method === 'GET') {
@@ -105,20 +210,17 @@ async function handleApi(req, res, urlPath) {
         return sendJson(502, { msg: e.message || 'upstream error' });
       }
     }
-    /* 人机验证（滑块拼图）：服务端下发随机缺口位置，一次一题，5 分钟有效 */
+    /* 人机验证（Altcha 开源 PoW）：签发 challenge，前端解题，注册时校验 */
     if (urlPath === '/api/captcha' && method === 'GET') {
-      const target = 35 + Math.floor(Math.random() * 45); // 缺口位置 35%..80%
-      const id = crypto.randomBytes(8).toString('hex');
-      DB.captchas = DB.captchas || {};
-      DB.captchas[id] = { target, exp: Date.now() + 5 * 60 * 1000, used: false };
-      saveDb(DB);
-      return sendJson(res, 200, { id, target });
+      // Altcha 人机验证：签发 PoW challenge（前端 altcha-widget 解题）
+      return sendJson(res, 200, altchaCreate(100000));
     }
     if (urlPath === '/api/register' && method === 'POST') {
       const b = await readBody(req);
       const email = String(b.email || '').trim().toLowerCase();
       const password = String(b.password || '');
       if (!EMAIL_RE.test(email)) return sendJson(res, 400, { msg: '邮箱格式不正确' });
+      if (!QQ_MAIL_RE.test(email)) return sendJson(res, 400, { msg: QQ_MAIL_MSG });
       if (password.length < 6) return sendJson(res, 400, { msg: '密码至少 6 位' });
       // 已注册邮箱：密码正确则视为“二次注册=直接登录”，否则明确提示
       const existing = Object.values(DB.users).find(u => u.email === email);
@@ -131,16 +233,8 @@ async function handleApi(req, res, urlPath) {
         }
         return sendJson(res, 409, { msg: '该邮箱已注册，密码不正确；请返回登录' });
       }
-      // 滑动验证：位置误差 ≤6%，拖动时长 300ms~15s（防脚本秒拖）
-      const cp = DB.captchas && DB.captchas[String(b.captchaId || '')];
-      const pos = Number(b.pos);
-      const dur = Number(b.duration);
-      if (!cp || cp.used || cp.exp < Date.now() ||
-          !(pos >= 0 && pos <= 100) || Math.abs(pos - cp.target) > 6 ||
-          !(dur >= 300 && dur <= 15000)) {
-        return sendJson(res, 400, { msg: '请完成滑动验证' });
-      }
-      cp.used = true;
+      // Altcha 人机验证：校验 payload（重算 challenge + signature）
+      if (!altchaVerify(b.altcha)) return sendJson(res, 400, { msg: '请完成人机验证' });
       const id = String(++_uid);
       const salt = crypto.randomBytes(16).toString('hex');
       DB.users[id] = { id, email, salt, passHash: hashPass(password, salt), createdAt: Date.now() };
@@ -153,6 +247,7 @@ async function handleApi(req, res, urlPath) {
     if (urlPath === '/api/login' && method === 'POST') {
       const b = await readBody(req);
       const email = String(b.email || '').trim().toLowerCase();
+      if (!QQ_MAIL_RE.test(email)) return sendJson(res, 403, { msg: '本服务仅接受 QQ 邮箱账号（@qq.com / @foxmail.com），其它邮箱一律无效' });
       const user = Object.values(DB.users).find(u => u.email === email);
       if (!user || hashPass(String(b.password || ''), user.salt) !== user.passHash) {
         return sendJson(res, 401, { msg: '邮箱或密码错误' });

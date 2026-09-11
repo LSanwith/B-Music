@@ -64,6 +64,7 @@
       this.render();
       this._applySettingsToUI();
       this._syncAuthUI();
+      this._syncHibetterNav();
       // 启动即拉取云端最新资料（头像）：此前已登录的旧会话（localStorage 里存着旧 avatar）
       // 打开应用也能立即同步为其他设备设置的头像（失败静默，无碍本地）
       this._refreshProfile();
@@ -225,7 +226,8 @@
       const [path, query] = h.split('?');
       const params = new URLSearchParams(query || '');
       const seg = path.split('/').filter(Boolean);
-      const root = seg[0] || 'discover';
+      const logged = !!(Store.Session && Store.Session.loggedIn);
+      const root = seg[0] || (logged ? 'hibetter' : 'discover'); // 默认首页：登录后 HiBetter，未登录发现音乐
       this._highlightNav(root);
       // 顶栏返回按钮：仅在 歌单/专辑/歌手/单曲/自建歌单 等详情页显示（位于顶部标题文本左侧）
       const topBack = $('#btn-topback');
@@ -240,6 +242,13 @@
       if (root === 'search') return this.vSearch(params.get('q') || '');
       if (root === 'favorites') return this.vFavorites();
       if (root === 'recognize') return this.vRecognize();
+      if (root === 'hibetter') {
+        if (!(Store.Session && Store.Session.loggedIn)) {
+          toast('HiBetter 需要登录后使用，请先登录', 'warn');
+          return this.nav('discover');
+        }
+        return this.vHibetter();
+      }
       if (root === 'myplaylist' && seg[1]) return this.vMyPlaylist(seg[1]);
       if (root === 'share' && seg[1] === 'mp' && seg[2]) return this.vShareMp(seg[2]);
       if (root === 'song' && seg[1]) return this.vSong(seg[1]);
@@ -251,9 +260,15 @@
 
     _highlightNav(root) {
       $$('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.nav === root));
-      const titles = { discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', recognize: '听歌识曲', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单' };
+      const titles = { hibetter: 'HiBetter', discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', recognize: '听歌识曲', hibetter: 'HiBetter', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单' };
       const t = $('#page-title');
-      if (t) t.textContent = titles[root] || '发现';
+      if (t) {
+        if (root === 'hibetter') {
+          t.innerHTML = esc(this._hbUserName()) + ' <em class="beta-tag">Beta·AI</em>'; // HiBetter 处于 Beta 阶段
+        } else {
+          t.textContent = titles[root] || 'HiBetter';
+        }
+      }
       const cur = Player.current();
       document.title = cur ? cur.name + ' - B·Music' : 'B·Music · 网页版';
     },
@@ -269,6 +284,15 @@
       v.classList.add('view-anim');
       const kids = Array.prototype.slice.call(v.children).slice(0, 8);
       kids.forEach((el, i) => { el.style.animationDelay = (i * 55) + 'ms'; });
+      // 动画结束后移除 view-anim：其 filter 会创建 containing block，
+      // 使页面内 position:fixed 元素（如 HiBetter 输入栏）退化为相对 #view 定位而随页滚动
+      clearTimeout(this._viewAnimT);
+      const clearAnim = () => {
+        v.classList.remove('view-anim');
+        kids.forEach((el) => { el.style.animationDelay = ''; });
+      };
+      v.addEventListener('animationend', clearAnim, { once: true });
+      this._viewAnimT = setTimeout(clearAnim, 480); // 兜底（动画被跳过/打断时）
       // 分享深度链接：列表就绪后自动定位并播放 ?song= 指定的歌曲
       if (html.indexOf('view-loading') < 0) this._tryAutoPlayShared();
     },
@@ -304,6 +328,902 @@
     _viewError(msg, retry) {
       this._setView('<div class="empty"><div class="empty-icon">⚠</div><div class="empty-text">' + esc(msg) +
         '</div><button class="mini-btn" onclick="' + retry + '">重试</button></div>');
+    },
+
+    /* ============================================================
+     * HiBetter —— AI 音乐助手（DeepSeek flash / 推理关闭 / 工具调用控制播放）
+     *  · 对话式点歌、推荐（交互卡片）、切歌、音量、进度、音质、模式、收藏、跳页
+     *  · 密钥只在服务端（/api/ai 代理注入），前端不持有
+     * ============================================================ */
+    _hbHistory: null,
+    _hbBusy: false,
+    _hbCards: null,
+    HB_TOOLS() {
+      const fn = (name, desc, props, required) => ({
+        type: 'function',
+        function: { name, description: desc, parameters: { type: 'object', properties: props, required: required || Object.keys(props) } },
+      });
+      return [
+        fn('search_music', '按关键词搜索歌曲，返回可点击播放的卡片；最多 4 首（limit 传 4）', { keyword: { type: 'string', description: '歌名/歌手/关键词' }, limit: { type: 'number', description: '返回条数，最多 4' } }, ['keyword']),
+        fn('play_music', '按关键词搜索并立即播放最匹配的一首', { keyword: { type: 'string', description: '歌名 + 歌手更准' } }, ['keyword']),
+        fn('play_index', '播放当前播放列表中的第 N 首（1 开始）', { index: { type: 'number' } }, ['index']),
+        fn('control', '播放控制', { action: { type: 'string', enum: ['play', 'pause', 'toggle', 'next', 'prev'] } }, ['action']),
+        fn('set_volume', '设置音量百分比 0-100', { percent: { type: 'number' } }, ['percent']),
+        fn('seek_ratio', '跳转到当前歌曲的百分比位置 0-100', { percent: { type: 'number' } }, ['percent']),
+        fn('set_quality', '切换播放音质（无损及以上需登录）', { level: { type: 'string', enum: ['standard', 'higher', 'exhigh', 'lossless', 'hires', 'jymaster'] } }, ['level']),
+        fn('set_mode', '切换播放模式', { mode: { type: 'string', enum: ['list', 'loop', 'shuffle'], description: 'list 顺序 / loop 单曲循环 / shuffle 随机' } }, ['mode']),
+        fn('favorite_current', '收藏或取消收藏当前播放的歌曲', { on: { type: 'boolean', description: 'true 收藏，false 取消' } }, ['on']),
+        fn('now_playing', '获取当前播放状态（歌名/歌手/进度/音量/音质/模式）', {}, []),
+        fn('search_playlists', '按关键词搜索歌单（返回可点击打开的歌单卡片），用户想找歌单/歌单推荐时用它', { keyword: { type: 'string' }, limit: { type: 'number', description: '最多 4' } }, ['keyword']),
+        fn('get_my_library', '读取当前用户的音乐库：收藏的歌曲、收藏的歌单、自建歌单及其曲目（推荐前先调用它了解口味）', { limit: { type: 'number', description: '每类返回条数，默认 30' } }, []),
+        fn('get_playlist_songs', '读取指定歌单（自建或收藏的歌单）里的歌曲列表', { name: { type: 'string', description: '歌单名称（模糊匹配）' } }, ['name']),
+        fn('search_my_library', '在用户自己的音乐库里搜索歌曲（收藏 + 自建歌单）', { keyword: { type: 'string' } }, ['keyword']),
+        fn('share_current', '生成当前播放歌曲的分享链接（会自动复制到剪贴板，并把链接告诉你）', {}, []),
+        fn('share_song', '搜索并生成某首歌曲的分享链接', { keyword: { type: 'string' } }, ['keyword']),
+        fn('share_playlist', '生成歌单的分享链接（自建歌单生成可播放短链，收藏歌单生成页面链接）', { name: { type: 'string' } }, ['name']),
+        fn('favorite_playlist', '收藏或取消收藏一个歌单（按名称，来自搜索或收藏列表）', { name: { type: 'string' }, on: { type: 'boolean' } }, ['name']),
+        fn('playlist_create', '新建一个自建歌单', { name: { type: 'string' } }, ['name']),
+        fn('playlist_add', '搜索歌曲并加入指定自建歌单（歌单不存在时会自动创建）', { playlist: { type: 'string' }, keyword: { type: 'string' } }, ['playlist', 'keyword']),
+        fn('get_recent', '读取最近播放与搜索历史', {}, []),
+        fn('set_theme', '切换界面主题', { name: { type: 'string', enum: ['黑红', '黑蓝', '黑金', '黑紫', '白红', '白蓝', '白金', '白紫'] } }, ['name']),
+        fn('download_current', '下载当前播放的歌曲到本机', {}, []),
+        fn('open_song', '按关键词搜索并打开某首歌曲的详情页', { keyword: { type: 'string' } }, ['keyword']),
+        fn('open_page', '跳转到应用内的页面', { page: { type: 'string', enum: ['discover', 'leaderboard', 'playlists', 'search', 'favorites', 'recognize', 'hibetter'] } }, ['page']),
+      ];
+    },
+    HB_SYS() {
+      return '你是「HiBetter」，B·Music 网页版内置的 AI 音乐助手。' +
+        '你可以调用工具来搜索音乐、播放/暂停/切歌、调音量、跳进度、切音质、切播放模式、收藏、查看播放状态、跳转页面。' +
+        '规则：1) 用户想听某首歌/某类音乐 → 先用 search_music 看看，再决定是否 play_music；推荐多首时用 search_music 返回卡片。' +
+        '2) 用户说“放/播放” → 直接 play_music；说“下一首/暂停/继续” → 用 control。' +
+        '2b) 【推荐策略】任何“推荐/来点/适合…”类请求：先调用 get_my_library 了解用户口味（收藏歌曲、收藏歌单、自建歌单），必要时用 get_playlist_songs 看具体曲目。' +
+        '2b2) 【口味匹配·重要】推荐的歌曲必须与用户库的口味一致：注意【语言（中文/欧美/日韩）】、【曲风】、【年代】。例如用户收藏以欧美流行/女声为主，就优先推荐欧美同类歌曲（搜索时用英文关键词），不要推中文歌；跨口味拓展最多 1 首。' +
+        '2c) 用户问“我收藏里有没有/我的歌单里…”→ 用 search_my_library 或 get_playlist_songs 回答。' +
+        '2d) 若音乐库为空（未登录或没有收藏），不要追问，直接按大众口味（华语经典/流行热歌/轻音乐等）推荐 4 首。' +
+        '2e) 如果一次搜索返回的歌曲不足 4 首（或结果不理想），换一个更宽的关键词再搜一次补足（最多搜 3 次）；最终正文务必凑够 4 首不同歌曲。' +
+        '2f) 【语言】始终用简体中文回复，不要输出英文句子。' +
+        '2i) 【歌单】用户想找歌单/歌单推荐时，用 search_playlists 搜索真实歌单（最多 4 个），正文逐字使用返回的歌单名；歌单卡片用户可直接点击打开。绝不要说“我无法推荐歌单/无法访问歌单库”。' +
+        '2h) 【能力对齐】用户能在界面上做的操作你都能做：播放/暂停/切歌/音量/进度/音质/模式、搜索与推荐、读取音乐库、分享链接（share_current / share_song / share_playlist）、收藏歌单（favorite_playlist）、新建歌单并把歌加进去（playlist_create / playlist_add）、查看最近播放（get_recent）、切换主题（set_theme）、下载歌曲（download_current）、打开歌曲详情（open_song）、跳转页面（open_page）。用户提出这类需求时直接调用对应工具，绝不要说“没有这个功能”。' +
+        '2z) 【最高优先级】任何一次回复都必须先调用至少一个工具，禁止只回一句说明文字就结束（例如只说“我先看看你的音乐库”）。' +
+        '2g) 【必须调用工具】每次回复都必须先调用至少一个工具（如 get_my_library、search_music、get_playlist_songs），不要只回一句说明文字；工具结果拿到后再用中文总结并给出 4 首推荐（含卡片）。' +
+        '3) 工具执行后，用简洁自然的中文汇报结果（不要输出 JSON、不要罗列参数）。' +
+        '4) 极度精简：每首一行「歌名 —— 歌手 —— 一句不超过 20 字的理由」，行与行之间不要空行，不要开场白/总结/客套（禁止“需要的话我可以…”这类话）。' +
+        '5) 【重要·严格遵守】推荐歌曲时【最多 4 首】：search_music 的 limit 传 4，回复正文里也只列这 4 首（不要列第 5 首，不要补充“还有…”）。任何歌名都必须来自工具返回的真实结果，绝不能凭记忆编造歌名/歌手；推荐多首时用 search_music（可换更短的关键词多试几次），系统会把它渲染成可点击播放的卡片。' +
+        '5b) 【硬规则】一次回复最多调用一次 search_music；正文只列这 4 首，逐行对应。' +
+        '5d) 【严禁幻觉】正文里出现的歌名/歌手必须与 search_music 结果的 songs 字段【逐字一致】（直接复制），不得替换成你记忆里的其它歌、不得翻译或改写；正文只允许出现这些歌，一首都不许多写。' +
+        '5c) 【去重】4 首必须互不相同：不要同一首歌的不同版本（Live/Remix/翻唱/伴奏/纯音乐/片段），也不要同一首歌重复出现；尽量来自不同歌手。' +
+        '6) 若多次搜索都无结果，就直接告诉用户“搜索服务暂时不可用，请稍后重试或换个关键词”，不要给出记不准的列表。' +
+        '7) 工具返回错误（如未登录、无播放列表）时如实说明并给替代建议。';
+    },
+    async vHibetter() {
+      // 不持久化对话：仅在【本次页面加载的首次进入】清空（刷新即清空）；
+      // 页内切换路由（离开 HiBetter 再回来）保留当前会话的对话
+      if (!this._hbLoaded) {
+        this._hbHistory = [];
+        this._hbCardSongs = [];
+        this._hbBusy = false;
+        try { localStorage.removeItem('ym.hibetter'); } catch (e) {}
+        this._hbLoaded = true;
+      }
+      this._setView(
+        '<div class="hb-wrap">' +
+        '<div class="hb-head">' +
+        '<h2 class="hb-title">' + (this._hbLoggedIn() ? esc(this._hbUserName()) + ' <em>Beta·AI</em>' : '未登录用户') + '</h2>' +
+        '<div class="hb-sub" id="hb-greet">' + this._hbGreeting() + '</div>' +
+        '</div>' +
+        '<div class="hb-chat" id="hb-msgs"></div>' +
+        '<div class="hb-bar">' +
+        '<button type="button" class="hb-ai" id="hb-ai"><svg viewBox="0 0 1024 1024" aria-hidden="true"><path d="M512 640c70.6 0 128-57.4 128-128V256c0-70.6-57.4-128-128-128s-128 57.4-128 128v256c0 70.6 57.4 128 128 128z m192-128c0 106-86 192-192 192s-192-86-192-192H256c0 121.6 86.6 222.4 200 241.2V832h-96v64h304v-64h-96v-78.8C585.4 734.4 672 633.6 672 512h-64z"/></svg>听歌识曲</button>' +
+        '<input class="hb-input" id="hb-input" placeholder="例如：放一首适合下雨天的歌 / 音量 30% / 下一首 / 换成无损">' +
+        '<button type="button" class="btn primary" id="hb-send">发送</button>' +
+        '</div>' +
+
+        '</div>');
+      const input = $('#hb-input');
+      const send = () => { const v = (input.value || '').trim(); if (!v) return; input.value = ''; this._hbSend(v); };
+      const btn = $('#hb-send');
+      if (btn) btn.addEventListener('click', send);
+      if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); send(); } });
+      const aiBtn = $('#hb-ai');
+      if (aiBtn) aiBtn.addEventListener('click', async () => {
+        if (this._hbRecognizing) { if (this._recStopFn) this._recStopFn(); return; } // 再次点击 = 结束录音
+        this._hbRecognizing = true;
+        aiBtn.innerHTML = '<svg viewBox="0 0 1024 1024" aria-hidden="true"><path d="M512 640c70.6 0 128-57.4 128-128V256c0-70.6-57.4-128-128-128s-128 57.4-128 128v256c0 70.6 57.4 128 128 128z m192-128c0 106-86 192-192 192s-192-86-192-192H256c0 121.6 86.6 222.4 200 241.2V832h-96v64h304v-64h-96v-78.8C585.4 734.4 672 633.6 672 512h-64z"/></svg>正在聆听…（点击结束）';
+        toast('正在聆听，请让音乐清晰一些（约 6 秒）');
+        let song = null;
+        try { song = await this._recognizeOnce(() => {}); }
+        finally { this._hbRecognizing = false; aiBtn.innerHTML = '<svg viewBox="0 0 1024 1024" aria-hidden="true"><path d="M512 640c70.6 0 128-57.4 128-128V256c0-70.6-57.4-128-128-128s-128 57.4-128 128v256c0 70.6 57.4 128 128 128z m192-128c0 106-86 192-192 192s-192-86-192-192H256c0 121.6 86.6 222.4 200 241.2V832h-96v64h304v-64h-96v-78.8C585.4 734.4 672 633.6 672 512h-64z"/></svg>听歌识曲'; }
+        if (!song) { toast('没有识别到歌曲，请重试', 'warn'); return; }
+        const label = song.name + ' - ' + artistList(song.artists).map(x => x.name).join('/');
+        this._hbSend(
+          '（内部指令：用户刚用听歌识曲识别出《' + label + '》。请先播放这首歌，然后用 2 句话介绍它，再推荐 4 首风格相近的歌；正文歌名必须逐字来自 search_music 结果）',
+          false, [song],
+          '🎤 听歌识曲识别成功：' + label
+        );
+      });
+      this._hbRenderAll(); // 进入即渲染已有对话（页内切回来也能看到历史）
+      this._hbLayoutBind();
+      requestAnimationFrame(() => this._hbLayout());
+      // 首次进入：AI 主动先给几个推荐（内部触发，不显示为“用户消息”）
+      if (!this._hbHistory.length && !this._hbBusy && !this._hbGreeted) { this._hbGreeted = true; setTimeout(() => this._hbGreet(), 120); }
+      setTimeout(() => this._hbLayout(), 60);
+    },
+    /** 对话区高度自适应：底边恰好停在输入栏顶部上方 5px（避免被遮挡/留白过多） */
+    _hbLayout() {
+      const bar = $('#hb-bar');
+      const chat = $('#hb-msgs');
+      if (!bar || !chat) return;
+      // 用播放栏真实位置定位输入栏：底边 = 播放栏顶边 - 1px（无缝贴合）；无播放时贴视口底部 3px
+      const pb = $('#playerbar');
+      let bottomPx = 3;
+      if (pb && !pb.classList.contains('hidden')) {
+        const r = pb.getBoundingClientRect();
+        if (r.height > 0) bottomPx = Math.max(3, Math.round(window.innerHeight - r.top - 1));
+      }
+      bar.style.bottom = bottomPx + 'px';
+      const barH = bar.offsetHeight || 60;
+      const top = chat.getBoundingClientRect().top;
+      const h = Math.max(180, Math.round(window.innerHeight - top - barH - bottomPx - 5));
+      chat.style.height = h + 'px';
+      chat.style.maxHeight = h + 'px';
+    },
+    _hbLayoutBind() {
+      if (this._hbLayoutBound) return;
+      this._hbLayoutBound = true;
+      const relayout = () => this._hbLayout();
+      window.addEventListener('resize', relayout);
+      // 输入栏/播放栏尺寸变化时重算（播放栏出现、窗口变化等）
+      if (typeof ResizeObserver !== 'undefined') {
+        const ro = new ResizeObserver(relayout);
+        const bar = $('#hb-bar');
+        const pb = $('#playerbar');
+        if (bar) ro.observe(bar);
+        if (pb) ro.observe(pb);
+        this._hbRO = ro;
+      }
+      this._hbRelayout = relayout;
+      // 播放状态变化（播放栏显示/隐藏）也重算
+      document.addEventListener('ym:player', relayout);
+    },
+    /** 工具调用轨迹摘要（展示为“思考过程”） */
+    _hbTraceSummary(name, out) {
+      const p = (out && out.payload) || {};
+      if (p.error) return '✗ ' + String(p.error).slice(0, 40);
+      if (p.count !== undefined) return '返回 ' + p.count + ' 首';
+      if (p.songs) return '返回 ' + (p.songs.length || 0) + ' 首';
+      if (p.收藏歌曲) return '收藏 ' + p.收藏歌曲.length + ' 首 / 自建歌单 ' + ((p.自建歌单 || []).length) + ' 个';
+      if (p.link) return '已生成链接';
+      if (p.now_playing) return '正在播放：' + p.now_playing;
+      if (p.theme) return '已切换主题：' + p.theme;
+      if (p.playlist) return '歌单：' + p.playlist;
+      if (p.created) return '已创建：' + p.created;
+      if (p.opened) return '已打开';
+      if (p.volume !== undefined) return '音量 ' + p.volume + '%';
+      if (p.quality) return '音质 ' + p.quality;
+      return '完成';
+    },
+    /** 生成站内分享链接（与界面分享一致） */
+    _hbShareUrl(route, id) {
+      const origin = (location.origin && location.origin.indexOf('http') === 0) ? location.origin : 'https://www.bmusic.de5.net';
+      return origin + '/#/' + route + '/' + id;
+    },
+    /** 一次性听歌识曲（供 HiBetter 等复用）：录 6 秒 → 指纹 → 匹配，返回歌曲对象或 null */
+    async _recognizeOnce(onState) {
+      const say = (s) => { try { onState && onState(s); } catch (e) {} };
+      if (typeof window.GenerateFP !== 'function') { toast('指纹模块未加载，请刷新页面', 'warn'); return null; }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+        toast('当前浏览器不支持录音识别', 'warn'); return null;
+      }
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+      } catch (e) { toast('无法访问麦克风：' + ((e && e.name === 'NotAllowedError') ? '请允许麦克风权限' : (e && e.message)), 'warn'); return null; }
+      let mime = '';
+      for (const m of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']) {
+        if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) { mime = m; break; }
+      }
+      let rec;
+      try { rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); }
+      catch (e) { toast('录音初始化失败：' + e.message, 'warn'); stream.getTracks().forEach(t => t.stop()); return null; }
+      const DUR = 6;
+      const chunks = [];
+      rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+      const done = new Promise((resolve) => {
+        rec.onstop = () => {
+          try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+          resolve(new Blob(chunks, { type: (rec.mimeType || mime || 'audio/webm').split(';')[0] }));
+        };
+      });
+      try { rec.start(250); } catch (e) { toast('录音启动失败：' + e.message, 'warn'); return null; }
+      say('recording');
+      let secs = 0;
+      const timer = setInterval(() => {
+        secs++;
+        if (secs >= DUR) { clearInterval(timer); try { if (rec.state !== 'inactive') rec.stop(); } catch (e) {} }
+      }, 1000);
+      this._recStopFn = () => { clearInterval(timer); try { if (rec.state !== 'inactive') rec.stop(); } catch (e) {} };
+      const blob = await done;
+      clearInterval(timer);
+      this._recStopFn = null;
+      if (!blob || !blob.size) { toast('没有录到声音，请重试', 'warn'); say('idle'); return null; }
+      say('matching');
+      try {
+        const pcm = await this._decodePCM(blob, DUR);
+        if (!pcm || !pcm.length) { toast('音频解码失败', 'warn'); say('idle'); return null; }
+        const fp = await window.GenerateFP(pcm);
+        const base = (location.protocol === 'file:' && window.APP_LOCAL_SERVER) ? window.APP_LOCAL_SERVER : '';
+        const target = window.APP_CONFIG.API_PRIMARY + '/audio/match?duration=' + DUR + '&audioFP=' + encodeURIComponent(fp);
+        const r = await fetch(base + '/proxy?u=' + encodeURIComponent(target), { method: 'POST' });
+        const j = await r.json().catch(() => ({}));
+        const d = (j && j.data) || {};
+        const list = d.result;
+        const first = Array.isArray(list) ? list[0] : (list && typeof list === 'object' ? list : null);
+        const song = first && (first.song || (first.songs && first.songs[0]) || first);
+        if (!song || !(song.id || song.songId)) { say('idle'); return null; }
+        const sid = String(song.id || song.songId);
+        const out = {
+          id: sid, name: this._textOf(song.name) || '未知歌曲',
+          artists: (Array.isArray(song.artists || song.ar) ? (song.artists || song.ar) : []).map(x => ({ name: this._textOf(x && x.name) })).filter(x => x.name),
+          album: (function (al) { al = al || {}; return { name: (al.name || ''), id: al.id || '', picUrl: al.picUrl || '' }; })(song.album || song.al),
+          duration: song.duration || song.dt || 0,
+        };
+        out.cover = out.album.picUrl || '';
+        try { await this._hbFillCovers([out]); } catch (e) {}
+        say('idle');
+        return out;
+      } catch (e) { toast('识别失败：' + e.message, 'warn'); say('idle'); return null; }
+    },
+    /** 读取 Altcha 人机验证结果（widget 暴露的 value / 隐藏域） */
+    _altchaPayload() {
+      try {
+        const w = document.querySelector('altcha-widget');
+        if (w && typeof w.value === 'string' && w.value) return w.value;
+        const el = document.querySelector('input[name="altcha"]');
+        if (el && el.value) return el.value;
+      } catch (e) {}
+      return '';
+    },
+    /** 重置 Altcha 验证状态（切换登录/注册时） */
+    _resetAltcha() {
+      try {
+        const w = document.querySelector('altcha-widget');
+        if (w && typeof w.reset === 'function') w.reset();
+      } catch (e) {}
+    },
+    /** 是否已登录 */
+    _hbLoggedIn() {
+      try { return !!(Store && Store.Session && Store.Session.loggedIn); } catch (e) { return false; }
+    },
+    /** 当前用户名（未登录回退为 HiBetter） */
+    _hbUserName() {
+      try {
+        if (Store && Store.Session && Store.Session.loggedIn) {
+          const nm = String(Store.Session.name || '').trim();
+          if (nm) return nm;
+          const em = String(Store.Session.email || '').trim();
+          if (em) return em.split('@')[0];
+        }
+      } catch (e) {}
+      return 'HiBetter';
+    },
+    /** 按当前时间生成问候语 */
+    _hbGreeting() {
+      const h = new Date().getHours();
+      if (h >= 5 && h < 11) return '早上好';
+      if (h >= 11 && h < 13) return '中午好';
+      if (h >= 13 && h < 18) return '下午好';
+      return '晚上好';
+    },
+    /** 首次进入的主动推荐：内部消息（hidden）触发 AI 读库并推荐 */
+    _hbGreet() {
+      if (this._hbBusy || (this._hbHistory && this._hbHistory.length)) return;
+      this._hbSend('（系统提示：用户刚打开 HiBetter。请先用 get_my_library 了解他的收藏与自建歌单口味，然后主动推荐 4 首他可能会喜欢的歌）', true);
+    },
+    _hbSave() { /* 不保留对话：历史仅存在于内存（刷新即清空） */ },
+    /** 轻量 Markdown → HTML（先转义，安全；支持加粗/斜体/行内码/列表/标题/链接/换行） */
+    _hbMd(text) {
+      let s = esc(String(text == null ? '' : text));
+      // 压缩列表项之间的空行（避免每行之间出现大段留白）
+      s = s.replace(/\n[ \t]*\n(?=[ \t]*(?:[-*]|\d+[.、]))/g, '\n');
+      // 连续空行最多保留一个段落间距
+      s = s.replace(/\n{3,}/g, '\n\n');
+      // 行内码
+      s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+      // 加粗 / 斜体
+      s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+      s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+      // 裸链接自动可点
+      s = s.replace(/(^|[^"'>])(https?:\/\/[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+      // 链接 [text](url)
+      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+      // 引用块
+      s = s.replace(/^&gt;\s?(.+)$/gm, '<div class="hb-quote">$1</div>');
+      // 标题
+      s = s.replace(/^#{1,4}\s*(.+)$/gm, '<div class="hb-h">$1</div>');
+      // 列表（- / * / 1. ）
+      s = s.replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>');
+      s = s.replace(/^\s*\d+[.、]\s+(.+)$/gm, '<li>$1</li>');
+      s = s.replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g, '<ul>$1</ul>');
+      // 换行
+      s = s.replace(/\n{2,}/g, '<br><br>').replace(/\n/g, '<br>');
+      return s;
+    },
+    _hbBubble(m, idx) {
+      const tag = ' data-hbmsg="' + idx + '"';
+      if (m.role === 'user') {
+        return '<div class="hb-row me"' + tag + '><div class="hb-bubble">' + esc(m.display || m.content) + '</div></div>';
+      }
+      if (m.role !== 'assistant') return '';
+      const cards = Array.isArray(m.cards) ? m.cards.slice(0, 4) : [];
+      const trace = Array.isArray(m.trace) ? m.trace : [];
+      let thinkBody = '';
+      if (m.reasoning) thinkBody += '<div class="hb-think-line">' + esc(m.reasoning).replace(/\n/g, '<br>') + '</div>';
+      trace.forEach((t) => {
+        thinkBody += '<div class="hb-think-line">🔧 ' + esc(t.tool) + esc(t.args || '') + ' <em>' + esc(t.result || '') + '</em></div>';
+      });
+      const think = thinkBody
+        ? '<details class="hb-think"><summary>💭 思考过程（' + (trace.length || (m.reasoning ? 1 : 0)) + ' 步）</summary><div class="hb-think-body">' + thinkBody + '</div></details>'
+        : '';
+      let html = m.content ? this._hbMd(m.content) : '';
+      if (cards.length && html) html = this._hbInlineCards(html, cards);
+      else if (cards.length) html = this._hbCardsHtml(cards);
+      const text = html ? '<div class="hb-bubble md' + (m.error ? ' err' : '') + '">' + html + '</div>' : '';
+      if (!text && !think) return '';
+      const copyBtn = '<div class="hb-copy-row"><button type="button" class="hb-copy" data-hbcopy="' + idx + '" title="复制这条回复">复制</button></div>';
+      return '<div class="hb-row ai"' + tag + '><div class="hb-ava">AI</div><div class="hb-col">' + think + text + copyBtn + '</div></div>';
+    },
+    /** 把卡片穿插进文字：文案里提到哪首，卡片就出现在那一行下面 */
+    _hbInlineCards(html, cards) {
+      const norm = (s) => String(s || '').toLowerCase().replace(/[\s\-—_·・,，.。:：;；()（）\[\]【】"'“”‘’!！?？]/g, '');
+      const used = cards.map(() => false);
+      const lines = String(html).split('<br>');
+      const out = lines.map((line) => {
+        const plain = norm(line.replace(/<[^>]+>/g, ''));
+        for (let i = 0; i < cards.length; i++) {
+          if (used[i]) continue;
+          const s = cards[i];
+          const nm = norm(s.name);
+          const ar = norm((artistList(s.artists)[0] || {}).name);
+          const hitName = nm && nm.length >= 2 && plain.indexOf(nm) >= 0;
+          const hitArtist = ar && ar.length >= 2 && plain.indexOf(ar) >= 0;
+          if (hitName || hitArtist) {
+            used[i] = true;
+            return line + this._hbCardOne(s, i);
+          }
+        }
+        return line; // 未匹配：不强行配卡（避免张冠李戴）
+      });
+      const matched = used.filter(Boolean).length;
+      // 全部未匹配（AI 没逐条描述）→ 卡片统一列在末尾
+      if (!matched && cards.length) {
+        let all = '';
+        cards.forEach((s, i) => { all += this._hbCardOne(s, i); });
+        return out.join('<br>') + '<div class="hb-cards-title">🎵 实际找到的歌曲</div><div class="hb-cards">' + all + '</div>';
+      }
+      // 部分匹配：把“像歌名但没有真实结果”的行隐藏，避免图文不符（只保留有卡片支撑的歌曲行）
+      if (matched && cards.length) {
+        const linesKept = [];
+        const rawLines = String(html).split('<br>');
+        out.forEach((line, i) => {
+          const hasCard = line.indexOf('hb-icard') >= 0;
+          const plain = rawLines[i] ? rawLines[i].replace(/<[^>]+>/g, '').trim() : '';
+          const songLike = /——|--|—/.test(plain) && plain.length > 4;
+          if (songLike && !hasCard) return; // 该行是 AI 编的（没有真实结果）→ 丢弃
+          linesKept.push(line);
+        });
+        return linesKept.join('<br>');
+      }
+      return out.join('<br>');
+    },
+    /** 单张内嵌卡片（点击即播；索引与所属消息的歌曲数组对齐） */
+    _hbCardOne(s, i) {
+      const isPl = s && s.type === 'playlist';
+      const pic = isPl ? (s.cover || '') : ((s.album && (s.album.picUrl || s.album.cover)) || s.cover || s.picUrl || '');
+      const sub = isPl
+        ? ((s.creator ? s.creator + ' · ' : '') + (s.trackCount ? s.trackCount + ' 首' : '歌单'))
+        : artistList(s.artists).map(x => x.name).join(' / ');
+      return '<div class="hb-icard" data-hbcard="' + i + '" data-hbtype="' + (isPl ? 'playlist' : 'song') + '" style="animation-delay:' + (i * 70) + 'ms">' +
+        '<img src="' + esc(coverUrl(pic)) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+        '<div class="hb-icard-tx"><div class="hb-icard-name">' + esc(s.name) + '</div>' +
+        '<div class="hb-icard-sub">' + esc(sub) + '</div></div>' +
+        '<span class="hb-icard-play">' + (isPl ? '打开' : '▶') + '</span></div>';
+    },
+    _hbCardsHtml(songs) {
+      songs = (songs || []).slice(0, 4); // 最多 4 张，避免页面臃肿
+      return '<div class="hb-cards">' + songs.map((s, i) =>
+        '<div class="hb-card" data-hbplay="' + i + '">' +
+        '<img src="' + esc(coverUrl((s.album && (s.album.picUrl || s.album.cover)) || s.cover || s.picUrl || '')) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+        '<div class="hb-card-tx"><div class="hb-card-name">' + esc(s.name) + '</div>' +
+        '<div class="hb-card-sub">' + esc(artistList(s.artists).map(x => x.name).join(' / ')) + '</div></div>' +
+        '<span class="hb-card-play">▶</span></div>').join('') + '</div>';
+    },
+    _hbRenderAll() {
+      const box = $('#hb-msgs');
+      if (!box) return;
+      try { this._hbRenderAllInner(box); } catch (e) {
+        console.warn('[hibetter] render failed:', e);
+        box.innerHTML = '<div class="hb-empty">界面渲染出错：' + esc(e.message) + '</div>';
+      }
+    },
+    _hbRenderAllInner(box) {
+      const items = (this._hbHistory || []).filter(m => !m.hidden && (m.role === 'user' || (m.role === 'assistant' && (m.content || (m.cards && m.cards.length))))).slice(-8);
+      const rendered = items.map((m, i) => this._hbBubble(m, i)).join('');
+      console.log('[hibetter] 历史', (this._hbHistory || []).length, '条 → 渲染', items.length, '条 / HTML', rendered.length, '字符');
+      box.innerHTML = rendered || '<div class="hb-empty">看看 ai 推荐中有没有你心仪的歌曲吧~</div>';
+      // 卡片点击播放：直接用所属消息的歌曲数组，避免索引错位
+      // 复制按钮：复制该条 AI 回复的纯文本（含链接）
+      box.querySelectorAll('[data-hbcopy]').forEach((btn) => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const row = btn.closest('[data-hbmsg]');
+          const msg = row ? items[+row.dataset.hbmsg] : null;
+          if (!msg) return;
+          let out = String(msg.content || '');
+          const cards = Array.isArray(msg.cards) ? msg.cards : [];
+          if (cards.length) {
+            out += (out ? '\n\n' : '') + cards.map(s => '《' + s.name + '》 - ' + artistList(s.artists).map(x => x.name).join('/')).join('\n');
+          }
+          try {
+            await navigator.clipboard.writeText(out.trim());
+            toast('已复制到剪贴板');
+            btn.textContent = '已复制';
+            setTimeout(() => { btn.textContent = '复制'; }, 1500);
+          } catch (err) {
+            toast('复制失败，请手动选择文本复制', 'warn');
+          }
+        });
+      });
+      box.querySelectorAll('[data-hbmsg]').forEach((row) => {
+        const msg = items[+row.dataset.hbmsg];
+        if (!msg || !msg.cards || !msg.cards.length) return;
+        const songs = msg.cards;
+        row.querySelectorAll('[data-hbcard]').forEach(el => el.addEventListener('click', () => {
+          const i = +el.dataset.hbcard;
+          const item = songs[i];
+          if (!item) return;
+          if (el.dataset.hbtype === 'playlist' || item.type === 'playlist') {
+            App.nav('playlist/' + item.id);
+            toast('打开歌单：' + item.name);
+            return;
+          }
+          const onlySongs = songs.filter(x => x && x.type !== 'playlist');
+          const idx = onlySongs.indexOf(item);
+          if (idx >= 0) { Player.playQueue(onlySongs, idx); toast('开始播放《' + item.name + '》'); }
+        }));
+      });
+      box.scrollTop = box.scrollHeight;
+      if (this._hbLayout) this._hbLayout();
+    },
+    _hbTyping(on) {
+      const box = $('#hb-msgs');
+      if (!box) return;
+      let t = $('#hb-typing');
+      if (on && !t) {
+        t = document.createElement('div');
+        t.id = 'hb-typing';
+        t.className = 'hb-row ai';
+        t.innerHTML = '<div class="hb-ava">AI</div><div class="hb-bubble typing"><span></span><span></span><span></span></div>';
+        box.appendChild(t);
+        box.scrollTop = box.scrollHeight;
+      } else if (!on && t) { t.remove(); }
+    },
+    /** 清洗历史（与后端同规则）：丢弃悬空 tool_calls 与孤立 tool 消息 */
+    _hbSanitize(list) {
+      const out = [];
+      const src = Array.isArray(list) ? list : [];
+      for (let i = 0; i < src.length; i++) {
+        const m = src[i];
+        if (!m || !m.role) continue;
+        if (m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length) {
+          const need = m.tool_calls.map(tc => tc.id);
+          const got = [];
+          let j = i + 1;
+          while (j < src.length && src[j] && src[j].role === 'tool') { got.push(src[j].tool_call_id); j++; }
+          if (!need.every(id => got.indexOf(id) >= 0)) continue;
+          out.push({ role: 'assistant', content: m.content || '', tool_calls: m.tool_calls.map(tc => ({ id: tc.id, type: 'function', function: { name: tc.function && tc.function.name, arguments: tc.function && tc.function.arguments } })) });
+          for (let k = i + 1; k < j; k++) out.push({ role: 'tool', tool_call_id: src[k].tool_call_id, content: String(src[k].content == null ? '' : src[k].content) });
+          i = j - 1;
+        } else if (m.role === 'tool') {
+          continue;
+        } else {
+          out.push(m);
+        }
+      }
+      return out;
+    },
+    async _hbApi(messages, tools) {
+      const base = (location.protocol === 'file:' && window.APP_LOCAL_SERVER) ? window.APP_LOCAL_SERVER : '';
+      const clean = this._hbSanitize(messages);
+      const body = {
+        messages: [{ role: 'system', content: this.HB_SYS() }].concat(clean.map(m => {
+          const o = { role: m.role, content: m.content || '' };
+          if (m.tool_calls) o.tool_calls = m.tool_calls;
+          if (m.tool_call_id) o.tool_call_id = m.tool_call_id;
+          return o;
+        })),
+        tools: tools,
+      };
+      const r = await fetch(base + '/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) throw new Error(j.msg || ('HTTP ' + r.status));
+      return j;
+    },
+    async _hbSend(text, hidden, withCards, displayText) {
+      if (!text || this._hbBusy) return;
+      if (!this._hbHistory) this._hbHistory = [];
+      this._hbBusy = true;
+      this._hbCards = withCards && withCards.length ? withCards.slice(0, 4) : null; // 可携带初始卡片（如识曲结果）
+      this._hbSearchCount = 0; // 本轮搜索次数（结果不足时允许换关键词补足 4 首）
+      let reasoningAcc = ''; // 累积本轮 AI 思考文本（若有）
+      const traceAcc = [];   // 累积工具调用轨迹（思考过程的实际内容）
+      this._hbHistory.push({ role: 'user', content: text, hidden: !!hidden, display: displayText || '' });
+      this._hbSave(); // 立即落盘：刷新/中断也不丢对话
+      this._hbRenderAll();
+      this._hbTyping(true);
+      const tools = this.HB_TOOLS();
+      try {
+        let rounds = 0;
+        let nudged = false; // 是否已因“未调用工具”催过一次
+        while (rounds++ < 5) {
+          const j = await this._hbApi(this._hbHistory, tools);
+          const msg = j.message || {};
+          if (msg.reasoning) reasoningAcc += (reasoningAcc ? '\n' : '') + msg.reasoning;
+          if (msg.tool_calls && msg.tool_calls.length) {
+            this._hbHistory.push({ role: 'assistant', content: msg.content || '', tool_calls: msg.tool_calls });
+            for (const tc of msg.tool_calls) {
+              let args = {};
+              try { args = JSON.parse(tc.function.arguments || '{}'); } catch (e) {}
+              const out = await this._hbExecTool(tc.function.name, args);
+              this._hbHistory.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(out.payload) });
+              // 轨迹：工具名 + 关键参数 + 结果摘要
+              const argTxt = Object.keys(args).length ? '(' + Object.keys(args).map(k => k + '=' + String(args[k]).slice(0, 24)).join(', ') + ')' : '';
+              traceAcc.push({ tool: tc.function.name, args: argTxt, result: this._hbTraceSummary(tc.function.name, out) });
+            }
+            continue;
+          }
+          // 兜底：AI 没有调用任何工具、也没给出卡片，且回复很短（或整句英文）→ 催它一次
+          const txt = String(msg.content || '').trim();
+          const looksLazy = !(this._hbCards && this._hbCards.length) && txt.length < 80 && (!/[一-龥]/.test(txt) || txt.length < 40);
+          if (looksLazy && !nudged && rounds < 5) {
+            nudged = true;
+            this._hbHistory.push({ role: 'assistant', content: msg.content || '' });
+            this._hbHistory.push({ role: 'user', content: '（系统提示：你刚才没有调用任何工具就结束了。请立即调用 get_my_library 了解我的口味，再用 search_music 搜索并推荐 4 首歌曲，然后给出中文回复。）', hidden: true });
+            continue;
+          }
+          this._hbHistory.push({ role: 'assistant', content: msg.content || '（没有返回内容）', cards: this._hbCards || null, reasoning: reasoningAcc, trace: traceAcc.slice() });
+          this._hbCards = null;
+          break;
+        }
+      } catch (e) {
+        this._hbCards = null;
+        this._hbHistory.push({ role: 'assistant', content: '出错了：' + e.message, error: true });
+      } finally {
+        this._hbBusy = false;
+        this._hbTyping(false);
+        this._hbSave();
+        this._hbRenderAll();
+      }
+    },
+    /** 补全封面：镜像搜索不返回 album.picUrl，用 song/detail 批量补齐（失败静默） */
+    async _hbFillCovers(songs) {
+      const list = songs || [];
+      const miss = list.filter(s => !(s.cover || (s.album && (s.album.picUrl || s.album.cover))));
+      if (!miss.length) return list;
+      try {
+        const full = await API.songDetails(miss.slice(0, 10).map(s => s.id));
+        const byId = {};
+        full.forEach(f => { byId[String(f.id)] = f; });
+        list.forEach(s => {
+          const f = byId[String(s.id)];
+          if (f && (f.cover || (f.album && f.album.picUrl))) {
+            s.cover = f.cover || s.cover;
+            s.album = Object.assign({}, s.album, { name: (s.album && s.album.name) || (f.album && f.album.name) || '', picUrl: (f.album && f.album.picUrl) || (s.album && s.album.picUrl) || '' });
+          }
+        });
+      } catch (e) { /* 静默：无封面不影响播放 */ }
+      return list;
+    },
+    /** 去重：同名歌曲的不同版本（Live/Remix/Cover/伴奏/纯音乐…）只保留一个 */
+    _hbDedupe(list) {
+      const norm = (s) => String(s || '')
+        .replace(/[（(【\[].*?[)）】\]]/g, ' ')
+        .replace(/(live|remix|cover|acoustic|instrumental|ver\.?|version|伴奏|纯音乐|翻自|翻唱|现场|重制|重置|片段|demo|演绎|演奏|版本|版)/gi, ' ')
+        .replace(/[\s\-—_·・.]/g, '')
+        .replace(/版$|片段$|版本$/, '')
+        .toLowerCase()
+        .trim();
+      // 同名（含不同版本）只保留一个：优先“最干净的原始名”（名称最短、无版本后缀）
+      const keys = [];
+      const best = {};
+      (list || []).forEach(s => {
+        const k = norm(s && s.name);
+        if (!k) return;
+        const cur = best[k];
+        if (!cur) { best[k] = s; keys.push(k); return; }
+        const clean = (x) => String(x.name || '').length;
+        if (clean(s) < clean(cur)) best[k] = s; // 更短 = 更接近原版
+      });
+      return keys.map(k => best[k]);
+    },
+    /** 多源搜索：镜像失败自动换红云，并把长句关键词逐步简化重试 */
+    async _hbSearchAny(keyword, limit) {
+      const want = Math.min(4, Math.max(1, limit || 4));
+      const kw = String(keyword || '').trim();
+      const cands = [];
+      if (kw) cands.push(kw);
+      const simplified = kw.replace(/[适合的歌曲音乐推荐来点一些几首想要听给我找放首播放一下那种风格]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (simplified && simplified !== kw) cands.push(simplified);
+      const words = kw.split(/[\s，,、]+/).filter(Boolean);
+      words.forEach(w => { if (w.length >= 2 && cands.indexOf(w) < 0) cands.push(w); });
+      if (words.length > 1) {
+        const two = words.slice(0, 2).join(' ');
+        if (cands.indexOf(two) < 0) cands.push(two);
+      }
+      for (const t of cands) {
+        try {
+          const res = await API.search(t, 1, want, 0);
+          const l = Array.isArray(res) ? res : ((res && res.songs) || []);
+          if (l.length) { const dd = this._hbDedupe(l).slice(0, want); return { list: await this._hbFillCovers(dd), used: t }; }
+        } catch (e) {}
+        try { const l2 = await API.hongyunSearch(t, want); if (l2 && l2.length) { const dd2 = this._hbDedupe(l2).slice(0, want); return { list: await this._hbFillCovers(dd2), used: t }; } } catch (e) {}
+      }
+      return { list: [], used: kw };
+    },
+    async _hbExecTool(name, a) {
+      const ok = (payload, cards) => {
+        if (cards && cards.length) {
+          const acc = this._hbCards || [];
+          const room = Math.max(0, 4 - acc.length); // 硬上限 4 张
+          const take = cards.slice(0, room);
+          if (take.length) { this._hbCards = acc.concat(take); this._hbCardSongs = (this._hbCardSongs || []).concat(take); }
+          return { payload: payload, cards: take };
+        }
+        return { payload: payload, cards: cards };
+      };
+      const names = (song) => artistList(song && song.artists).map(x => x.name).join('/');
+      try {
+        switch (name) {
+          case 'search_music': {
+            this._hbSearchCount = (this._hbSearchCount || 0) + 1;
+            if (this._hbSearchCount > 3) return ok({ error: '本轮搜索次数已达上限，请直接用已有结果写正文' });
+            const r = await this._hbSearchAny(a.keyword, Math.min(4, a.limit || 4));
+            const songs = r.list || [];
+            if (!songs.length) return ok({ error: '搜索无结果（可换个更短的关键词）', keyword: a.keyword });
+            return ok({
+              count: songs.length, used_keyword: r.used,
+              songs: songs.map(s => ({ id: s.id, name: s.name, artists: names(s) })),
+              instruction: '正文必须逐字使用上面 songs 里的歌名与歌手（不得替换、翻译、缩写或新增其它歌曲）；每首一行。',
+            }, songs);
+          }
+          case 'play_music': {
+            this._hbSearchCount = (this._hbSearchCount || 0) + 1;
+            if (this._hbSearchCount > 3) return ok({ error: '本轮搜索次数已达上限，请直接用已有结果' });
+            const r = await this._hbSearchAny(a.keyword, 8);
+            const list = r.list || [];
+            if (!list.length) return ok({ error: '没有搜索到《' + a.keyword + '》，换个关键词试试' });
+            Player.playQueue(list.slice(), 0);
+            return ok({ now_playing: list[0].name, artist: names(list[0]) }, [list[0]]);
+          }
+          case 'play_index': {
+            const ctx = App._ctx && Array.isArray(App._ctx.songs) ? App._ctx.songs : null;
+            if (!ctx || !ctx.length) return ok({ error: '当前没有播放列表' });
+            const i = Math.max(1, Math.min(ctx.length, Math.round(a.index || 1))) - 1;
+            Player.playQueue(ctx.slice(), i);
+            return ok({ now_playing: ctx[i].name, artist: names(ctx[i]) }, [ctx[i]]);
+          }
+          case 'control': {
+            const act = String(a.action || '');
+            if (act === 'play') { if (Player.state !== 'playing') Player.toggle(); }
+            else if (act === 'pause') { if (Player.state === 'playing') Player.toggle(); }
+            else if (act === 'toggle') Player.toggle();
+            else if (act === 'next') Player.next();
+            else if (act === 'prev') Player.prev();
+            else return ok({ error: '不支持的操作：' + act });
+            const c = Player.current();
+            return ok({ ok: true, action: act, now: c ? (c.name + ' - ' + names(c)) : '无播放', state: Player.state });
+          }
+          case 'set_volume': {
+            const v = Math.max(0, Math.min(100, Math.round(a.percent)));
+            Store.Settings.set({ volume: v, muted: v === 0 });
+            App._syncVolume();
+            return ok({ volume: v });
+          }
+          case 'seek_ratio': {
+            const dur = Player.duration || (Player.current() && Player.current().duration ? Player.current().duration / 1000 : 0);
+            if (!dur) return ok({ error: '当前没有可跳转的歌曲' });
+            const t = Math.max(0, Math.min(dur, dur * (Math.max(0, Math.min(100, a.percent)) / 100)));
+            Player.seek(t);
+            return ok({ position: Math.round(t), duration: Math.round(dur) });
+          }
+          case 'set_quality': {
+            const lv = String(a.level || '');
+            const RANK = { standard: 0, higher: 1, exhigh: 2, lossless: 3, hires: 4, jymaster: 8 };
+            if ((RANK[lv] || 0) >= 3 && !Store.Session.loggedIn) return ok({ error: '无损及以上音质需要登录后使用' });
+            Player.setQuality(lv);
+            return ok({ quality: lv, label: Player.qualityLabel(lv) });
+          }
+          case 'set_mode': {
+            const m = ['list', 'loop', 'shuffle'].indexOf(a.mode) >= 0 ? a.mode : 'list';
+            Player.setMode(m);
+            return ok({ mode: m });
+          }
+          case 'favorite_current': {
+            const c = Player.current();
+            if (!c) return ok({ error: '当前没有播放歌曲' });
+            const has = Store.FavSongs.has(c.id);
+            const want = a.on !== false;
+            if (want !== has) Store.FavSongs.toggle(c);
+            return ok({ song: c.name, favorited: want });
+          }
+          case 'now_playing': {
+            const c = Player.current();
+            if (!c) return ok({ playing: false, hint: '当前没有播放歌曲' });
+            return ok({
+              playing: Player.state === 'playing',
+              song: c.name, artist: names(c),
+              position: Math.round(Player.curTime || 0), duration: Math.round(Player.duration || 0),
+              volume: Store.Settings.volume, quality: Player.qualityLabel(Player.quality), mode: Player.mode,
+            });
+          }
+          case 'search_playlists': {
+            const want = Math.min(4, Math.max(1, a.limit || 4));
+            let list = [];
+            try {
+              const res = await API.search(a.keyword || '', 1000, want, 0);
+              list = Array.isArray(res) ? res : ((res && res.playlists) || []);
+            } catch (e) {}
+            const pls = (list || []).slice(0, want).map(p => ({
+              type: 'playlist',
+              id: p.id, name: p.name,
+              cover: p.cover || p.picUrl || '',
+              trackCount: p.trackCount || p.songCount || 0,
+              playCount: p.playCount || 0,
+              creator: (p.creator && p.creator.nickname) || '',
+            }));
+            if (!pls.length) return ok({ error: '没搜到相关歌单，换个关键词试试' });
+            return ok({
+              count: pls.length,
+              playlists: pls.map(p => ({ id: p.id, name: p.name, songs: p.trackCount })),
+              instruction: '这些是真实歌单结果；正文逐字使用它们的名称，用户可直接点卡片打开歌单。',
+            }, pls);
+          }
+          case 'get_my_library': {
+            const lim = Math.min(50, Math.max(5, a.limit || 30));
+            const favSongs = (Store.FavSongs.all || []).slice(0, lim).map(s => ({ name: s.name, artists: names(s) }));
+            const favPls = (Store.FavPlaylists.all || []).slice(0, 20).map(p => p.name);
+            const myPls = (Store.MyPlaylists.all || []).slice(0, 20).map(p => ({ name: p.name, count: (p.songs || []).length, sample: (p.songs || []).slice(0, 8).map(s => s.name + ' - ' + names(s)) }));
+            if (!favSongs.length && !myPls.length && !favPls.length) return ok({ empty: true, hint: '用户还没有收藏或自建歌单' });
+            return ok({ 收藏歌曲: favSongs, 收藏的歌单: favPls, 自建歌单: myPls });
+          }
+          case 'get_playlist_songs': {
+            const kw2 = String(a.name || '').trim();
+            const norm2 = (s) => String(s || '').toLowerCase().replace(/\s/g, '');
+            const my = (Store.MyPlaylists.all || []).find(p => norm2(p.name).indexOf(norm2(kw2)) >= 0 || norm2(kw2).indexOf(norm2(p.name)) >= 0);
+            if (my) {
+              const songs = (my.songs || []).slice(0, 30);
+              if (!songs.length) return ok({ playlist: my.name, count: 0, hint: '该自建歌单还是空的' });
+              return ok({ playlist: my.name, count: songs.length, songs: songs.map(s => ({ name: s.name, artists: names(s) })) }, songs);
+            }
+            const favPl = (Store.FavPlaylists.all || []).find(p => norm2(p.name).indexOf(norm2(kw2)) >= 0 || norm2(kw2).indexOf(norm2(p.name)) >= 0);
+            if (favPl) {
+              try {
+                const list = await API.playlistTracks(favPl.id, 30, 0);
+                const songs = (list || []).slice(0, 30);
+                return ok({ playlist: favPl.name, count: songs.length, songs: songs.map(s => ({ name: s.name, artists: names(s) })) }, songs);
+              } catch (e) { return ok({ error: '读取歌单失败：' + e.message }); }
+            }
+            return ok({ error: '没有找到名为「' + kw2 + '」的歌单' });
+          }
+          case 'search_my_library': {
+            const kw3 = String(a.keyword || '').toLowerCase().trim();
+            const hit = [];
+            (Store.FavSongs.all || []).forEach(s => { if ((String(s.name) + names(s)).toLowerCase().indexOf(kw3) >= 0) hit.push(s); });
+            (Store.MyPlaylists.all || []).forEach(p => (p.songs || []).forEach(s => { if ((String(s.name) + names(s)).toLowerCase().indexOf(kw3) >= 0) hit.push(s); }));
+            const uniq = [];
+            const seen = {};
+            hit.forEach(s => { const k = String(s.id); if (!seen[k]) { seen[k] = 1; uniq.push(s); } });
+            const take = uniq.slice(0, 8);
+            if (!take.length) return ok({ found: 0, hint: '用户库里没有匹配的歌曲' });
+            return ok({ found: take.length, songs: take.map(s => ({ name: s.name, artists: names(s) })) }, take);
+          }
+          case 'share_current': {
+            const cur = Player.current();
+            if (!cur) return ok({ error: '当前没有播放歌曲' });
+            const cc = cur.cover || (cur.album && (cur.album.cover || cur.album.picUrl)) || '';
+            return ok({ shared: cur.name + ' - ' + names(cur), link: this._hbShareUrl('song', cur.id), note: '把链接原文写在回复里给用户' }, [{ id: cur.id, name: cur.name, artists: cur.artists, album: cur.album, cover: cc }]);
+          }
+          case 'share_song': {
+            const r = await this._hbSearchAny(a.keyword, 1);
+            const s0 = (r.list || [])[0];
+            if (!s0) return ok({ error: '没搜到《' + a.keyword + '》' });
+            return ok({ shared: s0.name + ' - ' + names(s0), link: this._hbShareUrl('song', s0.id), note: '把链接原文写在回复里给用户' }, [s0]);
+          }
+          case 'share_playlist': {
+            const kw = String(a.name || '');
+            const nrm = (x) => String(x || '').toLowerCase().replace(/\s/g, '');
+            const my = (Store.MyPlaylists.all || []).find(p => nrm(p.name).indexOf(nrm(kw)) >= 0 || nrm(kw).indexOf(nrm(p.name)) >= 0);
+            if (my) {
+              if (!Store.Session.loggedIn) return ok({ link: this._hbShareUrl('myplaylist', my.id), note: '本地自建歌单链接（登录后可生成好友可直接播放的短链）' });
+              try {
+                const j = await Store.Session.shareMp(my.id);
+                const origin = (location.origin && location.origin.indexOf('http') === 0) ? location.origin : 'https://www.bmusic.de5.net';
+                const url = origin + (j.url || ('/s/mp/' + j.token));
+                return ok({ playlist: my.name, link: url });
+              } catch (e) { return ok({ error: '生成分享链失败：' + e.message }); }
+            }
+            const fav = (Store.FavPlaylists.all || []).find(p => nrm(p.name).indexOf(nrm(kw)) >= 0 || nrm(kw).indexOf(nrm(p.name)) >= 0);
+            if (fav) return ok({ playlist: fav.name, link: this._hbShareUrl('playlist', fav.id) });
+            return ok({ error: '没有找到歌单「' + kw + '」' });
+          }
+          case 'favorite_playlist': {
+            const kw = String(a.name || '');
+            const nrm = (x) => String(x || '').toLowerCase().replace(/\s/g, '');
+            let pl = (Store.FavPlaylists.all || []).find(p => nrm(p.name).indexOf(nrm(kw)) >= 0);
+            if (!pl) {
+              const res = await API.search(kw, 1000, 5, 0).catch(() => null);
+              const arr = Array.isArray(res) ? res : ((res && res.playlists) || []);
+              const cand = arr[0];
+              if (cand) pl = { id: cand.id, name: cand.name, cover: cand.cover || (cand.album && cand.album.picUrl) || '' };
+            }
+            if (!pl) return ok({ error: '没找到歌单「' + kw + '」' });
+            const has = Store.FavPlaylists.has(pl.id);
+            const want = a.on !== false;
+            if (want !== has) Store.FavPlaylists.toggle(pl);
+            return ok({ playlist: pl.name, favorited: want });
+          }
+          case 'playlist_create': {
+            const name = String(a.name || '').trim();
+            if (!name) return ok({ error: '歌单名不能为空' });
+            const exists = (Store.MyPlaylists.all || []).some(p => p.name === name);
+            if (exists) return ok({ error: '已存在同名歌单' });
+            Store.MyPlaylists.create(name);
+            return ok({ created: name });
+          }
+          case 'playlist_add': {
+            const pname = String(a.playlist || '').trim();
+            let pl = (Store.MyPlaylists.all || []).find(p => p.name === pname);
+            if (!pl) { pl = Store.MyPlaylists.create(pname); }
+            const r = await this._hbSearchAny(a.keyword, 4);
+            const songs = (r.list || []).slice(0, 4);
+            if (!songs.length) return ok({ error: '没搜到《' + a.keyword + '》' });
+            const added = Store.MyPlaylists.addSongs(pl.id, songs) || 0;
+            return ok({ playlist: pname, added: added, songs: songs.map(s => s.name) }, songs);
+          }
+          case 'get_recent': {
+            const rec = (Store.Recent.all || []).slice(0, 12).map(s => ({ name: s.name, artists: names(s) }));
+            const hist = (Store.SearchHistory.all || []).slice(0, 10);
+            return ok({ 最近播放: rec, 搜索历史: hist });
+          }
+          case 'set_theme': {
+            const t = this.THEMES.find(x => x.name === String(a.name || ''));
+            if (!t) return ok({ error: '没有这个主题' });
+            this.setTheme(t.key);
+            return ok({ theme: t.name });
+          }
+          case 'download_current': {
+            const cur = Player.current();
+            if (!cur) return ok({ error: '当前没有播放歌曲' });
+            App._downloadSong(cur);
+            return ok({ downloading: cur.name + ' - ' + names(cur) });
+          }
+          case 'open_song': {
+            const r = await this._hbSearchAny(a.keyword, 1);
+            const s0 = (r.list || [])[0];
+            if (!s0) return ok({ error: '没搜到《' + a.keyword + '》' });
+            App.nav('song/' + s0.id);
+            return ok({ opened: s0.name }, [s0]);
+          }
+          case 'open_page': {
+            const p = String(a.page || 'discover');
+            App.nav(p);
+            return ok({ opened: p });
+          }
+          default:
+            return ok({ error: '未知工具：' + name });
+        }
+      } catch (e) {
+        return ok({ error: e.message || '工具执行失败' });
+      }
     },
 
     /* ============================================================
@@ -2587,14 +3507,19 @@
       //    （词开始 ~30% 亮 → 唱完 100% 亮）；无词数据则整段显示（活动行纯白）
       const el = els[li];
       if (el) {
+        if (this._lyricWaveLine !== li) { this._lyricWaveLine = li; this._lyricWaveIdx = null; }
         const ws = el.querySelectorAll('.ly-w');
         if (ws && ws.length) {
+          let curIdx = -1;   // 正在演唱的字（羽化边界所在字）
+          let lastOn = -1;   // 最后一个已唱完的字
           for (let k = 0; k < ws.length; k++) {
             const wt = parseFloat(ws[k].dataset.t);
             const wd = parseFloat(ws[k].dataset.d) || 0.2;
             const p = cur >= wt ? Math.min(1, (cur - wt) / wd) : 0; // 词演唱进度 0..1
             ws[k].style.setProperty('--wp', p.toFixed(3));
             ws[k].classList.toggle('on', p >= 1);
+            if (p > 0 && p < 1) curIdx = k;
+            else if (p >= 1) lastOn = k;
             // 滚动样式：仅【正在演唱的那个字】带字内扫光；未唱=整字均匀暗、已唱=整字纯白
             if (this._karaokeScroll) {
               if (p > 0 && p < 1) {
@@ -2619,6 +3544,37 @@
                 ws[k].style.maskImage = '';
               }
               if (ws[k].style.opacity) ws[k].style.opacity = '';
+            }
+          }
+          // 波浪位移：当前字【随字内播放进度】抬升（最大 1px）；
+          // 左侧已唱字按距离渐次衰减（尾波）；未唱字轻微下沉。位移精度 0.001px。
+          const idx = curIdx >= 0 ? curIdx : lastOn;
+          if (this._karaokeScroll) {
+            const CUR_UP = 1, STEP = 0.125, AHEAD_DOWN = 0.3;
+            // ① 索引变化时：刷新整行的尾波与未唱下沉
+            if (idx !== this._lyricWaveIdx) {
+              this._lyricWaveIdx = idx;
+              for (let k = 0; k < ws.length; k++) {
+                if (k === idx) continue; // 当前字交给 ② 每帧按进度处理
+                let y = 0;
+                if (idx >= 0) {
+                  const d = idx - k;
+                  if (d > 0) y = -Math.max(0, CUR_UP - d * STEP); // 已唱尾波
+                  else if (d < 0) y = AHEAD_DOWN;                 // 未唱微沉
+                }
+                ws[k].style.transform = y ? ('translateY(' + y.toFixed(3) + 'px)') : '';
+              }
+            }
+            // ② 每帧：当前字随字内进度抬升（0 → 1px），并保证它是唯一无过渡的字
+            for (let k = 0; k < ws.length; k++) {
+              const isCur = (k === idx && curIdx >= 0);
+              ws[k].classList.toggle('w-cur', isCur);
+            }
+            if (idx >= 0 && curIdx >= 0) {
+              const wt = parseFloat(ws[idx].dataset.t);
+              const wd = parseFloat(ws[idx].dataset.d) || 0.2;
+              const pk = cur >= wt ? Math.min(1, (cur - wt) / wd) : 0;
+              ws[idx].style.transform = pk > 0 ? ('translateY(' + (-CUR_UP * pk).toFixed(3) + 'px)') : '';
             }
           }
           // 行级遮罩（上一版实现）已废弃：清理残留，避免多行错乱
@@ -2933,7 +3889,7 @@
     },
 
     /* ============================================================
-     * 登录 / 注册（QQ 邮箱等任意邮箱账号；设置+收藏云端同步）
+     * 登录 / 注册（仅 QQ 邮箱账号；设置+收藏云端同步）
      * ============================================================ */
     openAuth(mode) {
       this._authMode = mode === 'register' ? 'register' : 'login';
@@ -2949,7 +3905,7 @@
       if (err) { err.textContent = ''; err.classList.add('hidden'); }
       if (capRow) capRow.classList.toggle('hidden', this._authMode !== 'register');
       if (pass2) pass2.classList.toggle('hidden', this._authMode !== 'register');
-      if (this._authMode === 'register') this._loadCaptcha();
+      if (this._authMode === 'register') this._resetAltcha();
       $('#auth').classList.remove('hidden');
       document.body.classList.add('no-scroll');
       setTimeout(() => { const e = $('#auth-email'); if (e) e.focus(); }, 60);
@@ -2960,7 +3916,6 @@
     },
     /** 加载滑动验证（缺口位置来自服务端） */
     async _loadCaptcha() {
-      this._captchaSolved = null;
       const slider = $('#auth-slider');
       const notch = $('#auth-slider-notch');
       const fill = $('#auth-slider-fill');
@@ -3027,7 +3982,7 @@
         const cap = this._captcha;
         const ok = cap && Math.abs(pos - cap.target) <= 6 && dur >= 300 && dur <= 15000;
         if (ok) {
-          this._captchaSolved = { id: cap.id, pos: Math.round(pos * 100) / 100, duration: dur };
+          this.null /* 旧滑块已废弃 */ = { id: cap.id, pos: Math.round(pos * 100) / 100, duration: dur };
           slider.classList.add('ok');
           if (hint) hint.textContent = '✓ 验证通过';
         } else {
@@ -3059,6 +4014,13 @@
       }
     },
     /** 侧栏账号区：未登录显示 登录/注册，已登录显示头像 + 邮箱 + 退出 */
+    /** HiBetter 入口仅登录后可见 */
+    _syncHibetterNav() {
+      const item = document.querySelector('.nav-item[data-nav="hibetter"]');
+      if (!item) return;
+      const logged = !!(Store.Session && Store.Session.loggedIn);
+      item.classList.toggle('hidden', !logged);
+    },
     _syncAuthUI() {
       const logged = Store.Session.loggedIn;
       const btns = $('#side-auth-btns');
@@ -3305,7 +4267,7 @@
         err.textContent = msg;
         err.classList.remove('hidden');
       };
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showErr('请输入正确的邮箱地址（支持 QQ 邮箱等）'); return; }
+      if (!/^[A-Za-z0-9._%+-]+@(qq\.com|foxmail\.com)$/i.test(email)) { showErr('仅支持 QQ 邮箱账号（@qq.com / @foxmail.com），其它邮箱无效'); return; }
       if (password.length < 6) { showErr('密码至少 6 位'); return; }
       if (this._authMode === 'register') {
         const pass2 = $('#auth-pass2').value;
@@ -3316,9 +4278,9 @@
       if (btn) { btn.disabled = true; btn.style.opacity = .6; }
       try {
         if (this._authMode === 'register') {
-          const cap = this._captchaSolved;
-          if (!cap) { showErr('请先完成滑动验证'); return; }
-          const j = await Store.Session.register(email, password, cap.id, cap.pos, cap.duration);
+          const altcha = this._altchaPayload();
+          if (!altcha) { showErr('请先完成人机验证（点击验证框的复选框）'); return; }
+          const j = await Store.Session.register(email, password, altcha);
           toast(j && j.existing ? '该邮箱已注册，密码正确，已直接登录' : '注册成功，已登录');
         } else {
           await Store.Session.login(email, password);
@@ -3511,9 +4473,14 @@
       ov.dataset.karaoke = mode;
       this._karaokeScroll = (mode === 'scroll');
       if (!this._karaokeScroll) {
-        // 切回渐显：清掉内联遮罩，避免残留
-        $$('.ly-w').forEach(w => { w.style.webkitMaskImage = ''; w.style.maskImage = ''; });
+        // 切回渐显：清掉扫光遮罩与波浪位移残留
+        $$('.ly-w').forEach(w => {
+          w.style.webkitMaskImage = ''; w.style.maskImage = '';
+          w.style.transform = ''; w.style.opacity = ''; w.dataset.mk = '';
+          w.classList.remove('w-cur');
+        });
         $$('.ly-line').forEach(l2 => { l2.style.webkitMaskImage = ''; l2.style.maskImage = ''; });
+        this._lyricWaveIdx = null;
       }
     },
     _syncVolume(v) {

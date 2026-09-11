@@ -369,10 +369,10 @@
       return j;
     },
 
-    async register(email, password, captchaId, pos, duration) {
+    async register(email, password, altcha) {
       const j = await Session._api('/register', {
         method: 'POST',
-        body: JSON.stringify({ email, password, captchaId, pos, duration }),
+        body: JSON.stringify({ email, password, altcha: altcha || '' }),
       });
       Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '', name: j.name || '', uid: j.uid || '' });
       document.dispatchEvent(new CustomEvent('ym:session'));

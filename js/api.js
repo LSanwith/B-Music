@@ -240,6 +240,13 @@
     },
 
     /** 歌曲详情（banner 跳转等） */
+    /** 批量歌曲详情（多个 id 用逗号连接），用于补全封面等字段 */
+    async songDetails(ids) {
+      const q = Array.isArray(ids) ? ids.join(',') : String(ids || '');
+      if (!q) return [];
+      const j = await requestNetease('/song/detail', { ids: q });
+      return (j.songs || []).map(normalizeSong).filter(Boolean);
+    },
     async songDetail(id) {
       const j = await requestNetease('/song/detail', { ids: id });
       const s = (j.songs || [])[0];
