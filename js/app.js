@@ -4128,6 +4128,10 @@
         '<div class="set-acc-foot"><button type="button" class="btn" id="set-logout">退出登录</button>' +
         '<button type="button" class="btn danger" id="set-delete-account">注销账号</button></div>' +
         '<div class="set-acc-note">注销后将永久删除账号与全部云端数据（设置、收藏歌曲、收藏歌单、自建歌单），且不可恢复</div>' +
+        '<div class="set-del-row hidden" id="set-del-row">' +
+        '<input class="auth-input" id="set-del-pw" type="password" placeholder="输入当前密码以确认注销" autocomplete="current-password">' +
+        '<button type="button" class="btn danger" id="set-del-confirm">确认注销账号</button>' +
+        '</div>' +
         '</div>';
       const av = $('#set-acc-avatar');
       if (av) av.addEventListener('click', () => this._changeAvatar());
@@ -4145,20 +4149,28 @@
       });
       const pwBtn = $('#set-pw-submit');
       const delBtn = $('#set-delete-account');
-      if (delBtn) delBtn.addEventListener('click', async () => {
+      const delRow = $('#set-del-row');
+      const delConfirm = $('#set-del-confirm');
+      if (delBtn && delRow) delBtn.addEventListener('click', () => {
+        delRow.classList.toggle('hidden');
+        const pw = $('#set-del-pw');
+        if (pw && !delRow.classList.contains('hidden')) pw.focus();
+      });
+      if (delConfirm) delConfirm.addEventListener('click', async () => {
         const mail = Store.Session.email || '当前账号';
+        const pw = ($('#set-del-pw') || {}).value || '';
+        if (!pw) { toast('请输入当前密码', 'warn'); return; }
         if (!confirm('注销账号：' + mail + '\n\n将永久删除：账号、云端设置、收藏歌曲、收藏歌单、自建歌单。\n此操作不可恢复，确定继续吗？')) return;
-        if (!confirm('最后确认：真的要注销 ' + mail + ' 吗？\n点击“确定”后立即删除全部数据。')) return;
-        delBtn.disabled = true;
-        delBtn.textContent = '正在注销…';
+        delConfirm.disabled = true;
+        delConfirm.textContent = '正在注销…';
         try {
-          await Store.Session.deleteAccount();
+          await Store.Session.deleteAccount(pw);
           toast('账号已注销，所有数据已清除');
           setTimeout(() => { location.hash = '#/discover'; location.reload(); }, 600);
         } catch (e) {
           toast('注销失败：' + e.message, 'warn');
-          delBtn.disabled = false;
-          delBtn.textContent = '注销账号';
+          delConfirm.disabled = false;
+          delConfirm.textContent = '确认注销账号';
         }
       });
       const loBtn = $('#set-logout');

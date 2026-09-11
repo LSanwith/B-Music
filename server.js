@@ -34,9 +34,9 @@ function authUser(req) {
   const h = req.headers['authorization'] || '';
   const m = /^Bearer\s+(\S+)$/.exec(h);
   if (!m) return null;
-  if (u && u.banned) { delete DB.sessions[m[1]]; saveDb(DB); return null; } // 封禁账号令牌立即失效
   const uid = DB.sessions[m[1]];
   const u = uid ? DB.users[uid] || null : null;
+  if (u && u.banned) { delete DB.sessions[m[1]]; saveDb(DB); return null; } // 封禁账号令牌立即失效
   return u;
 }
 function sendJson(res, code, obj) {
@@ -322,6 +322,10 @@ async function handleApi(req, res, urlPath) {
       return sendJson(res, 200, { ok: true });
     }
     if (urlPath === '/api/account/delete' && method === 'POST') {
+      const b = await readBody(req);
+      if (!b || hashPass(String(b.password || ''), user.salt) !== user.passHash) {
+        return sendJson(res, 403, { msg: '密码不正确，无法注销账号' });
+      }
       delete DB.users[user.id];
       delete DB.data[user.id];
       Object.keys(DB.sessions).forEach(t => { if (DB.sessions[t] === user.id) delete DB.sessions[t]; });

@@ -387,8 +387,8 @@
     },
 
     /** 注销账号：服务端删除账号与云端数据，本地清空全部数据并登出 */
-    async deleteAccount() {
-      await Session._api('/account/delete', { method: 'POST' });
+    async deleteAccount(password) {
+      await Session._api('/account/delete', { method: 'POST', body: JSON.stringify({ password: String(password || '') }) });
       try { Session.clearAll(); } catch (e) {}
       session = null;
       write('session', null);

@@ -317,6 +317,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true });
     }
     if (r === 'delete' && method === 'POST') {
+      const b = await readBody(req);
+      if (!b || hashPass(String(b.password || ''), user.salt) !== user.passHash) {
+        return res.status(403).json({ msg: '密码不正确，无法注销账号' });
+      }
       delete db.users[user.id];
       delete db.data[user.id];
       Object.keys(db.sessions).forEach(t => { if (db.sessions[t] === user.id) delete db.sessions[t]; });
