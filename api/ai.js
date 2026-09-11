@@ -57,7 +57,7 @@ export default async function handler(req, res) {
   const payload = {
     model: MODEL,
     messages: sanitizeMessages(sanitizeMessages(body.messages.slice(-30)).slice(-24)), // 清洗→限长→再清洗（截断不破坏配对）
-    reasoning_effort: 'low',                      // 推理等级 low（关闭推理会导致不调用工具/回复过短）
+    reasoning_effort: process.env.AI_EFFORT || 'medium', // 推理等级（low/medium/high，默认 medium）
     temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
     max_tokens: Math.min(2048, body.max_tokens || 900),
   };

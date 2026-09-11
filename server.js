@@ -147,7 +147,7 @@ async function handleApi(req, res, urlPath) {
       const payload = {
         model: 'deepseek-flash',
         messages: sanitizeAiMessages(sanitizeAiMessages(body.messages.slice(-30)).slice(-24)),
-        reasoning_effort: 'low',
+        reasoning_effort: process.env.AI_EFFORT || 'medium',
         temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
         max_tokens: Math.min(2048, body.max_tokens || 900),
       };
