@@ -80,10 +80,11 @@ async function handleApi(req, res, urlPath) {
       const muM = /MUSIC_U=([^;]+)/.exec(cookie);
       const csM = /__csrf=([^;]+)/.exec(cookie);
       cookie = (muM ? 'MUSIC_U=' + muM[1] : '') + (csM ? (muM ? '; ' : '') + '__csrf=' + csM[1] : '');
-      if (!cookie) return res.status(503).json({ msg: 'cookie 未配置' });
+      const sendJson = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); return true; };
+      if (!cookie) return sendJson(503, { msg: 'cookie 未配置' });
       const id = String((req.url.match(/[?&]id=(\d+)/) || [])[1] || '');
       const lvl = String(((req.url.match(/[?&]level=([a-z]+)/) || [])[1]) || 'lossless');
-      if (!id) return res.status(400).json({ msg: 'bad id' });
+      if (!id) return sendJson(400, { msg: 'bad id' });
       try {
         const u2 = new URL('https://silence-music-api.cc.cd/song/url/v1');
         u2.searchParams.set('id', id);
@@ -97,11 +98,11 @@ async function handleApi(req, res, urlPath) {
         const j = await r.json().catch(() => ({}));
         const d = (j && j.data && j.data[0]) || {};
         if (d && d.url) {
-          return res.status(200).json({ url: String(d.url).replace(/^http:\/\//i, 'https://'), br: d.br || 0, level: d.level || lvl, type: d.type || '' });
+          return sendJson(200, { url: String(d.url).replace(/^http:\/\//i, 'https://'), br: d.br || 0, level: d.level || lvl, type: d.type || '' });
         }
-        return res.status(404).json({ msg: '无源' });
+        return sendJson(404, { msg: '无源' });
       } catch (e) {
-        return res.status(502).json({ msg: e.message || 'upstream error' });
+        return sendJson(502, { msg: e.message || 'upstream error' });
       }
     }
     /* 人机验证（滑块拼图）：服务端下发随机缺口位置，一次一题，5 分钟有效 */
@@ -321,9 +322,27 @@ async function handleProxy(req, res, urlPath) {
     dest.searchParams.set('key', key);
   }
   try {
-    const ctrl = AbortSignal.timeout(25000);
+    const ctrl = AbortSignal.timeout(45000);
     const headers = { 'User-Agent': 'BMusicWeb/1.0' };
-    const upstream = await fetch(dest, { signal: ctrl, headers });
+    const opts = { signal: ctrl, headers };
+    // POST（听歌识曲音频上传等）：透传方法与原始 body
+    if (req.method && req.method !== 'GET' && req.method !== 'HEAD') {
+      opts.method = req.method;
+      if (req.headers['content-type']) headers['Content-Type'] = req.headers['content-type'];
+      const chunks = [];
+      let size = 0;
+      await new Promise((resolve, reject) => {
+        req.on('data', (c) => {
+          size += c.length;
+          if (size > 12 * 1024 * 1024) { reject(new Error('too large')); req.destroy(); return; }
+          chunks.push(c);
+        });
+        req.on('end', resolve);
+        req.on('error', reject);
+      }).catch(() => {});
+      if (chunks.length) opts.body = Buffer.concat(chunks);
+    }
+    const upstream = await fetch(dest, opts);
     const ctype = upstream.headers.get('content-type') || 'application/json';
     res.writeHead(upstream.status, {
       'Content-Type': ctype,

@@ -29,6 +29,8 @@
     lyricLineHeight: 1.75, // 歌词行距
     cacheOn: true,         // 音频本地缓存开关
     cacheCapMB: 300,       // 音频缓存容量上限（MB）
+    theme: 'black-red',    // 主题色（黑红/黑蓝/黑金/黑紫/白蓝/白金）
+    karaokeMode: 'fade',   // 逐字歌词效果：fade 渐显 / scroll 滚动扫光
   }, read('settings', {}));
 
   const Settings = {
@@ -42,6 +44,8 @@
     get playMode() { return SETTINGS.playMode; },
     get cacheOn() { return SETTINGS.cacheOn !== false; },
     get cacheCapMB() { return SETTINGS.cacheCapMB || 300; },
+    get theme() { return SETTINGS.theme || 'black-red'; },
+    get karaokeMode() { return SETTINGS.karaokeMode || 'fade'; },
     set(patch) {
       Object.assign(SETTINGS, patch);
       write('settings', SETTINGS);
@@ -332,6 +336,17 @@
       if (session) headers['Authorization'] = 'Bearer ' + session.token;
       return fetch(base + '/api' + path, Object.assign({ headers }, opts)).then(async (r) => {
         const j = await r.json().catch(() => ({}));
+        if (r.status === 401) {
+          // 会话失效（本地与线上库不同 / token 过期）：自动登出，停止轮询刷屏
+          if (Session.loggedIn) {
+            Session._setSession(null);
+            document.dispatchEvent(new CustomEvent('ym:session'));
+            try { UI.toast('登录已失效，请重新登录', 'warn'); } catch (e) {}
+          }
+          const e401 = new Error(j.msg || '未登录');
+          e401.status = 401;
+          throw e401;
+        }
         if (!r.ok) throw new Error(j.msg || ('HTTP ' + r.status));
         return j;
       });

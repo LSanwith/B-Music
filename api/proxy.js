@@ -13,6 +13,36 @@ const PROXY_ALLOWED = [
   'https://oiapi.net',
 ];
 
+/* 二进制上传（听歌识曲音频）：优先使用运行时已缓冲的 body，缺失时读原始流 */
+const MAX_UPLOAD = 12 * 1024 * 1024; // 12MB 上限
+
+function readRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on('data', (c) => {
+      size += c.length;
+      if (size > MAX_UPLOAD) { reject(new Error('too large')); req.destroy(); return; }
+      chunks.push(c);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+
+async function getBody(req) {
+  const b = req.body;
+  if (Buffer.isBuffer(b)) return b;
+  if (typeof b === 'string') return Buffer.from(b);
+  if (b && typeof b === 'object') {
+    // 运行时已按表单/JSON 解析：还原为查询串形式（一般不会走到这里）
+    const usp = new URLSearchParams();
+    Object.keys(b).forEach(k => usp.set(k, b[k]));
+    return Buffer.from(usp.toString());
+  }
+  return await readRawBody(req);
+}
+
 export default async function handler(req, res) {
   const target = req.query.u;
   const hk = req.query.hk === '1';
@@ -35,12 +65,17 @@ export default async function handler(req, res) {
     }
     dest.searchParams.set('key', key);
   }
+  // POST（音频上传等）：透传方法与原始 body
+  const isPost = req.method && req.method !== 'GET' && req.method !== 'HEAD';
+  const fwd = { headers: { 'User-Agent': 'BMusicWeb/1.0' }, signal: AbortSignal.timeout(45000) };
+  if (isPost) {
+    fwd.method = req.method;
+    if (req.headers['content-type']) fwd.headers['Content-Type'] = req.headers['content-type'];
+    try { fwd.body = await getBody(req); } catch (e) { return res.status(413).json({ code: -1, msg: 'upload too large' }); }
+  }
   let upstream;
   try {
-    upstream = await fetch(dest, {
-      headers: { 'User-Agent': 'BMusicWeb/1.0' },
-      signal: AbortSignal.timeout(25000),
-    });
+    upstream = await fetch(dest, fwd);
   } catch (e) {
     return res.status(502).json({ code: -1, msg: 'proxy upstream error' });
   }

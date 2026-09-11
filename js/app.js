@@ -58,6 +58,8 @@
       document.addEventListener('ym:favpls', () => this._onCloudDataChanged());
       document.addEventListener('ym:mypls', () => this._onCloudDataChanged());
       this._renderSidePlaylists();
+      this.applyTheme(Store.Settings.theme);
+      this._renderThemeMenu();
       this._renderQualityMenu();
       this.render();
       this._applySettingsToUI();
@@ -237,6 +239,7 @@
       if (root === 'playlists') return this.vPlaylists(params.get('cat'), params.get('order'));
       if (root === 'search') return this.vSearch(params.get('q') || '');
       if (root === 'favorites') return this.vFavorites();
+      if (root === 'recognize') return this.vRecognize();
       if (root === 'myplaylist' && seg[1]) return this.vMyPlaylist(seg[1]);
       if (root === 'share' && seg[1] === 'mp' && seg[2]) return this.vShareMp(seg[2]);
       if (root === 'song' && seg[1]) return this.vSong(seg[1]);
@@ -248,7 +251,7 @@
 
     _highlightNav(root) {
       $$('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.nav === root));
-      const titles = { discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单' };
+      const titles = { discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', recognize: '听歌识曲', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单' };
       const t = $('#page-title');
       if (t) t.textContent = titles[root] || '发现';
       const cur = Player.current();
@@ -260,6 +263,12 @@
       v.innerHTML = html;
       $('#main').scrollTop = 0;
       window.scrollTo(0, 0);
+      // 页面切换动画：内容高斯模糊淡入 + 子块自上而下缓动就位
+      v.classList.remove('view-anim');
+      void v.offsetWidth; // 强制重排以重启动画
+      v.classList.add('view-anim');
+      const kids = Array.prototype.slice.call(v.children).slice(0, 8);
+      kids.forEach((el, i) => { el.style.animationDelay = (i * 55) + 'ms'; });
       // 分享深度链接：列表就绪后自动定位并播放 ?song= 指定的歌曲
       if (html.indexOf('view-loading') < 0) this._tryAutoPlayShared();
     },
@@ -298,8 +307,283 @@
     },
 
     /* ============================================================
-     * 视图：发现
+     * 听歌识曲（严格照官方 demo：8kHz PCM → Shazam v2 指纹 → POST /audio/match）
+     *  - 录音：MediaRecorder 采 3 秒 → 解码为 8kHz 单声道 PCM（等价的 8k 重采样）
+     *  - 指纹：官方 WASM（afp.js / afp.wasm.js，8kHz 输入）
+     *  - 请求：POST {API_PRIMARY}/audio/match?duration=3&audioFP=<base64>（经同源代理）
+     *  - 结果：data.result 为数组，每项形如 { song:{id,name,album,artists}, startTime }
      * ============================================================ */
+    _recDuration: 6,
+    async vRecognize() {
+      this._setView(
+        '<div class="rec-wrap">' +
+        '<h2 class="rec-title">听歌识曲</h2>' +
+        '<div class="rec-sub">让音乐响起，点击麦克风开始识别（录制约 6 秒）</div>' +
+        '<div class="rec-stage" id="rec-stage">' +
+        '<span class="rec-ring"></span><span class="rec-ring d2"></span><span class="rec-ring d3"></span>' +
+        '<button type="button" class="rec-mic" id="rec-mic" aria-label="开始识别">' +
+        '<svg viewBox="0 0 24 24" aria-hidden="true" class="rec-mic-svg">' +
+        '<rect x="9" y="2.5" width="6" height="11" rx="3" fill="#fff"/>' +
+        '<path d="M5.5 11.2a6.5 6.5 0 0 0 13 0" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>' +
+        '<path d="M12 17.7v3.6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>' +
+        '</svg>' +
+        '</button>' +
+        '</div>' +
+        '<div class="rec-timer" id="rec-timer">00:00</div>' +
+        '<div class="rec-wave" id="rec-wave">' + new Array(28).join('<i></i>') + '</div>' +
+        '<div class="rec-tip" id="rec-tip">点击麦克风开始识别</div>' +
+        '<div class="rec-result" id="rec-result"></div>' +
+        '</div>');
+      const mic = $('#rec-mic');
+      if (mic) mic.addEventListener('click', () => this._toggleRecognize());
+    },
+
+    /** 把可能是对象/数组的字段安全转成字符串（识曲接口偶有嵌套结构） */
+    _textOf(v) {
+      if (v == null) return '';
+      if (typeof v === 'string') return v;
+      if (typeof v === 'number') return String(v);
+      if (Array.isArray(v)) return v.map(x => this._textOf(x)).filter(Boolean).join(' / ');
+      if (typeof v === 'object') return this._textOf(v.name || v.nickname || v.title || '');
+      return '';
+    },
+    _recogFail(msg) {
+      clearTimeout(this._recStopT);
+      this._recState = 'idle';
+      const stage = $('#rec-stage');
+      const tip = $('#rec-tip');
+      const box = $('#rec-result');
+      if (stage) stage.classList.remove('scanning', 'recording');
+      this._stopWaveLoop();
+      if (tip) tip.textContent = '未能识别，请重试';
+      if (box) box.innerHTML = '<div class="rec-empty">' + esc(msg) + '</div>';
+    },
+
+    async _toggleRecognize() {
+      if (this._recState === 'recording') { this._stopRecognize(); return; }
+      if (this._recState === 'uploading' || this._recState === 'stopping') return;
+      if (typeof window.GenerateFP !== 'function') {
+        this._recogFail('指纹模块未加载（js/afp.js 缺失）——请强制刷新（Ctrl+F5）'); return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') {
+        this._recogFail('当前浏览器不支持录音（请用 Chrome / Edge / Safari 新版）'); return;
+      }
+      const tip = $('#rec-tip');
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: false, autoGainControl: false, noiseSuppression: false },
+        });
+      } catch (e) {
+        this._recogFail('无法访问麦克风：' + ((e && e.name === 'NotAllowedError') ? '请在浏览器地址栏允许麦克风权限' : ((e && e.message) || '未知错误')));
+        return;
+      }
+      // 真实声波可视化（独立于录音实现）
+      let analyser = null, waveErr = '';
+      try {
+        // 单例分析上下文：复用同一个 AudioContext（反复新建可能触达浏览器上限而被拒）
+        if (!this._waveCtx || this._waveCtx.state === 'closed') {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          this._waveCtx = new AC();
+        }
+        const wctx = this._waveCtx;
+        if (wctx.state === 'suspended' && wctx.resume) { try { await wctx.resume(); } catch (e) {} }
+        const srcNode = wctx.createMediaStreamSource(stream);
+        analyser = wctx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.75;
+        srcNode.connect(analyser);
+        this._waveSrc = srcNode;
+      } catch (e) {
+        analyser = null;
+        waveErr = (e && e.message) || '未知错误';
+        window.__recWaveErr = waveErr;
+        console.warn('[recognize] 波形分析器初始化失败：', waveErr);
+      }
+      let mime = '';
+      for (const m of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg']) {
+        if (MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) { mime = m; break; }
+      }
+      let rec;
+      try { rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream); }
+      catch (e) { this._recogFail('录音初始化失败：' + e.message); stream.getTracks().forEach(t => t.stop()); return; }
+      const chunks = [];
+      rec.ondataavailable = (ev) => { if (ev.data && ev.data.size) chunks.push(ev.data); };
+      rec.onstop = async () => {
+        clearTimeout(this._recStopT);
+        this._stopWaveLoop();
+        try { stream.getTracks().forEach(t => t.stop()); } catch (e) {}
+        try { actx && actx.close(); } catch (e) {}
+        const dur = Math.max(1, Math.min(this._recDuration, this._recSec || this._recDuration));
+        const type = (rec.mimeType || mime || 'audio/webm').split(';')[0];
+        const blob = new Blob(chunks, { type: type });
+        if (!blob.size) { this._recogFail('没有录到声音（麦克风无输入？）请检查系统默认输入设备后重试'); return; }
+        this._recState = 'uploading';
+        try {
+          const pcm = await this._decodePCM(blob, this._recDuration);
+          if (!pcm || !pcm.length) { this._recogFail('音频解码失败（浏览器无法解析录音格式），请更换浏览器后重试'); return; }
+          this._recognizeFP(pcm, this._recDuration);
+        } catch (e) {
+          this._recogFail('音频处理失败：' + e.message);
+        }
+      };
+      this._recState = 'recording';
+      this._recSec = 0;
+      this._recRec = rec;
+      this._recStopT = 0;
+      const stage = $('#rec-stage');
+      if (stage) stage.classList.add('recording');
+      if (tip) tip.textContent = '正在聆听…（再次点击可提前结束）';
+      const timer = $('#rec-timer');
+      if (timer) timer.textContent = '00:00';
+      this._startWaveLoop(analyser);
+      try { rec.start(250); } catch (e) { this._recogFail('录音启动失败：' + e.message); return; }
+      clearInterval(this._recT);
+      this._recT = setInterval(() => {
+        this._recSec = (this._recSec || 0) + 1;
+        if (timer) timer.textContent = '00:0' + Math.min(9, this._recSec);
+        if (this._recSec >= this._recDuration) this._stopRecognize();
+      }, 1000);
+    },
+
+    _stopRecognize() {
+      if (this._recState !== 'recording') return;
+      this._recState = 'stopping';
+      clearInterval(this._recT);
+      try { if (this._recRec && this._recRec.state !== 'inactive') this._recRec.stop(); } catch (e) {}
+      clearTimeout(this._recStopT);
+      this._recStopT = setTimeout(() => {
+        if (this._recState === 'stopping') { this._stopWaveLoop(); this._recogFail('录音结束超时，请重试'); }
+      }, 2500);
+    },
+
+    /** 解码录音为 8kHz 单声道 Float32（与 demo 的 8k 采集等价） */
+    async _decodePCM(blob, seconds) {
+      const buf = await blob.arrayBuffer();
+      const AC = window.AudioContext || window.webkitAudioContext;
+      const ctx = new AC({ sampleRate: 8000 });
+      try {
+        const audio = await ctx.decodeAudioData(buf.slice(0));
+        const ch0 = audio.getChannelData(0);
+        const want = Math.round((seconds || 3) * 8000);
+        const n = Math.min(ch0.length, want);
+        const out = new Float32Array(Math.max(0, n));
+        out.set(ch0.subarray(0, n));
+        return out;
+      } finally {
+        try { ctx.close(); } catch (e) {}
+      }
+    },
+
+    /** 真实声波可视化：分析器频域能量驱动 28 条波形 */
+    _startWaveLoop(analyser) {
+      this._stopWaveLoop();
+      const bars = $$('#rec-wave i');
+      if (!bars.length) { const t = $('#rec-tip'); if (t) t.textContent = '正在聆听…（波形元素缺失）'; return; }
+      if (!analyser) { bars.forEach(b => { b.style.height = '8px'; }); return; }
+      const n = bars.length;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      const time = new Uint8Array(analyser.fftSize);
+      const tip = $('#rec-tip');
+      const tick = () => {
+        if (this._recState !== 'recording') return;
+        // 时域峰值：用于波形自适应增益（不展示给用户）
+        analyser.getByteTimeDomainData(time);
+        let peak = 0;
+        for (let k = 0; k < time.length; k++) { const d = Math.abs(time[k] - 128); if (d > peak) peak = d; }
+        if (tip && tip.textContent.indexOf('正在聆听') !== 0) tip.textContent = '正在聆听…（再次点击可提前结束）';
+        // 频域能量 → 波形条高度（按峰值做自适应增益，轻声也能看到起伏）
+        analyser.getByteFrequencyData(data);
+        const usable = Math.min(data.length, 96); // ≈0-9kHz：音乐能量集中区，保证每条都有响应
+        const gain = peak > 6 ? Math.min(4, 90 / peak) : 1;
+        for (let i = 0; i < n; i++) {
+          const lo = Math.floor(Math.pow(i / n, 1.6) * usable);
+          const hi = Math.max(lo + 1, Math.floor(Math.pow((i + 1) / n, 1.6) * usable));
+          let sum = 0, cnt = 0;
+          for (let k = lo; k < hi && k < usable; k++) { sum += data[k]; cnt++; }
+          const v = Math.min(1, (cnt ? (sum / cnt) / 255 : 0) * gain);
+          bars[i].style.height = (4 + Math.pow(v, 0.55) * 28).toFixed(1) + 'px';
+        }
+        this._waveRaf = requestAnimationFrame(tick);
+      };
+      this._waveRaf = requestAnimationFrame(tick);
+    },
+    _stopWaveLoop() {
+      if (this._waveRaf) { try { cancelAnimationFrame(this._waveRaf); } catch (e) {} this._waveRaf = 0; }
+      $$$('#rec-wave i').forEach(b => { b.style.height = '5px'; });
+    },
+
+    /** 指纹 → POST 识曲接口 → 结果卡片（结果结构：data.result 为 [{song:{...}}]） */
+    async _recognizeFP(pcm, seconds) {
+      const stage = $('#rec-stage');
+      const tip = $('#rec-tip');
+      const box = $('#rec-result');
+      if (stage) stage.classList.add('scanning');
+      if (tip) tip.textContent = '识别中…';
+      if (box) box.innerHTML = '<div class="rec-loading"><span></span><span></span><span></span>正在匹配歌曲</div>';
+      const base = (location.protocol === 'file:' && window.APP_LOCAL_SERVER) ? window.APP_LOCAL_SERVER : '';
+      try {
+        const fp = await window.GenerateFP(pcm);
+        const target = window.APP_CONFIG.API_PRIMARY + '/audio/match?duration=' + seconds + '&audioFP=' + encodeURIComponent(fp);
+        const r = await fetch(base + '/proxy?u=' + encodeURIComponent(target), { method: 'POST' });
+        const j = await r.json().catch(() => ({}));
+        const d = (j && j.data) || {};
+        const list = d.result;
+        // demo：data.result 为数组，元素形如 { song:{id,name,album,artists}, startTime }
+        const first = Array.isArray(list) ? list[0] : (list && typeof list === 'object' ? list : null);
+        const song = first && (first.song || (first.songs && first.songs[0]) || first);
+        const sid = song && (song.id || song.songId);
+        if (sid) {
+          // 补全详情：识曲结果常缺封面/完整歌手，用歌曲详情覆盖（失败则用原数据）
+          try {
+            const dt = await API.songDetail ? await API.songDetail(String(sid)) : null;
+            if (dt) {
+              if (dt.name) song.name = dt.name;
+              if (dt.artists && dt.artists.length) song.artists = dt.artists;
+              if (dt.album) song.album = Object.assign({}, song.album, dt.album);
+              if (dt.duration) song.duration = dt.duration;
+            }
+          } catch (e) { /* 用识曲原数据 */ }
+          const name = this._textOf(song.name) || this._textOf(song.songName) || '未知歌曲';
+          const ars = song.artists || song.ar || [];
+          const artists = (Array.isArray(ars) ? ars : []).map(x => ({ name: this._textOf(x && x.name) })).filter(x => x.name);
+          const album = song.album || song.al || {};
+          const pic = album.picUrl || album.coverImgUrl || song.cover || '';
+          const s = {
+            id: String(sid), name: name, artists: artists,
+            album: { name: this._textOf(album.name), id: album.id || '', picUrl: pic },
+            cover: pic, // 播放栏封面读取的是 song.cover
+            duration: song.duration || song.dt || 0,
+          };
+          if (box) {
+            box.innerHTML =
+              '<div class="rec-card">' +
+              '<img class="rec-cover" src="' + esc(coverUrl(album.picUrl || '')) + '" alt="" loading="lazy">' +
+              '<div class="rec-info"><div class="rec-name">' + esc(name) + '</div>' +
+              '<div class="rec-artist">' + esc(artists.map(x => x.name).join(' / ') || '未知歌手') + '</div></div>' +
+              '<button type="button" class="btn primary" id="rec-play">播放</button>' +
+              '</div>';
+            const btn = $('#rec-play');
+            if (btn) btn.addEventListener('click', () => { Player.playQueue([s], 0); toast('开始播放《' + name + '》'); });
+          }
+          if (tip) tip.textContent = '识别成功！';
+        } else {
+          const reason = (d && d.noMatchReason !== undefined) ? ('（noMatchReason=' + d.noMatchReason + '）') : '';
+          if (box) box.innerHTML = '<div class="rec-empty">没有识别到歌曲' + reason + '：请让音乐更清晰、离麦克风近一些（外放音量中等），或重试一次</div>';
+          if (tip) tip.textContent = '未识别到，可重新尝试';
+        }
+      } catch (e) {
+        if (box) box.innerHTML = '<div class="rec-empty">识别失败：' + esc(e.message) + '</div>';
+        if (tip) tip.textContent = '识别失败，请重试';
+      } finally {
+        this._recState = 'idle';
+        if (stage) stage.classList.remove('scanning', 'recording');
+        const timer = $('#rec-timer');
+        if (timer) timer.textContent = '00:00';
+        this._recSec = 0;
+      }
+    },
+
     async vDiscover() {
       const seq = this._viewSeq;
       this._viewLoading();
@@ -1722,7 +2006,7 @@
         const sync = () => {
           const ratio = bar.value / 1000;
           bar.style.background = 'linear-gradient(to right, ' + color + ' 0%, ' + color + ' ' + ratio * 100 +
-            '%, rgba(255,255,255,.22) ' + ratio * 100 + '%, rgba(255,255,255,.22) 100%)';
+            '%, rgba(var(--fg-rgb),.26) ' + ratio * 100 + '%, rgba(var(--fg-rgb),.26) 100%)';
         };
         bar.addEventListener('pointerdown', () => {
           const a = Player.audio;
@@ -1745,7 +2029,7 @@
         bar.sync = sync;
       };
       bindBar('#pb-bar', (t) => Player.seek(t), 'var(--accent)');
-      bindBar('#ov-bar', (t) => Player.seek(t), '#ffffff');
+      bindBar('#ov-bar', (t) => Player.seek(t), 'var(--fg-strong)');
 
       /* 音量：拖动时实时生效，松开才写入存储（避免每 tick 同步写 localStorage） */
       const bindVol = (barId, muteId) => {
@@ -2311,6 +2595,36 @@
             const p = cur >= wt ? Math.min(1, (cur - wt) / wd) : 0; // 词演唱进度 0..1
             ws[k].style.setProperty('--wp', p.toFixed(3));
             ws[k].classList.toggle('on', p >= 1);
+            // 滚动样式：仅【正在演唱的那个字】带字内扫光；未唱=整字均匀暗、已唱=整字纯白
+            if (this._karaokeScroll) {
+              if (p > 0 && p < 1) {
+                const q = (p * 100).toFixed(1);
+                const grad = 'linear-gradient(90deg, rgba(0,0,0,1) calc(' + q + '% - 2.5px), rgba(0,0,0,.5) calc(' + q + '% + 2.5px))';
+                if (ws[k].dataset.mk !== grad) {
+                  ws[k].dataset.mk = grad;
+                  ws[k].style.webkitMaskImage = grad;
+                  ws[k].style.maskImage = grad;
+                }
+                if (ws[k].style.opacity !== '1') ws[k].style.opacity = '1';
+              } else {
+                if (ws[k].style.maskImage || ws[k].style.webkitMaskImage) {
+                  ws[k].style.webkitMaskImage = '';
+                  ws[k].style.maskImage = '';
+                }
+                if (ws[k].style.opacity) ws[k].style.opacity = '';
+              }
+            } else {
+              if (ws[k].style.maskImage || ws[k].style.webkitMaskImage) {
+                ws[k].style.webkitMaskImage = '';
+                ws[k].style.maskImage = '';
+              }
+              if (ws[k].style.opacity) ws[k].style.opacity = '';
+            }
+          }
+          // 行级遮罩（上一版实现）已废弃：清理残留，避免多行错乱
+          if (el.style.maskImage || el.style.webkitMaskImage) {
+            el.style.webkitMaskImage = '';
+            el.style.maskImage = '';
           }
         }
         const d = parseFloat(el.dataset.d) || 5;
@@ -2345,18 +2659,17 @@
       const el = this._lyricEls && this._lyricEls[li];
       if (!wrap || !el) return this._lyricScroll || 0;
       const m = this._lyricM && this._lyricM[li];
-      const travel = 20; // 随唱上滑行程 px
       const wrapH = this._wrapClientH || wrap.clientHeight;
       const scrollH = this._wrapScrollH || wrap.scrollHeight;
       const lineH = m ? m.h : (el.offsetHeight || 42);
       const base = m ? m.top : el.offsetTop;
       let target;
       if (window.matchMedia && window.matchMedia('(max-width: 700px)').matches) {
-        // 以上边缘为准：第一行恒在 30% 线（用户标注：主句继续上移，绿框内多显示一行）
-        target = base - wrapH * 0.30 + 8 + (p || 0) * travel;
+        // 以上边缘为准：第一行恒在 30% 线（到位后静止，不再随唱上滑）
+        target = base - wrapH * 0.30 + 8;
       } else {
-        // 桌面：块中心对齐
-        target = base + lineH / 2 - wrapH / 2 + 10 + (p || 0) * travel;
+        // 桌面：当前句对齐可视区约 1/3 线（偏上，与手机端一致；到位后静止，不再随唱上滑）
+        target = base + lineH / 2 - wrapH * 0.44 + 10;
       }
       return Math.max(0, Math.min(Math.max(0, scrollH - wrapH), target));
     },
@@ -2432,7 +2745,10 @@
     openOverlay() {
       if (!Player.current()) { toast('当前没有播放歌曲', 'warn'); return; }
       const ov = $('#overlay');
-      ov.classList.remove('hidden');
+      clearTimeout(this._ovT);
+      ov.classList.remove('hidden', 'ov-closing');
+      ov.classList.add('ov-opening');
+      this._ovT = setTimeout(() => ov.classList.remove('ov-opening'), 420);
       document.body.classList.add('no-scroll');
       this.startLyricLoop();
       this._syncLyric(Player.curTime);
@@ -2445,10 +2761,19 @@
       }
     },
     closeOverlay() {
-      $('#overlay').classList.add('hidden');
+      const ov = $('#overlay');
       this.stopLyricLoop();
       if (!$('#queue-drawer').classList.contains('hidden')) this.closeQueue();
       document.body.classList.remove('no-scroll');
+      if (ov.classList.contains('hidden')) return;
+      // 退出动画：下滑淡出后再隐藏（期间再次打开会取消并直接显示）
+      clearTimeout(this._ovT);
+      ov.classList.remove('ov-opening');
+      ov.classList.add('ov-closing');
+      this._ovT = setTimeout(() => {
+        ov.classList.add('hidden');
+        ov.classList.remove('ov-closing');
+      }, 260);
     },
 
     /* ---------------- 音质（仅设置弹窗内切换） ---------------- */
@@ -3035,6 +3360,8 @@
         }));
       }
       this._onQuality({ quality: Player.quality });
+      this._renderThemeMenu();
+      this.applyTheme(Store.Settings.theme);
       this._syncVolume();
       /* 歌词样式：字号 / 粗细 / 行距 */
       const LYR_OPTS = {
@@ -3047,21 +3374,29 @@
         'set-lyric-lh': [
           { v: 1.5, l: '紧凑' }, { v: 1.75, l: '标准' }, { v: 2.1, l: '宽松' },
         ],
+        'set-karaoke': [
+          { v: 'fade', l: '渐显' }, { v: 'scroll', l: '滚动' },
+        ],
       };
       for (const id of Object.keys(LYR_OPTS)) {
         const b = $('#' + id);
         if (!b || b.dataset.bound) continue;
         b.dataset.bound = '1';
         // size→lyricSize / weight→lyricWeight / lh→lyricLineHeight
-        const KEY_MAP = { size: 'lyricSize', weight: 'lyricWeight', lh: 'lyricLineHeight' };
-        const key = KEY_MAP[id.slice('set-lyric-'.length)] ||
-          ('lyric' + id.slice('set-lyric-'.length).replace(/^([a-z])/, (m, c) => c.toUpperCase()));
+        const KEY_MAP = {
+          'set-lyric-size': 'lyricSize',
+          'set-lyric-weight': 'lyricWeight',
+          'set-lyric-lh': 'lyricLineHeight',
+          'set-karaoke': 'karaokeMode',
+        };
+        const key = KEY_MAP[id] || ('lyric' + id.replace('set-lyric-', '').replace(/^([a-z])/, (m, c) => c.toUpperCase()));
         const cur = Store.Settings[key];
         b.innerHTML = LYR_OPTS[id].map(o =>
           '<button class="q-item' + (cur === o.v ? ' active' : '') + '" data-v="' + o.v + '"><span class="q-name">' + o.l + '</span>' +
           '<span class="q-check">✓</span></button>').join('');
         b.querySelectorAll('.q-item').forEach(el => el.addEventListener('click', () => {
-          Store.Settings.set({ [key]: parseFloat(el.dataset.v) });
+          const raw = el.dataset.v;
+          Store.Settings.set({ [key]: (key === 'karaokeMode') ? raw : parseFloat(raw) });
           this._applyLyricStyle();
           b.querySelectorAll('.q-item').forEach(x => x.classList.toggle('active', x === el));
           toast('歌词样式已更新');
@@ -3144,7 +3479,7 @@
           const paint = () => {
             const p = +slider.value;
             slider.style.background = 'linear-gradient(to right, #fa2d3c 0%, #fa2d3c ' + p +
-              '%, rgba(255,255,255,.22) ' + p + '%, rgba(255,255,255,.22) 100%)';
+              '%, rgba(var(--fg-rgb),.26) ' + p + '%, rgba(var(--fg-rgb),.26) 100%)';
           };
           slider.addEventListener('input', () => { fmt(); paint(); });
           slider.addEventListener('change', () => {
@@ -3172,6 +3507,14 @@
       ov.style.setProperty('--lyric-size', Store.Settings.lyricSize + 'px');
       ov.style.setProperty('--lyric-weight', Store.Settings.lyricWeight);
       ov.style.setProperty('--lyric-lh', Store.Settings.lyricLineHeight);
+      const mode = Store.Settings.karaokeMode || 'fade';
+      ov.dataset.karaoke = mode;
+      this._karaokeScroll = (mode === 'scroll');
+      if (!this._karaokeScroll) {
+        // 切回渐显：清掉内联遮罩，避免残留
+        $$('.ly-w').forEach(w => { w.style.webkitMaskImage = ''; w.style.maskImage = ''; });
+        $$('.ly-line').forEach(l2 => { l2.style.webkitMaskImage = ''; l2.style.maskImage = ''; });
+      }
     },
     _syncVolume(v) {
       if (v === undefined) v = Store.Settings.muted ? 0 : Store.Settings.volume;
@@ -3180,10 +3523,10 @@
       $('#ov-volume').value = v;
       const fill = (el, color) => {
         el.style.background = 'linear-gradient(to right, ' + color + ' 0%, ' + color + ' ' + v +
-          '%, rgba(255,255,255,.22) ' + v + '%, rgba(255,255,255,.22) 100%)';
+          '%, rgba(var(--fg-rgb),.26) ' + v + '%, rgba(var(--fg-rgb),.26) 100%)';
       };
       fill($('#pb-volume'), 'var(--accent)');
-      fill($('#ov-volume'), '#ffffff');
+      fill($('#ov-volume'), 'var(--fg-strong)');
       const muted = Store.Settings.muted || v === 0;
       $('#pb-mute').classList.toggle('muted', muted);
       $('#ov-mute').classList.toggle('muted', muted);
@@ -3191,6 +3534,55 @@
     _onSettings(d) {
       if ('volume' in d || 'muted' in d) this._syncVolume();
       if ('quality' in d) this._onQuality({ quality: Player.quality });
+      if ('theme' in d) { this.applyTheme(Store.Settings.theme); this._renderThemeMenu(); }
+    },
+
+    /* ---------------- 主题色 ---------------- */
+    THEMES: [
+      { key: 'black-red', name: '黑红', bg: '#0b0b0e', ac: '#fa2d3c', dark: true },
+      { key: 'black-blue', name: '黑蓝', bg: '#0b0b0e', ac: '#3b82f6', dark: true },
+      { key: 'black-gold', name: '黑金', bg: '#0b0b0e', ac: '#e0b64a', dark: true },
+      { key: 'black-purple', name: '黑紫', bg: '#0b0b0e', ac: '#a855f7', dark: true },
+      { key: 'white-red', name: '白红', bg: '#f6f4f5', ac: '#e0343f', dark: false },
+      { key: 'white-blue', name: '白蓝', bg: '#f3f5f9', ac: '#2563eb', dark: false },
+      { key: 'white-gold', name: '白金', bg: '#f7f5f0', ac: '#b8860b', dark: false },
+      { key: 'white-purple', name: '白紫', bg: '#f6f4fa', ac: '#7c3aed', dark: false },
+    ],
+    /** 应用主题（设置 data-theme + 浏览器栏配色） */
+    applyTheme(t) {
+      const key = (this.THEMES.some(x => x.key === t) ? t : 'black-red');
+      document.documentElement.setAttribute('data-theme', key);
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute('content', key.indexOf('white-') === 0 ? '#f3f5f9' : '#0b0b0e');
+    },
+    setTheme(t) {
+      const it = this.THEMES.find(x => x.key === t);
+      if (!it) return;
+      Store.Settings.set({ theme: t });
+      this.applyTheme(t);
+      this._renderThemeMenu();
+      toast('主题已切换：' + it.name);
+    },
+    _renderThemeMenu() {
+      const box = $('#set-theme');
+      if (!box) return;
+      const cur = Store.Settings.theme;
+      if (!box.dataset.bound) {
+        box.dataset.bound = '1';
+        box.addEventListener('click', (e) => {
+          const el = e.target.closest('.theme-card');
+          if (el) this.setTheme(el.dataset.t);
+        });
+      }
+      box.innerHTML = this.THEMES.map(t =>
+        '<button type="button" class="theme-card' + (cur === t.key ? ' active' : '') + '" data-t="' + t.key + '">' +
+        '<span class="theme-prev" style="background:' + t.bg + '">' +
+        '<i class="tp-side" style="background:' + (t.dark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.07)') + '"></i>' +
+        '<i class="tp-line" style="background:' + (t.dark ? 'rgba(255,255,255,.42)' : 'rgba(0,0,0,.34)') + '"></i>' +
+        '<i class="tp-line short" style="background:' + (t.dark ? 'rgba(255,255,255,.24)' : 'rgba(0,0,0,.18)') + '"></i>' +
+        '<i class="tp-btn" style="background:' + t.ac + '"></i>' +
+        '</span>' +
+        '<span class="theme-name">' + t.name + '</span></button>').join('');
     },
 
     /* ---------------- 侧边栏收藏歌单 ---------------- */
