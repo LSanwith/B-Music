@@ -56,6 +56,10 @@ export default async function handler(req, res) {
 
   // 用户自定义模型配置（可选）：优先使用用户自己的地址/密钥/模型
   const custom = body.custom || null;
+  const wantsCustom = !!(custom && (String(custom.baseUrl || '').trim() || String(custom.model || '').trim()));
+  if (wantsCustom && !String(custom.apiKey || '').trim()) {
+    return res.status(400).json({ ok: false, msg: '自定义模型必须填写你自己的 API Key（不能使用本站内置密钥）' });
+  }
   const useKey = (custom && custom.apiKey) ? String(custom.apiKey).trim() : key;
   let useUrl = (custom && custom.baseUrl) ? String(custom.baseUrl).trim() : DS_URL;
   if (!/^https?:\/\//i.test(useUrl)) return res.status(400).json({ ok: false, msg: 'API 网址需以 http(s):// 开头' });

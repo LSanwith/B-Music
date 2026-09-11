@@ -4162,7 +4162,7 @@
         '<input class="auth-input" data-ai-f="name" placeholder="配置名称（如 我的 GPT-4o）" value="' + esc(p.name || '') + '">' +
         '<input class="auth-input" data-ai-f="baseUrl" placeholder="API 网址（如 https://api.openai.com/v1）" value="' + esc(p.baseUrl || '') + '">' +
         '<input class="auth-input" data-ai-f="model" placeholder="模型名（如 gpt-4o / deepseek-v4-pro）" value="' + esc(p.model || '') + '">' +
-        '<input class="auth-input" data-ai-f="apiKey" type="password" placeholder="API Key（sk-...，留空用内置）" value="' + esc(p.apiKey || '') + '">' +
+        '<input class="auth-input" data-ai-f="apiKey" type="password" placeholder="API Key（必填：自定义模型必须用自己的密钥）" value="' + esc(p.apiKey || '') + '">' +
         '<select class="auth-input" data-ai-f="effort">' +
         ['', 'low', 'medium', 'high'].map(v => '<option value="' + v + '"' + ((p.effort || '') === v ? ' selected' : '') + '>' + (v ? ('推理等级：' + v) : '推理等级：默认') + '</option>').join('') +
         '</select>' +
@@ -4236,10 +4236,25 @@
           if (!t.value) { toast('已切换到：内置默认模型'); return; }
           const p = this._aiProfiles().find(x => x.id === t.value) || {};
           const nm = p.name || '自定义模型';
-          const empty = !String(p.baseUrl || '').trim() && !String(p.model || '').trim() && !String(p.apiKey || '').trim();
-          if (empty) toast('已启用「' + nm + '」，但该配置为空白 → 实际仍使用内置默认模型', 'warn');
-          else if (!String(p.baseUrl || '').trim() || !String(p.model || '').trim()) toast('已启用「' + nm + '」：' + (!String(p.baseUrl||'').trim() ? 'API 网址' : '模型名') + '为空，该项将回落内置', 'warn');
-          else toast('已切换到：' + nm);
+          const hasUrl = !!String(p.baseUrl || '').trim();
+          const hasModel = !!String(p.model || '').trim();
+          const hasKey = !!String(p.apiKey || '').trim();
+          // 自定义模型必须填写自己的 API Key，不能用本站内置密钥
+          if ((hasUrl || hasModel) && !hasKey) {
+            this._aiOpen = this._aiOpen || {};
+            this._aiOpen[t.value] = true; // 自动展开，方便填写
+            this._aiSave(this._aiProfiles(), ''); // 取消启用，回到内置默认
+            this._renderSettingsAI();
+            toast('自定义模型必须填写你自己的 API Key（不能使用本站内置密钥）', 'warn');
+            return;
+          }
+          if (!hasUrl || !hasModel) {
+            this._aiSave(this._aiProfiles(), '');
+            this._renderSettingsAI();
+            toast('请先填写 ' + (!hasUrl ? 'API 网址' : '模型名') + '，再启用该配置', 'warn');
+            return;
+          }
+          toast('已切换到：' + nm);
           return;
         }
         if (t.dataset && t.dataset.aiF) {
@@ -4251,8 +4266,8 @@
           });
           this._aiSave(list, this._aiActiveId());
           const cur = list.find(x => x.id === this._aiActiveId());
-          const blank = cur && !String(cur.baseUrl || '').trim() && !String(cur.model || '').trim() && !String(cur.apiKey || '').trim();
-          toast(blank ? '已保存；该配置为空，AI 将使用内置默认模型' : '配置已保存（云端同步）');
+          const needKey = cur && (String(cur.baseUrl || '').trim() || String(cur.model || '').trim()) && !String(cur.apiKey || '').trim();
+          toast(needKey ? '已保存；该配置缺少你自己的 API Key，启用前请补上' : '配置已保存（云端同步）', needKey ? 'warn' : undefined);
         }
       });
     },
