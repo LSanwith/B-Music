@@ -2038,3 +2038,7 @@ body:has(#playerbar:not(.hidden)) .hb-wrap { padding-bottom: 0; }
 .set-ai-card.active .set-ai-tag { color: var(--accent); border-color: rgba(var(--accent-rgb), .55); }
 .set-ai-fields { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .set-ai-fields .auth-input { margin-bottom: 0; }
+/* AI ??????????????????????????????????? */
+.set-ai-card .set-btns { display: flex; justify-content: flex-end; margin-top: 8px; gap: 8px; }
+.set-ai-card .set-btns .mini-btn { padding: 5px 14px; }
+.set-ai-fields { gap: 8px; }
