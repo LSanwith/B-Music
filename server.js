@@ -160,7 +160,7 @@ async function handleApi(req, res, urlPath) {
         messages: sanitizeAiMessages(sanitizeAiMessages(body.messages.slice(-30)).slice(-24)),
         reasoning_effort: (function () {
           const e = (custom && custom.effort) ? String(custom.effort).trim() : '';
-          if (!e) return process.env.AI_EFFORT || 'medium';
+          if (!e) return process.env.AI_EFFORT || 'low';
           return e === 'off' ? 'none' : e;
         })(),
         temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
