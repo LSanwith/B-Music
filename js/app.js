@@ -372,7 +372,12 @@
       ];
     },
     HB_SYS() {
-      return '你是「HiBetter」，B·Music 网页版内置的 AI 音乐助手。' +
+            return '【最高优先·必须遵守】你是中文音乐助手 HiBetter。三条铁律：\n' +
+        '① 每轮回复必须先调用工具（如 get_my_library / search_music），禁止只回一句话、禁止用英文；\n' +
+        '② 推荐歌曲时正文【严格 4 行】，每行格式：歌名 —— 歌手 —— 20 字内推荐语；歌名与歌手必须逐字来自 search_music 结果，绝不能编造；\n' +
+        '③ 正文不要开场白、不要总结、不要客套话。\n\n' +
+        '以下是补充规则：\n' +
+        '你是「HiBetter」，B·Music 网页版内置的 AI 音乐助手。' +
         '你可以调用工具来搜索音乐、播放/暂停/切歌、调音量、跳进度、切音质、切播放模式、收藏、查看播放状态、跳转页面。' +
         '规则：1) 用户想听某首歌/某类音乐 → 先用 search_music 看看，再决定是否 play_music；推荐多首时用 search_music 返回卡片。' +
         '2) 用户说“放/播放” → 直接 play_music；说“下一首/暂停/继续” → 用 control。' +
@@ -870,8 +875,8 @@
       const tools = this.HB_TOOLS();
       try {
         let rounds = 0;
-        let nudged = false; // 是否已因“未调用工具”催过一次
-        while (rounds++ < 5) {
+        let nudged = 0; // 已因输出不合格纠错的次数（最多 2 次）
+        while (rounds++ < 7) { // 含最多 2 次自动纠错重试
           const j = await this._hbApi(this._hbHistory, tools);
           const msg = j.message || {};
           if (msg.reasoning) reasoningAcc += (reasoningAcc ? '\n' : '') + msg.reasoning;
@@ -888,13 +893,22 @@
             }
             continue;
           }
-          // 兜底：AI 没有调用任何工具、也没给出卡片，且回复很短（或整句英文）→ 催它一次
+          // ===== 输出校验：空话 / 格式不合格 → 自动纠错重试（最多 2 次）=====
           const txt = String(msg.content || '').trim();
-          const looksLazy = !(this._hbCards && this._hbCards.length) && txt.length < 80 && (!/[一-龥]/.test(txt) || txt.length < 40);
-          if (looksLazy && !nudged && rounds < 5) {
-            nudged = true;
+          const noChinese = !/[\u4e00-\u9fa5]/.test(txt);
+          const songLines = txt.split('\n').filter(l => /——|—|--/.test(l) && l.trim().length > 3).length;
+          const lastUser = String(((this._hbHistory.filter(m => m.role === 'user').slice(-1)[0] || {}).content) || '');
+          const isRecommend = !!(this._hbCards && this._hbCards.length) || /推荐|来点|适合|歌单|几首|换一批/.test(lastUser);
+          const lazy = !(this._hbCards && this._hbCards.length) && txt.length < 80 && (noChinese || txt.length < 40);
+          const badFormat = isRecommend && txt && (songLines < 4 || noChinese);
+          if ((lazy || badFormat) && nudged < 2 && rounds < 6) {
+            nudged++;
             this._hbHistory.push({ role: 'assistant', content: msg.content || '' });
-            this._hbHistory.push({ role: 'user', content: '（系统提示：你刚才没有调用任何工具就结束了。请立即调用 get_my_library 了解我的口味，再用 search_music 搜索并推荐 4 首歌曲，然后给出中文回复。）', hidden: true });
+            const tip = lazy
+              ? '（系统提示：你刚才没有调用工具或只回了一句话。现在立即调用 get_my_library 与 search_music，然后用简体中文按格式回复。）'
+              : '（系统提示：格式不合格。请重新输出：正文必须【正好 4 行】、全中文，每行严格为「歌名 —— 歌手 —— 20 字内推荐语」，歌名与歌手逐字来自 search_music 结果，不要任何其它文字。）';
+            this._hbHistory.push({ role: 'user', content: tip, hidden: true });
+            console.log('[hibetter] 输出不合格（' + (lazy ? '空话/英文' : '格式仅 ' + songLines + ' 行') + '）→ 自动纠错重试 #' + nudged);
             continue;
           }
           this._hbHistory.push({ role: 'assistant', content: msg.content || '（没有返回内容）', cards: this._hbCards || null, reasoning: reasoningAcc, trace: traceAcc.slice() });
