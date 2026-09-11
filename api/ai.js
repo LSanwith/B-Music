@@ -68,7 +68,11 @@ export default async function handler(req, res) {
   const payload = {
     model: useModel,
     messages: sanitizeMessages(sanitizeMessages(body.messages.slice(-30)).slice(-24)), // 清洗→限长→再清洗（截断不破坏配对）
-    reasoning_effort: (custom && custom.effort) ? String(custom.effort) : (process.env.AI_EFFORT || 'medium'), // 推理等级
+    reasoning_effort: (function () {
+      const e = (custom && custom.effort) ? String(custom.effort).trim() : '';
+      if (!e) return process.env.AI_EFFORT || 'medium';
+      return e === 'off' ? 'none' : e; // off → none（DeepSeek 关闭推理的写法）
+    })(), // 推理等级（按用户所选档位）
     temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
     max_tokens: Math.min(2048, body.max_tokens || 900),
   };

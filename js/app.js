@@ -4144,6 +4144,23 @@
         return { baseUrl: p.baseUrl || '', apiKey: p.apiKey || '', model: p.model || '', effort: p.effort || '' };
       } catch (e) { return null; }
     },
+    /** 按 API 网址返回可用的推理等级选项（不同厂商支持不同档位） */
+    _aiEffortOptions(baseUrl) {
+      const u = String(baseUrl || '').toLowerCase();
+      if (/deepseek/.test(u)) {
+        return { label: 'DeepSeek', opts: [['', '默认'], ['off', 'off（关闭推理）'], ['low', 'low（轻推理）'], ['high', 'high（高推理）'], ['max', 'max（最强推理）']] };
+      }
+      if (/openai|gpt|azure/.test(u)) {
+        return { label: 'OpenAI', opts: [['', '默认'], ['minimal', 'minimal（最省）'], ['low', 'low'], ['medium', 'medium'], ['high', 'high'], ['ultra', 'ultra（最强）']] };
+      }
+      if (/anthropic|claude/.test(u)) {
+        return { label: 'Claude', opts: [['', '默认'], ['off', 'off'], ['low', 'low'], ['medium', 'medium'], ['high', 'high'], ['max', 'max']] };
+      }
+      if (/moonshot|kimi|qwen|dashscope|zhipu|glm|siliconflow/.test(u)) {
+        return { label: '国产模型', opts: [['', '默认'], ['low', 'low'], ['medium', 'medium'], ['high', 'high']] };
+      }
+      return { label: '通用', opts: [['', '默认'], ['low', 'low'], ['medium', 'medium'], ['high', 'high']] };
+    },
     _renderSettingsAI() {
       const box = $('#set-ai-list');
       if (!box) return;
@@ -4155,7 +4172,7 @@
         '<div class="set-ai-card' + (p.id === active ? ' active' : '') + (opened[p.id] ? ' open' : '') + '" data-ai-id="' + esc(p.id) + '">' +
         '<label class="set-ai-head"><input type="radio" name="ai-active" value="' + esc(p.id) + '"' + (p.id === active ? ' checked' : '') + '>' +
         '<span class="set-ai-name">' + esc(p.name || '未命名模型') + '</span>' +
-        '<span class="set-ai-sum">' + esc(p.model || (p.baseUrl ? '已填网址' : '未配置')) + '</span>' +
+        '<span class="set-ai-sum">' + esc((p.model || (p.baseUrl ? '已填网址' : '未配置')) + (p.effort ? ' · ' + p.effort : '')) + '</span>' +
         '<span class="set-ai-tag">' + (p.id === active ? '使用中' : '未启用') + '</span>' +
         '<button type="button" class="set-ai-toggle" data-ai-toggle="' + esc(p.id) + '" aria-label="展开/收起">' + (opened[p.id] ? '收起' : '展开') + '</button></label>' +
         '<div class="set-ai-fields">' +
@@ -4163,8 +4180,14 @@
         '<input class="auth-input" data-ai-f="baseUrl" placeholder="API 网址（如 https://api.openai.com/v1）" value="' + esc(p.baseUrl || '') + '">' +
         '<input class="auth-input" data-ai-f="model" placeholder="模型名（如 gpt-4o / deepseek-v4-pro）" value="' + esc(p.model || '') + '">' +
         '<input class="auth-input" data-ai-f="apiKey" type="password" placeholder="API Key（必填：自定义模型必须用自己的密钥）" value="' + esc(p.apiKey || '') + '">' +
-        '<select class="auth-input" data-ai-f="effort">' +
-        ['', 'low', 'medium', 'high'].map(v => '<option value="' + v + '"' + ((p.effort || '') === v ? ' selected' : '') + '>' + (v ? ('推理等级：' + v) : '推理等级：默认') + '</option>').join('') +
+        '<select class="auth-input" data-ai-f="effort" title="按 API 网址自动匹配可选档位">' +
+        (function (opts) {
+          const list = opts.opts.slice();
+          const cur = p.effort || '';
+          const vals = list.map(x => x[0]);
+          if (cur && vals.indexOf(cur) < 0) list.unshift([cur, cur + '（自定义）']);
+          return list.map(x => '<option value="' + x[0] + '"' + (cur === x[0] ? ' selected' : '') + '>推理等级：' + x[1] + '</option>').join('');
+        })(this._aiEffortOptions(p.baseUrl)) +
         '</select>' +
         '</div>' +
         '<div class="set-btns"><button class="mini-btn danger" data-ai-del="' + esc(p.id) + '">删除</button></div>' +
@@ -4260,11 +4283,13 @@
         if (t.dataset && t.dataset.aiF) {
           const box = $('#set-ai-list');
           if (!box) return;
+          const isUrl = t.dataset.aiF === 'baseUrl';
           const list = Array.from(box.querySelectorAll('[data-ai-id]')).filter(c => c.dataset.aiId).map((c) => {
             const get = (f) => { const el = c.querySelector('[data-ai-f="' + f + '"]'); return el ? el.value.trim() : ''; };
             return { id: c.dataset.aiId, name: get('name'), baseUrl: get('baseUrl'), model: get('model'), apiKey: get('apiKey'), effort: get('effort') };
           });
           this._aiSave(list, this._aiActiveId());
+          if (isUrl) { this._renderSettingsAI(); return; } // 网址变了 → 刷新推理等级可选档位
           const cur = list.find(x => x.id === this._aiActiveId());
           const needKey = cur && (String(cur.baseUrl || '').trim() || String(cur.model || '').trim()) && !String(cur.apiKey || '').trim();
           toast(needKey ? '已保存；该配置缺少你自己的 API Key，启用前请补上' : '配置已保存（云端同步）', needKey ? 'warn' : undefined);

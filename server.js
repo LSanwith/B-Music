@@ -158,7 +158,11 @@ async function handleApi(req, res, urlPath) {
       const payload = {
         model: useModel,
         messages: sanitizeAiMessages(sanitizeAiMessages(body.messages.slice(-30)).slice(-24)),
-        reasoning_effort: (custom && custom.effort) ? String(custom.effort) : (process.env.AI_EFFORT || 'medium'),
+        reasoning_effort: (function () {
+          const e = (custom && custom.effort) ? String(custom.effort).trim() : '';
+          if (!e) return process.env.AI_EFFORT || 'medium';
+          return e === 'off' ? 'none' : e;
+        })(),
         temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
         max_tokens: Math.min(2048, body.max_tokens || 900),
       };
