@@ -3881,7 +3881,7 @@
         if (panel) panel.scrollTop = 0;
         if (name === 'account') this._renderSettingsAccount();
         if (name === 'cache') this._bindCacheSettings();
-        if (name === 'ai') this._renderSettingsAI();
+        if (name === 'ai' && typeof this._renderSettingsAI === 'function') this._renderSettingsAI();
         if (!name) this._refreshSettingsMenuAccount();
       };
       // 若非切换（打开时首次 / 连续点击同一页）→ 直接切换
