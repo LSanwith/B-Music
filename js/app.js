@@ -2879,7 +2879,10 @@
       /* 侧栏头像：点击更换（未登录时随 #side-user 隐藏） */
       const sideAvatar = $('#side-user-avatar');
       if (sideAvatar) sideAvatar.addEventListener('click', () => this._changeAvatar());
-      document.addEventListener('ym:session', () => this._syncAuthUI());
+      document.addEventListener('ym:session', () => {
+        this._syncAuthUI();
+        this._onSessionChanged();
+      });
       /* 侧栏抽屉开合：手机端伴随灰色遮罩，点遮罩/点导航/点收藏歌单均可收起 */
       const setSide = (open) => {
         const sb = $('#sidebar');
@@ -4016,6 +4019,24 @@
       }
     },
     /** 侧栏账号区：未登录显示 登录/注册，已登录显示头像 + 邮箱 + 退出 */
+    /** 登录状态变化（登录/注册/登出/换号）：刷新 HiBetter 状态，避免显示错乱 */
+    _onSessionChanged() {
+      // 换账号后清空 AI 对话（避免把上一个账号的推荐/口味带到新账号）
+      this._hbHistory = [];
+      this._hbCards = null;
+      this._hbCardSongs = [];
+      this._hbGreeted = false;
+      this._hbBusy = false;
+      this._hbLoaded = true; // 本次加载已初始化过，不再整页清空
+      const root = ((location.hash || '').replace(/^#\/?/, '').split('/')[0]) || '';
+      if (root !== 'hibetter') return;
+      if (Store.Session && Store.Session.loggedIn) {
+        this.render(); // 重建 HiBetter（用户名、门禁、主动推荐）
+      } else {
+        toast('该页面需要登录后使用，已返回发现音乐', 'warn');
+        this.nav('discover');
+      }
+    },
     /** HiBetter 入口仅登录后可见 */
     _syncHibetterNav() {
       const item = document.querySelector('.nav-item[data-nav="hibetter"]');
