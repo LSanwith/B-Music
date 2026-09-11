@@ -34,8 +34,10 @@ function authUser(req) {
   const h = req.headers['authorization'] || '';
   const m = /^Bearer\s+(\S+)$/.exec(h);
   if (!m) return null;
+  if (u && u.banned) { delete DB.sessions[m[1]]; saveDb(DB); return null; } // 封禁账号令牌立即失效
   const uid = DB.sessions[m[1]];
-  return uid ? DB.users[uid] || null : null;
+  const u = uid ? DB.users[uid] || null : null;
+  return u;
 }
 function sendJson(res, code, obj) {
   const body = JSON.stringify(obj);
@@ -249,6 +251,11 @@ async function handleApi(req, res, urlPath) {
       const email = String(b.email || '').trim().toLowerCase();
       if (!QQ_MAIL_RE.test(email)) return sendJson(res, 403, { msg: '本服务仅接受 QQ 邮箱账号（@qq.com / @foxmail.com），其它邮箱一律无效' });
       const user = Object.values(DB.users).find(u => u.email === email);
+      if (user && user.banned) {
+        Object.keys(DB.sessions).forEach(t => { if (DB.sessions[t] === user.id) delete DB.sessions[t]; });
+        saveDb(DB);
+        return sendJson(res, 403, { msg: '该账号已被封禁，无法登录' });
+      }
       if (!user || hashPass(String(b.password || ''), user.salt) !== user.passHash) {
         return sendJson(res, 401, { msg: '邮箱或密码错误' });
       }

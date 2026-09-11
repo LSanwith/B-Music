@@ -90,7 +90,9 @@ function authUser(db, req) {
   const m = /^Bearer\s+(\S+)$/.exec(req.headers.authorization || '');
   if (!m) return null;
   const uid = db.sessions[m[1]];
-  return uid ? db.users[uid] || null : null;
+  const u = uid ? db.users[uid] || null : null;
+  if (u && u.banned) { delete db.sessions[m[1]]; return null; } // 封禁账号令牌立即失效
+  return u;
 }
 /* ---------- 独立 KV 键（分享快照等，避免占用主 db 1MB 上限） ---------- */
 let MEM_EXT = {};
@@ -199,6 +201,11 @@ export default async function handler(req, res) {
       const email = String(b.email || '').trim().toLowerCase();
       if (!QQ_MAIL_RE.test(email)) return res.status(403).json({ msg: '本服务仅接受 QQ 邮箱账号（@qq.com / @foxmail.com），其它邮箱一律无效' });
       const user = Object.values(db.users).find(u => u.email === email);
+      if (user && user.banned) {
+        Object.keys(db.sessions || {}).forEach(t => { if (db.sessions[t] === user.id) delete db.sessions[t]; });
+        await saveDb(db);
+        return res.status(403).json({ msg: '该账号已被封禁，无法登录' });
+      }
       if (!user || hashPass(String(b.password || ''), user.salt) !== user.passHash) {
         return res.status(401).json({ msg: '邮箱或密码错误' });
       }
