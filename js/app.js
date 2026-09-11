@@ -760,7 +760,6 @@
     _hbRenderAllInner(box) {
       const items = (this._hbHistory || []).filter(m => !m.hidden && (m.role === 'user' || (m.role === 'assistant' && (m.content || (m.cards && m.cards.length))))).slice(-8);
       const rendered = items.map((m, i) => this._hbBubble(m, i)).join('');
-      console.log('[hibetter] 历史', (this._hbHistory || []).length, '条 → 渲染', items.length, '条 / HTML', rendered.length, '字符');
       box.innerHTML = rendered || '<div class="hb-empty">看看 ai 推荐中有没有你心仪的歌曲吧~</div>';
       // 卡片点击播放：直接用所属消息的歌曲数组，避免索引错位
       // 复制按钮：复制该条 AI 回复的纯文本（含链接）
