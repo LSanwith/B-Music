@@ -853,7 +853,7 @@
           return o;
         })),
         tools: tools,
-        custom: this._aiCustom(), // 自定义模型配置（未配置则 null，用内置默认）
+        custom: (typeof this._aiCustom === 'function') ? this._aiCustom() : null, // 自定义模型配置（缺失/未配置时用内置默认）
       };
       const r = await fetch(base + '/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json().catch(() => ({}));
@@ -4117,6 +4117,93 @@
       if (sub) sub.textContent = Store.Session.loggedIn ? (Store.Session.email || '已登录') : '未登录';
     },
     /** 刷新设置弹窗「账号设置」分区内容；登录/退出/换头像（ym:session）后都会调用 */
+    /** ===== AI 助手：自定义模型配置（名称/网址/密钥/模型/推理等级）===== */
+    _aiProfiles() {
+      const s = (Store.Settings && Store.Settings.aiProfiles) || [];
+      return Array.isArray(s) ? s : [];
+    },
+    _aiActiveId() {
+      return (Store.Settings && Store.Settings.aiActiveId) || '';
+    },
+    _aiSave(list, activeId) {
+      Store.Settings.set({ aiProfiles: list || [], aiActiveId: activeId === undefined ? this._aiActiveId() : activeId });
+    },
+    /** 当前生效的自定义模型配置（没有则返回 null，表示用内置默认） */
+    _aiCustom() {
+      try {
+        const id = this._aiActiveId();
+        if (!id) return null;
+        const p = this._aiProfiles().find(x => x.id === id);
+        if (!p) return null;
+        return { baseUrl: p.baseUrl || '', apiKey: p.apiKey || '', model: p.model || '', effort: p.effort || '' };
+      } catch (e) { return null; }
+    },
+    _renderSettingsAI() {
+      const box = $('#set-ai-list');
+      if (!box) return;
+      const list = this._aiProfiles();
+      const active = this._aiActiveId();
+      const card = (p) => (
+        '<div class="set-ai-card' + (p.id === active ? ' active' : '') + '" data-ai-id="' + esc(p.id) + '">' +
+        '<label class="set-ai-head"><input type="radio" name="ai-active" value="' + esc(p.id) + '"' + (p.id === active ? ' checked' : '') + '>' +
+        '<span class="set-ai-name">' + esc(p.name || '未命名模型') + '</span>' +
+        '<span class="set-ai-tag">' + (p.id === active ? '使用中' : '点击启用') + '</span></label>' +
+        '<div class="set-ai-fields">' +
+        '<input class="auth-input" data-ai-f="name" placeholder="配置名称（如 我的 GPT-4o）" value="' + esc(p.name || '') + '">' +
+        '<input class="auth-input" data-ai-f="baseUrl" placeholder="API 网址（如 https://api.openai.com/v1）" value="' + esc(p.baseUrl || '') + '">' +
+        '<input class="auth-input" data-ai-f="model" placeholder="模型名（如 gpt-4o / deepseek-v4-pro）" value="' + esc(p.model || '') + '">' +
+        '<input class="auth-input" data-ai-f="apiKey" type="password" placeholder="API Key（sk-...，留空用内置）" value="' + esc(p.apiKey || '') + '">' +
+        '<select class="auth-input" data-ai-f="effort">' +
+        ['', 'low', 'medium', 'high'].map(v => '<option value="' + v + '"' + ((p.effort || '') === v ? ' selected' : '') + '>' + (v ? ('推理等级：' + v) : '推理等级：默认') + '</option>').join('') +
+        '</select>' +
+        '</div>' +
+        '<div class="set-btns"><button class="mini-btn danger" data-ai-del="' + esc(p.id) + '">删除</button></div>' +
+        '</div>'
+      );
+      box.innerHTML =
+        '<div class="set-ai-card' + (!active ? ' active' : '') + '" data-ai-id="">' +
+        '<label class="set-ai-head"><input type="radio" name="ai-active" value=""' + (!active ? ' checked' : '') + '>' +
+        '<span class="set-ai-name">内置默认（DeepSeek · 本站提供 · 无需密钥）</span>' +
+        '<span class="set-ai-tag">' + (!active ? '使用中' : '点击启用') + '</span></label>' +
+        '</div>' + list.map(card).join('');
+      box.querySelectorAll('input[name="ai-active"]').forEach((r) => r.addEventListener('change', () => {
+        this._aiSave(this._aiProfiles(), r.value);
+        this._renderSettingsAI();
+        const nm = r.value ? ((this._aiProfiles().find(x => x.id === r.value) || {}).name || '自定义模型') : '内置默认模型';
+        toast('已切换到：' + nm);
+      }));
+      const collect = () => Array.from(box.querySelectorAll('[data-ai-id]')).filter(c => c.dataset.aiId).map((c) => {
+        const get = (f) => { const el = c.querySelector('[data-ai-f="' + f + '"]'); return el ? el.value.trim() : ''; };
+        return { id: c.dataset.aiId, name: get('name'), baseUrl: get('baseUrl'), model: get('model'), apiKey: get('apiKey'), effort: get('effort') };
+      });
+      box.querySelectorAll('[data-ai-f]').forEach((el) => el.addEventListener('change', () => {
+        this._aiSave(collect(), this._aiActiveId());
+        toast('配置已保存（云端同步）');
+      }));
+      box.querySelectorAll('[data-ai-del]').forEach((btn) => btn.addEventListener('click', () => {
+        const id = btn.dataset.aiDel;
+        if (!confirm('删除这条模型配置？')) return;
+        const list2 = this._aiProfiles().filter(x => x.id !== id);
+        this._aiSave(list2, this._aiActiveId() === id ? '' : this._aiActiveId());
+        this._renderSettingsAI();
+        toast('已删除该配置');
+      }));
+      const addBtn = $('#set-ai-add');
+      if (addBtn && !addBtn._bound) {
+        addBtn._bound = true;
+        addBtn.addEventListener('click', () => {
+          const list2 = this._aiProfiles();
+          list2.push({ id: 'ai' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name: '新模型 ' + (list2.length + 1), baseUrl: '', model: '', apiKey: '', effort: '' });
+          this._aiSave(list2);
+          this._renderSettingsAI();
+        });
+      }
+      const rst = $('#set-ai-reset');
+      if (rst && !rst._bound) {
+        rst._bound = true;
+        rst.addEventListener('click', () => { this._aiSave([], ''); this._renderSettingsAI(); toast('已恢复内置默认模型'); });
+      }
+    },
     _renderSettingsAccount() {
       const box = $('#set-account');
       if (!box) return;
