@@ -264,7 +264,7 @@
       const t = $('#page-title');
       if (t) {
         if (root === 'hibetter') {
-          t.innerHTML = esc(this._hbUserName()) + ' <em class="beta-tag">Beta·AI</em>'; // HiBetter 处于 Beta 阶段
+          t.innerHTML = 'HiBetter <em class="beta-tag">Beta·AI</em>'; // 顶栏固定展示产品名与阶段
         } else {
           t.textContent = titles[root] || 'HiBetter';
         }
@@ -408,7 +408,7 @@
       this._setView(
         '<div class="hb-wrap">' +
         '<div class="hb-head">' +
-        '<h2 class="hb-title">' + (this._hbLoggedIn() ? esc(this._hbUserName()) + ' <em>Beta·AI</em>' : '未登录用户') + '</h2>' +
+        '<h2 class="hb-title">' + (this._hbLoggedIn() ? esc(this._hbUserName()) : '未登录用户') + '</h2>' +
         '<div class="hb-sub" id="hb-greet">' + this._hbGreeting() + '</div>' +
         '</div>' +
         '<div class="hb-chat" id="hb-msgs"></div>' +
@@ -696,9 +696,11 @@
       const matched = used.filter(Boolean).length;
       // 全部未匹配（AI 没逐条描述）→ 卡片统一列在末尾
       if (!matched && cards.length) {
+        // AI 正文没提到任何真实结果（多为幻觉）→ 只展示真实卡片，避免图文不符
         let all = '';
         cards.forEach((s, i) => { all += this._hbCardOne(s, i); });
-        return out.join('<br>') + '<div class="hb-cards-title">🎵 实际找到的歌曲</div><div class="hb-cards">' + all + '</div>';
+        const intro = out.filter(l => l.indexOf('hb-icard') < 0 && !/——|--|—/.test(l.replace(/<[^>]+>/g, ''))).join('<br>');
+        return (intro ? intro + '<br>' : '') + '<div class="hb-cards-title">🎵 为你找到以下歌曲</div><div class="hb-cards">' + all + '</div>';
       }
       // 部分匹配：把“像歌名但没有真实结果”的行隐藏，避免图文不符（只保留有卡片支撑的歌曲行）
       if (matched && cards.length) {
