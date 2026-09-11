@@ -4218,8 +4218,13 @@
         if (t.name === 'ai-active') {
           this._aiSave(this._aiProfiles(), t.value);
           this._renderSettingsAI();
-          const nm = t.value ? ((this._aiProfiles().find(x => x.id === t.value) || {}).name || '自定义模型') : '内置默认模型';
-          toast('已切换到：' + nm);
+          if (!t.value) { toast('已切换到：内置默认模型'); return; }
+          const p = this._aiProfiles().find(x => x.id === t.value) || {};
+          const nm = p.name || '自定义模型';
+          const empty = !String(p.baseUrl || '').trim() && !String(p.model || '').trim() && !String(p.apiKey || '').trim();
+          if (empty) toast('已启用「' + nm + '」，但该配置为空白 → 实际仍使用内置默认模型', 'warn');
+          else if (!String(p.baseUrl || '').trim() || !String(p.model || '').trim()) toast('已启用「' + nm + '」：' + (!String(p.baseUrl||'').trim() ? 'API 网址' : '模型名') + '为空，该项将回落内置', 'warn');
+          else toast('已切换到：' + nm);
           return;
         }
         if (t.dataset && t.dataset.aiF) {
@@ -4230,7 +4235,9 @@
             return { id: c.dataset.aiId, name: get('name'), baseUrl: get('baseUrl'), model: get('model'), apiKey: get('apiKey'), effort: get('effort') };
           });
           this._aiSave(list, this._aiActiveId());
-          toast('配置已保存（云端同步）');
+          const cur = list.find(x => x.id === this._aiActiveId());
+          const blank = cur && !String(cur.baseUrl || '').trim() && !String(cur.model || '').trim() && !String(cur.apiKey || '').trim();
+          toast(blank ? '已保存；该配置为空，AI 将使用内置默认模型' : '配置已保存（云端同步）');
         }
       });
     },
