@@ -31,6 +31,8 @@
     cacheCapMB: 300,       // 音频缓存容量上限（MB）
     theme: 'black-red',    // 主题色（黑红/黑蓝/黑金/黑紫/白蓝/白金）
     karaokeMode: 'fade',   // 逐字歌词效果：fade 渐显 / scroll 滚动扫光
+    aiProfiles: [],        // AI 助手自定义模型配置（随账号云端同步）
+    aiActiveId: '',        // 当前启用的模型配置 id（空 = 用内置默认）
   }, read('settings', {}));
 
   const Settings = {
@@ -46,6 +48,8 @@
     get cacheCapMB() { return SETTINGS.cacheCapMB || 300; },
     get theme() { return SETTINGS.theme || 'black-red'; },
     get karaokeMode() { return SETTINGS.karaokeMode || 'fade'; },
+    get aiProfiles() { return Array.isArray(SETTINGS.aiProfiles) ? SETTINGS.aiProfiles : []; },
+    get aiActiveId() { return SETTINGS.aiActiveId || ''; },
     set(patch) {
       Object.assign(SETTINGS, patch);
       write('settings', SETTINGS);

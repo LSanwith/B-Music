@@ -4119,11 +4119,17 @@
     /** 刷新设置弹窗「账号设置」分区内容；登录/退出/换头像（ym:session）后都会调用 */
     /** ===== AI 助手：自定义模型配置（名称/网址/密钥/模型/推理等级）===== */
     _aiProfiles() {
-      const s = (Store.Settings && Store.Settings.aiProfiles) || [];
-      return Array.isArray(s) ? s : [];
+      try {
+        const S = Store.Settings;
+        const s = (S.aiProfiles && S.aiProfiles.length !== undefined) ? S.aiProfiles : ((S.all && S.all.aiProfiles) || []);
+        return Array.isArray(s) ? s : [];
+      } catch (e) { return []; }
     },
     _aiActiveId() {
-      return (Store.Settings && Store.Settings.aiActiveId) || '';
+      try {
+        const S = Store.Settings;
+        return S.aiActiveId || ((S.all && S.all.aiActiveId) || '');
+      } catch (e) { return ''; }
     },
     _aiSave(list, activeId) {
       Store.Settings.set({ aiProfiles: list || [], aiActiveId: activeId === undefined ? this._aiActiveId() : activeId });
