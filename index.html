@@ -216,6 +216,14 @@
               </div>
               <svg class="set-menu-arrow" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M384 224v576l288-288z"/></svg>
             </div>
+            <!-- AI 助手（自定义模型配置） -->
+            <div class="set-menu-row" data-setpage="ai">
+              <div class="set-menu-tx">
+                <div class="set-menu-name">AI 助手</div>
+                <div class="set-menu-sub">模型 / API 网址 / 密钥（云端同步）</div>
+              </div>
+              <svg class="set-menu-arrow" viewBox="0 0 1024 1024" aria-hidden="true"><path d="M384 224v576l288-288z"/></svg>
+            </div>
             <!-- 缓存 -->
             <div class="set-menu-row" data-setpage="cache">
               <div class="set-menu-tx">
@@ -250,6 +258,25 @@
           <div class="set-cat">
             <div class="set-head">账号设置</div>
             <div class="set-group" id="set-account"></div>
+          </div>
+        </div>
+
+        <!-- ===== 二级页：AI 助手（自定义模型配置） ===== -->
+        <div class="set-page hidden" id="set-page-ai">
+          <div class="set-page-head">
+            <button type="button" class="view-back" data-setback><svg viewBox="0 0 1024 1024"><path d="M672 224c-17.6 0-32 14.4-32 32v512c0 17.6 14.4 32 32 32s32-14.4 32-32V256c0-17.6-14.4-32-32-32z m-21.2 31.2L317.6 485.6c-12.4 11.2-12.4 30.4 0 41.6l333.2 230.4c5.2 3.6 11.2 5.6 17.2 5.6 8.4 0 16.4-3.6 21.8-9.8 9.8-11 8.6-27.8-2.4-37.6L377.6 512l309.6-204c11-9.8 12.2-26.6 2.4-37.6-5.4-6.2-13.4-9.8-21.8-9.8-6.4 0-12.4 1.8-17.2 5.6z"/></svg><span>设置</span></button>
+          </div>
+          <div class="set-cat">
+            <div class="set-head">AI 助手模型</div>
+            <div class="set-group">
+              <div class="set-label">模型配置（可添加多条并随时切换；配置随账号云端同步）</div>
+              <div id="set-ai-list" class="set-ai-list"></div>
+              <div class="set-btns">
+                <button class="mini-btn" id="set-ai-add">+ 添加模型配置</button>
+                <button class="mini-btn" id="set-ai-reset">恢复内置默认</button>
+              </div>
+              <div class="set-hint">留空的项将使用本站内置默认（DeepSeek）。密钥仅保存在你的账号云端数据里，不会出现在前端代码中。</div>
+            </div>
           </div>
         </div>
 

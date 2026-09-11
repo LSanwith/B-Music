@@ -2028,3 +2028,13 @@ body:has(#playerbar:not(.hidden)) .hb-wrap { padding-bottom: 0; }
 /* ?????????? */
 .set-del-row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
 .set-del-row .auth-input { flex: 1; min-width: 220px; max-width: 320px; margin-bottom: 0; }
+/* AI ??????????? */
+.set-ai-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+.set-ai-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; background: rgba(var(--fg-rgb), .03); }
+.set-ai-card.active { border-color: rgba(var(--accent-rgb), .6); background: rgba(var(--accent-rgb), .07); }
+.set-ai-head { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.set-ai-name { font-size: 13.5px; font-weight: 600; color: var(--fg-strong); flex: 1; }
+.set-ai-tag { font-size: 11px; color: var(--sub); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; }
+.set-ai-card.active .set-ai-tag { color: var(--accent); border-color: rgba(var(--accent-rgb), .55); }
+.set-ai-fields { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.set-ai-fields .auth-input { margin-bottom: 0; }

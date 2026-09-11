@@ -854,6 +854,7 @@
           return o;
         })),
         tools: tools,
+        custom: this._aiCustom(), // 自定义模型配置（未配置则 null，用内置默认）
       };
       const r = await fetch(base + '/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const j = await r.json().catch(() => ({}));
@@ -3868,7 +3869,7 @@
     /** 设置弹窗二级页导航：'' → 一级列表（默认）；account/prefs/cache → 对应二级页
      *  带过渡动画：当前页高斯模糊淡出 → 目标页高斯模糊淡入，面板高度平滑拉长/缩短 */
     _showSetPage(name) {
-      const pages = ['account', 'prefs', 'cache'];
+      const pages = ['account', 'prefs', 'cache', 'ai'];
       const main = $('#set-page-main');
       if (!main) return;
       const panel = $('.modal-panel', $('#settings'));
@@ -3881,6 +3882,7 @@
         if (panel) panel.scrollTop = 0;
         if (name === 'account') this._renderSettingsAccount();
         if (name === 'cache') this._bindCacheSettings();
+        if (name === 'ai') this._renderSettingsAI();
         if (!name) this._refreshSettingsMenuAccount();
       };
       // 若非切换（打开时首次 / 连续点击同一页）→ 直接切换

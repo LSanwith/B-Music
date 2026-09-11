@@ -8,7 +8,7 @@
  * 响应体：{ ok, message, tool_calls, usage }
  */
 const DS_URL = 'https://api.deepseek.com/chat/completions';
-const MODEL = 'deepseek-flash';
+const MODEL = process.env.AI_MODEL || 'deepseek-flash'; // 可切换为 deepseek-v4-pro
 
 /** 清洗历史：确保 assistant(tool_calls) 与紧随其后的 tool 响应严格配对，
  *  否则 DeepSeek 会返回 400（悬空 tool_calls 是常见原因）。 */
@@ -54,10 +54,17 @@ export default async function handler(req, res) {
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) { body = null; } }
   if (!body || !Array.isArray(body.messages)) return res.status(400).json({ ok: false, msg: 'bad body' });
 
+  // 用户自定义模型配置（可选）：优先使用用户自己的地址/密钥/模型
+  const custom = body.custom || null;
+  const useKey = (custom && custom.apiKey) ? String(custom.apiKey).trim() : key;
+  let useUrl = (custom && custom.baseUrl) ? String(custom.baseUrl).trim() : DS_URL;
+  if (!/^https?:\/\//i.test(useUrl)) return res.status(400).json({ ok: false, msg: 'API 网址需以 http(s):// 开头' });
+  if (useUrl.indexOf('/chat/completions') < 0) useUrl = useUrl.replace(/\/+$/, '') + '/chat/completions';
+  const useModel = (custom && custom.model) ? String(custom.model).trim() : MODEL;
   const payload = {
-    model: MODEL,
+    model: useModel,
     messages: sanitizeMessages(sanitizeMessages(body.messages.slice(-30)).slice(-24)), // 清洗→限长→再清洗（截断不破坏配对）
-    reasoning_effort: process.env.AI_EFFORT || 'medium', // 推理等级（low/medium/high，默认 medium）
+    reasoning_effort: (custom && custom.effort) ? String(custom.effort) : (process.env.AI_EFFORT || 'medium'), // 推理等级
     temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
     max_tokens: Math.min(2048, body.max_tokens || 900),
   };
@@ -67,9 +74,9 @@ export default async function handler(req, res) {
   }
 
   try {
-    const r = await fetch(DS_URL, {
+    const r = await fetch(useUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + useKey },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(60000),
     });

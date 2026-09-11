@@ -144,10 +144,17 @@ async function handleApi(req, res, urlPath) {
         body = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
       } catch (e) { return sendJson(400, { ok: false, msg: 'bad body' }); }
       if (!body || !Array.isArray(body.messages)) return sendJson(400, { ok: false, msg: 'bad body' });
+      // 用户自定义模型配置（可选）：优先使用用户自己的地址/密钥/模型
+      const custom = body.custom || null;
+      const useKey = (custom && custom.apiKey) ? String(custom.apiKey).trim() : key;
+      let useUrl = (custom && custom.baseUrl) ? String(custom.baseUrl).trim() : 'https://api.deepseek.com/chat/completions';
+      if (!/^https?:\/\//i.test(useUrl)) return sendJson(400, { ok: false, msg: 'API 网址需以 http(s):// 开头' });
+      if (useUrl.indexOf('/chat/completions') < 0) useUrl = useUrl.replace(/\/+$/, '') + '/chat/completions';
+      const useModel = (custom && custom.model) ? String(custom.model).trim() : (process.env.AI_MODEL || 'deepseek-flash');
       const payload = {
-        model: 'deepseek-flash',
+        model: useModel,
         messages: sanitizeAiMessages(sanitizeAiMessages(body.messages.slice(-30)).slice(-24)),
-        reasoning_effort: process.env.AI_EFFORT || 'medium',
+        reasoning_effort: (custom && custom.effort) ? String(custom.effort) : (process.env.AI_EFFORT || 'medium'),
         temperature: typeof body.temperature === 'number' ? body.temperature : 0.7,
         max_tokens: Math.min(2048, body.max_tokens || 900),
       };
@@ -156,9 +163,9 @@ async function handleApi(req, res, urlPath) {
         payload.tool_choice = body.tool_choice || 'auto';
       }
       try {
-        const r = await fetch('https://api.deepseek.com/chat/completions', {
+        const r = await fetch(useUrl, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key },
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + useKey },
           body: JSON.stringify(payload),
           signal: AbortSignal.timeout(60000),
         });
