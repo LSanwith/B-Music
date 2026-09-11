@@ -386,6 +386,19 @@
       return { id: j.id, target: j.target };
     },
 
+    /** 注销账号：服务端删除账号与云端数据，本地清空全部数据并登出 */
+    async deleteAccount() {
+      await Session._api('/account/delete', { method: 'POST' });
+      try { Session.clearAll(); } catch (e) {}
+      session = null;
+      write('session', null);
+      document.dispatchEvent(new CustomEvent('ym:session'));
+    },
+
+    /** 校验 QQ 号（注册前验证，返回昵称等资料） */
+    async checkQQ(qq) {
+      return await Session._api('/qq/check?qq=' + encodeURIComponent(qq), { method: 'GET' });
+    },
     async logout() {
       try { await Session._api('/logout', { method: 'POST' }); } catch (e) { /* 忽略 */ }
       session = null;

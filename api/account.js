@@ -157,6 +157,21 @@ export default async function handler(req, res) {
       return res.status(200).json(altchaCreate(100000));
     }
     /* 注册：滑动验证通过后直接注册并登录；同邮箱+正确密码 = 二次注册直接登录 */
+    /* QQ 号校验（注册前验证；前端据此显示“正在验证”提示） */
+    if ((r === 'qqcheck' || r === 'qq-check') && method === 'GET') {
+      const qq = String((req.url.match(/[?&]qq=(\d{5,12})/) || [])[1] || '');
+      if (!qq) return res.status(400).json({ ok: false, msg: 'QQ 号格式不正确' });
+      try {
+        const rr = await fetch('https://api.xunjinlu.fun/api/qq/name.php?qq=' + qq, { signal: AbortSignal.timeout(8000) });
+        const j = await rr.json().catch(() => ({}));
+        const d = (j && j.data) || {};
+        const nick = d.nickname || d.name || '';
+        if (j && j.code === 200 && nick) return res.status(200).json({ ok: true, qq, nickname: nick, avatar: d.avatar || d.imgurl || '' });
+        return res.status(200).json({ ok: false, qq, msg: '未查询到该 QQ 号（不影响注册）' });
+      } catch (e) {
+        return res.status(200).json({ ok: false, qq, msg: 'QQ 校验服务暂不可用（不影响注册）' });
+      }
+    }
     if (r === 'register' && method === 'POST') {
       const b = await readBody(req);
       const email = String(b.email || '').trim().toLowerCase();
@@ -168,7 +183,7 @@ export default async function handler(req, res) {
       try {
         const qq = (email.split('@')[0] || '').replace(/\D/g, '');
         if (qq) {
-          const qr = await fetch('https://api.xunjinlu.fun/api/qq/name.php?qq=' + qq, { signal: AbortSignal.timeout(6000) });
+          const qr = await fetch('https://api.xunjinlu.fun/api/qq/name.php?qq=' + qq, { signal: AbortSignal.timeout(5000) });
           const qj = await qr.json().catch(() => ({}));
           qqNick = (qj && qj.data && (qj.data.nickname || qj.data.name)) || '';
         }

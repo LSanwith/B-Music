@@ -4125,7 +4125,9 @@
         '<input class="auth-input" id="set-pw-new2" type="password" placeholder="再次输入新密码" autocomplete="new-password">' +
         '<div class="set-acc-pw-btns"><button type="button" class="btn primary" id="set-pw-submit">确认修改</button></div>' +
         '</div>' +
-        '<div class="set-acc-foot"><button type="button" class="btn" id="set-logout">退出登录</button></div>' +
+        '<div class="set-acc-foot"><button type="button" class="btn" id="set-logout">退出登录</button>' +
+        '<button type="button" class="btn danger" id="set-delete-account">注销账号</button></div>' +
+        '<div class="set-acc-note">注销后将永久删除账号与全部云端数据（设置、收藏歌曲、收藏歌单、自建歌单），且不可恢复</div>' +
         '</div>';
       const av = $('#set-acc-avatar');
       if (av) av.addEventListener('click', () => this._changeAvatar());
@@ -4142,6 +4144,23 @@
         }
       });
       const pwBtn = $('#set-pw-submit');
+      const delBtn = $('#set-delete-account');
+      if (delBtn) delBtn.addEventListener('click', async () => {
+        const mail = Store.Session.email || '当前账号';
+        if (!confirm('注销账号：' + mail + '\n\n将永久删除：账号、云端设置、收藏歌曲、收藏歌单、自建歌单。\n此操作不可恢复，确定继续吗？')) return;
+        if (!confirm('最后确认：真的要注销 ' + mail + ' 吗？\n点击“确定”后立即删除全部数据。')) return;
+        delBtn.disabled = true;
+        delBtn.textContent = '正在注销…';
+        try {
+          await Store.Session.deleteAccount();
+          toast('账号已注销，所有数据已清除');
+          setTimeout(() => { location.hash = '#/discover'; location.reload(); }, 600);
+        } catch (e) {
+          toast('注销失败：' + e.message, 'warn');
+          delBtn.disabled = false;
+          delBtn.textContent = '注销账号';
+        }
+      });
       const loBtn = $('#set-logout');
       if (loBtn) loBtn.addEventListener('click', async () => {
         try {
@@ -4282,6 +4301,20 @@
         if (this._authMode === 'register') {
           const altcha = this._altchaPayload();
           if (!altcha) { showErr('请先完成人机验证（点击验证框的复选框）'); return; }
+          // 先校验 QQ 号（提示用户正在验证，避免干等）
+          const qq = (email.split('@')[0] || '').replace(/\D/g, '');
+          if (qq) {
+            if (btn) btn.textContent = '正在验证 QQ 号 ' + qq + ' …';
+            showErr('正在验证 QQ 号 ' + qq + '，请稍候…', true);
+            let info = null;
+            try { info = await Store.Session.checkQQ(qq); } catch (e) { info = null; }
+            if (info && info.ok && info.nickname) {
+              showErr('✓ QQ 号验证成功：' + info.nickname + '，正在注册…', true);
+            } else {
+              showErr('QQ 号校验未通过（' + ((info && info.msg) || '服务暂不可用') + '），仍可继续注册…', true);
+            }
+          }
+          if (btn) btn.textContent = '注册中…';
           const j = await Store.Session.register(email, password, altcha);
           toast(j && j.existing ? '该邮箱已注册，密码正确，已直接登录' : '注册成功，已登录');
         } else {

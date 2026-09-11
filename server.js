@@ -121,7 +121,7 @@ async function handleApi(req, res, urlPath) {
   const API_PATHS = ['/api/register', '/api/captcha', '/api/login',
     '/api/logout', '/api/account/delete', '/api/data',
     '/api/account/avatar', '/api/account/password', '/api/account/profile',
-    '/api/cookieurl', '/api/ai'];
+    '/api/cookieurl', '/api/ai', '/api/qq/check'];
   if (API_PATHS.indexOf(urlPath) < 0) return false;
   const method = req.method;
   try {
@@ -216,6 +216,21 @@ async function handleApi(req, res, urlPath) {
     if (urlPath === '/api/captcha' && method === 'GET') {
       // Altcha 人机验证：签发 PoW challenge（前端 altcha-widget 解题）
       return sendJson(res, 200, altchaCreate(100000));
+    }
+    /* QQ 号校验：注册前先验证 QQ 号是否有效（前端据此显示“正在验证”提示） */
+    if (urlPath === '/api/qq/check' && method === 'GET') {
+      const qq = String((req.url.match(/[?&]qq=(\d{5,12})/) || [])[1] || '');
+      if (!qq) return sendJson(res, 400, { ok: false, msg: 'QQ 号格式不正确' });
+      try {
+        const r = await fetch('https://api.xunjinlu.fun/api/qq/name.php?qq=' + qq, { signal: AbortSignal.timeout(8000) });
+        const j = await r.json().catch(() => ({}));
+        const d = (j && j.data) || {};
+        const nick = d.nickname || d.name || '';
+        if (j && j.code === 200 && nick) return sendJson(res, 200, { ok: true, qq, nickname: nick, avatar: d.avatar || d.imgurl || '' });
+        return sendJson(res, 200, { ok: false, qq, msg: '未查询到该 QQ 号（不影响注册）' });
+      } catch (e) {
+        return sendJson(res, 200, { ok: false, qq, msg: 'QQ 校验服务暂不可用（不影响注册）' });
+      }
     }
     if (urlPath === '/api/register' && method === 'POST') {
       const b = await readBody(req);

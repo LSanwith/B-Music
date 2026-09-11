@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/proxy", "destination": "/api/proxy" },
+    { "source": "/api/qq/check", "destination": "/api/account?r=qqcheck" },
     { "source": "/api/captcha", "destination": "/api/account?r=captcha" },
     { "source": "/api/register", "destination": "/api/account?r=register" },
     { "source": "/api/login", "destination": "/api/account?r=login" },
