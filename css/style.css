@@ -2254,3 +2254,10 @@ html, body, #app, #view, .side, #topbar, .modal-panel {
 /* vnŽ§K
 ÝÁtaÌoïÁ˜ï¹ */
 #topbar { z-index: 70 !important; }
+
+/* §û0v¹	éhîc#sidebardMï( .side Î*H	 */
+#sidebar { top: calc(var(--topbar-h) + 12px) !important; padding-top: 0 !important; }
+#sidebar .side-logo { padding-top: 6px !important; }
+@media (max-width: 900px) {
+  #sidebar { top: 0 !important; padding-top: calc(var(--topbar-h) + 4px) !important; }
+}
