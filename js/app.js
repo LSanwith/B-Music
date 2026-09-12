@@ -624,7 +624,7 @@
     /** 首次进入的主动推荐：脚本直接取歌生成（不调用 AI，秒出） */
     /** 首次进入的欢迎推荐：只作为“待定欢迎”存在，用户一发消息就丢弃（避免出现两段 AI） */
     async _hbGreet() {
-      if (this._hbBusy || (this._hbHistory && this._hbHistory.length)) return;
+      if (this._hbBusy || this._hbUserSpokeAt || (this._hbHistory && this._hbHistory.length)) return;
       const shuffle = (arr) => { const x = arr.slice(); for (let i = x.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); const t = x[i]; x[i] = x[k]; x[k] = t; } return x; };
       try {
         const favs = (Store.FavSongs.all || []).slice();
@@ -641,6 +641,11 @@
         if (!songs.length) return;
         try { await this._hbFillCovers(songs); } catch (e) {}
         const text = this._hbGreeting() + '～' + (fromFav ? '按你的收藏口味挑了' : '从热歌榜里挑了') + ' ' + songs.length + ' 首，点卡片就能直接播放';
+        // 竞态保护：取歌是异步的，若用户在这期间已经发言/正在等待回复，就丢弃这次欢迎
+        if (this._hbBusy || (this._hbHistory && this._hbHistory.some(m => m.role === 'user'))) {
+          console.log('[hibetter] 用户已开始对话，丢弃本次欢迎推荐');
+          return;
+        }
         this._hbPending = { role: 'assistant', content: text, cards: songs.slice(0, 6), trace: [], welcome: true };
         this._hbRenderAll();
         console.log('[hibetter] 欢迎推荐已就绪（' + songs.length + ' 首，进入对话后自动让位）');
@@ -760,7 +765,7 @@
         return m.role === 'user' || (m.role === 'assistant' && (m.content || (m.cards && m.cards.length)));
       });
       // 欢迎消息：只在用户还没说话时展示（自动让位给真实对话）
-      if (!hasUserMsg && this._hbPending) list.push(this._hbPending);
+      if (!hasUserMsg && this._hbPending && !this._hbBusy) list.push(this._hbPending);
       const items = list.slice(-30);
       const rendered = items.map((m, i) => this._hbBubble(m, i)).join('');
       box.innerHTML = rendered || '<div class="hb-empty">看看 ai 推荐中有没有你心仪的歌曲吧~</div>';
@@ -898,7 +903,7 @@
       this._hbWantCount = asked || 6; // 本轮上限（默认 6，最多 20）
       let reasoningAcc = ''; // 累积本轮 AI 思考文本（若有）
       const traceAcc = [];   // 累积工具调用轨迹（思考过程的实际内容）
-      if (!hidden) this._hbPending = null; // 用户开始对话 → 丢弃待定欢迎（永远只有一段 AI 回复）
+      if (!hidden) { this._hbPending = null; this._hbUserSpokeAt = Date.now(); } // 用户开始对话 → 丢弃待定欢迎
       this._hbHistory.push({ role: 'user', content: text, hidden: !!hidden, display: displayText || '' });
       this._hbSave(); // 立即落盘：刷新/中断也不丢对话
       this._hbRenderAll();
