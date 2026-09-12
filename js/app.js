@@ -2101,16 +2101,23 @@
         wrap.innerHTML = '<div class="view-loading small"><div class="spinner"></div></div>';
       }
       try {
-        let data;
-        try {
-          data = await API.search(kw, type, 20, offset);
-        } catch (e) {
-          data = null; // 镜像异常：交给下面的辅助源兜一次
-        }
-        // 辅助源：镜像 0 结果 / 异常时，用 Sanwith 源补一次（歌曲搜索首页）
-        if (type === 1 && offset === 0 && !((data && data.songs) || []).length && API.sanwithSearch) {
-          const alt = await API.sanwithSearch(kw, 20).catch(() => []);
-          if (alt && alt.length) data = { songs: alt, total: alt.length };
+        // SANWITH_PARALLEL：歌曲首页搜索与 Sanwith 源并行取，镜像结果偏少/失败时合并补充
+        const withSw = type === 1 && offset === 0 && !!API.sanwithSearch;
+        const [mainRes, swRes] = await Promise.all([
+          API.search(kw, type, 20, offset).catch(() => null),
+          withSw ? API.sanwithSearch(kw, 20).catch(() => []) : Promise.resolve([]),
+        ]);
+        let data = mainRes;
+        if (withSw) {
+          const main = (data && data.songs) || [];
+          const seen = {};
+          main.forEach(s2 => { seen[String(s2.id)] = 1; });
+          const extra = (swRes || []).filter(s2 => s2 && s2.id && !seen[String(s2.id)]);
+          if (!main.length && extra.length) {
+            data = { songs: extra, total: extra.length };
+          } else if (main.length && main.length < 10 && extra.length) {
+            data = { songs: main.concat(extra.slice(0, 20 - main.length)), total: (data.total || main.length) + extra.length };
+          }
         }
         if (!data) throw new Error('搜索服务暂时不可用');
         if (seq !== this._searchSeq) return; // 已切换 tab/关键词，丢弃过期结果

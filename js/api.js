@@ -522,7 +522,8 @@
       if (!base || !keyword) return [];
       let j;
       try {
-        j = await request(base, "/search", { keywords: keyword, limit: limit || 20, type: 1 }, 15000);
+        // 用 /cloudsearch：结构与镜像一致（含 al.picUrl 封面），结果可直接渲染图片
+        j = await request(base, "/cloudsearch", { keywords: keyword, type: 1, limit: limit || 20, offset: 0 }, 15000);
       } catch (e) { return []; }
       const d = (j && j.data) || j || {};
       const list = (d.songs || (d.result && d.result.songs) || (d.data && (d.data.songs || (d.data.result && d.data.result.songs))) || []);
