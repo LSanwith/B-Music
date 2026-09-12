@@ -1800,7 +1800,6 @@ html[data-theme="white-purple"] {
 .hb-card-name { font-size: 13px; font-weight: 600; color: var(--fg-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hb-card-sub { font-size: 11.5px; color: var(--sub); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hb-card-play { flex: none; color: var(--accent); font-size: 12px; }
-.hb-bar { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
 .hb-ai {
   flex: none; padding: 0 14px; height: 42px; border-radius: 11px; cursor: pointer;
   border: 1px solid rgba(var(--accent-rgb), .45); background: rgba(var(--accent-rgb), .12);
@@ -1855,25 +1854,8 @@ html[data-theme="white-purple"] {
 .hb-icard-name { font-size: 12.5px; font-weight: 600; color: var(--fg-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hb-icard-sub { font-size: 11px; color: var(--sub); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hb-icard-play { flex: none; color: var(--accent); font-size: 11px; }
-.hb-bar {
-  position: fixed; left: var(--side-offset); right: 16px; bottom: 3px; z-index: 70;
-  margin: 0 auto; max-width: 700px; padding: 10px 12px;
-  border-radius: 14px; border: 1px solid var(--border);
-  background: rgba(var(--panel-rgb), .92);
-  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
-  transition: bottom .25s ease;
-}
 /* 	­>ö
 ûMn! */
-body:has(#playerbar:not(.hidden)) .hb-bar {
-  /* top block: narrower, flat bottom, sits exactly on the player bar */
-  bottom: calc(var(--bar-h) + 13px);
-  max-width: 560px;
-  border-radius: 20px 20px 0 0;
-  border-bottom-color: transparent;
-  background: rgba(var(--panel-rgb), .78);
-  backdrop-filter: blur(26px); -webkit-backdrop-filter: blur(26px);
-}
 /* no divider line */
 body:has(.hb-bar) #playerbar { border-top-color: transparent; }
 /* concave corners at the junction (inverted radius), matching the top block width */
@@ -1898,8 +1880,6 @@ body:has(.hb-bar) #playerbar { border-top-color: transparent; }
 /* hide the player bar's top border on this page so no divider line shows between them */
 body:has(.hb-bar) #playerbar { border-top-color: transparent; }
 @media (max-width: 900px) {
-  .hb-bar { left: 12px; right: 12px; }
-  body:has(#playerbar:not(.hidden)) .hb-bar { bottom: calc(var(--bar-h) + 13px); max-width: 92vw; border-radius: 18px 18px 0 0; border-bottom-color: transparent; }
 }
 .hb-chips { position: static; padding-bottom: 2px; margin-top: 12px; }
 /* •èY}…¹«úš“enO */
@@ -2092,7 +2072,6 @@ body:has(.hb-wrap) #main { min-height: 0 !important; }
 body:has(.hb-wrap) #view { min-height: 0 !important; }
 body:has(.hb-wrap) { min-height: 0 !important; }
 /* ?????????????? */
-body:has(.hb-wrap) .hb-bar { }
 /* ????????????????????????????????? */
 
 /* ?????????????????????????????????????? */
@@ -2119,13 +2098,30 @@ body:has(.hb-wrap) #main, body:has(.hb-wrap) #view { min-height: 0; }
 #hb-msgs.hb-chat > *:first-child { margin-top: auto !important; }
 #hb-msgs.hb-chat .hb-empty { margin: auto 0 !important; }
 /* ???????????????/??? .hb-wrap ??? */
-.hb-bar { bottom: 24px !important; }
-.hb-bar { max-width: 700px !important; }
 /* ???????????????? 32px?? #view ? padding ??? */
-.hb-bar { left: calc(var(--side-offset) + 32px) !important; right: 32px !important; bottom: 24px !important; max-width: 700px !important; }
 @media (max-width: 900px) {
-  .hb-bar { left: 16px !important; right: 16px !important; }
 }
 @media (max-width: 600px) {
-  .hb-bar { left: 12px !important; right: 12px !important; }
 }
+/* ?? HiBetter ??????? + ??????? */
+body:has(.hb-wrap) #view { padding-bottom: 0 !important; }
+body:has(.hb-wrap) #main { padding-bottom: 0 !important; }
+.hb-chat { margin-top: auto !important; }
+
+/* ===== HiBetter “e ÈÄ/ C	===== */
+.hb-bar {
+  position: fixed; left: calc(var(--side-offset) + 32px); right: 32px; bottom: 24px;
+  z-index: 70; margin: 0 auto; max-width: 700px; padding: 10px 12px;
+  border-radius: 14px; border: 1px solid var(--border);
+  background: rgba(var(--panel-rgb), .92);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  transition: bottom .25s ease;
+  display: flex; gap: 10px; align-items: center;
+}
+body:has(#playerbar:not(.hidden)) .hb-bar {
+  bottom: calc(var(--bar-h) + 13px);
+  border-radius: 18px 18px 12px 12px;
+  background: rgba(var(--panel-rgb), .78);
+}
+@media (max-width: 900px) { .hb-bar { left: 16px; right: 16px; } }
+@media (max-width: 600px) { .hb-bar { left: 12px; right: 12px; } }

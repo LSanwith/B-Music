@@ -458,12 +458,18 @@
       if (!bar || !chat) return;
       // 用播放栏真实位置定位输入栏：底边 = 播放栏顶边 - 1px（无缝贴合）；无播放时贴视口底部 3px
       const pb = $('#playerbar');
-      let bottomPx = 24; // 无播放栏时上移，与对话区留出舒适间距
+      let bottomPx = 24; // 无播放栏：固定 24px（由 CSS 决定，避免刷新跳动）
       if (pb && !pb.classList.contains('hidden')) {
         const r = pb.getBoundingClientRect();
-        if (r.height > 0) bottomPx = Math.max(24, Math.round(window.innerHeight - r.top - 1));
+        if (r.height > 0) {
+          bottomPx = Math.max(24, Math.round(window.innerHeight - r.top - 1));
+          bar.style.bottom = bottomPx + 'px';   // 仅播放时动态贴合播放栏
+        } else {
+          bar.style.bottom = '';                // 回到 CSS 的固定值
+        }
+      } else {
+        bar.style.bottom = '';                  // 无播放栏 → 用 CSS 固定位置
       }
-      bar.style.bottom = bottomPx + 'px';
       const barH = bar.offsetHeight || 60;
       // 内容底部只留“输入栏高度 + 间隙”，不再出现大片空白
       const wrap = $('.hb-wrap');
