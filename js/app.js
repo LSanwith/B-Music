@@ -3768,12 +3768,33 @@
       }
     },
 
-    /** 熄灭一行（高亮复位，回到灰色） */
+    /** 熄灭一行（高亮复位，回到灰色）
+     *  逐字（YRC）卡拉OK留下的内联状态必须一并清掉 —— 遮罩（滚动样式的字内扫光）、
+     *  波浪位移、--wp / .on / .w-cur 都只该属于「正在唱的那一行」，
+     *  否则已唱完的行会留下半亮半暗的字（深浅不统一）。 */
     _resetLyricLine(i) {
       const els = this._lyricEls;
       const e = els[i];
       if (!e) return;
       e.classList.remove('active');
+      if (e.style.maskImage || e.style.webkitMaskImage) {
+        e.style.webkitMaskImage = '';
+        e.style.maskImage = '';
+      }
+      const ws = e.querySelectorAll('.ly-w');
+      for (let k = 0; k < ws.length; k++) {
+        const w = ws[k];
+        w.classList.remove('on');
+        w.classList.remove('w-cur');
+        if (w.style.opacity) w.style.opacity = '';
+        if (w.style.transform) w.style.transform = '';
+        if (w.style.maskImage || w.style.webkitMaskImage) {
+          w.style.webkitMaskImage = '';
+          w.style.maskImage = '';
+        }
+        if (w.style.getPropertyValue('--wp')) w.style.removeProperty('--wp');
+        if (w.dataset.mk) delete w.dataset.mk;
+      }
     },
 
     _lyricUpdate(now) {
