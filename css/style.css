@@ -2125,3 +2125,6 @@ body:has(#playerbar:not(.hidden)) .hb-bar {
 }
 @media (max-width: 900px) { .hb-bar { left: 16px; right: 16px; } }
 @media (max-width: 600px) { .hb-bar { left: 12px; right: 12px; } }
+/* ????????????????????????????? */
+#hb-msgs.hb-chat { padding-bottom: 0 !important; scroll-padding-bottom: 8px; }
+body:has(.hb-wrap) { overscroll-behavior: contain; }

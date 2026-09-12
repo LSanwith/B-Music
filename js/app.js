@@ -474,11 +474,13 @@
       // 内容底部只留“输入栏高度 + 间隙”，不再出现大片空白
       const wrap = $('.hb-wrap');
       if (wrap) wrap.style.paddingBottom = '0px';
-      // 对话区填满“顶部 → 输入栏上方”的整块区域：直接顶到输入栏，不留空白
-      const avail = Math.max(200, Math.round(window.innerHeight - top - barH - bottomPx - 10));
+      // 高度用 offsetTop（页面内绝对位置，不受滚动影响）→ 不会因滚动反复变大
+      const topAbs = chat.offsetTop || 0;
+      const avail = Math.max(200, Math.round(window.innerHeight - topAbs - barH - bottomPx - 12));
       chat.style.height = avail + 'px';
       chat.style.maxHeight = avail + 'px';
       chat.style.minHeight = '0';
+      chat.style.paddingBottom = (barH + 14) + 'px';  // 内容底部让开输入栏（复制按钮不被遮挡）
       chat.style.display = 'flex';
       chat.style.flexDirection = 'column';
       chat.style.justifyContent = 'flex-end'; // 双保险：内联也设一次
