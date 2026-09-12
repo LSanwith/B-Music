@@ -4789,9 +4789,12 @@
           };
           const paint = () => {
             const p = +slider.value;
-            slider.style.background = 'linear-gradient(to right, #fa2d3c 0%, #fa2d3c ' + p +
+            // 跟随主题强调色（此前硬编码红色，与主题不符）
+            slider.style.background = 'linear-gradient(to right, rgb(var(--accent-rgb)) 0%, rgb(var(--accent-rgb)) ' + p +
               '%, rgba(var(--fg-rgb),.26) ' + p + '%, rgba(var(--fg-rgb),.26) 100%)';
           };
+          // 主题变更后重新填充，保证颜色实时跟随
+          document.addEventListener('ym:settings', paint);
           slider.addEventListener('input', () => { fmt(); paint(); });
           slider.addEventListener('change', () => {
             const mb = posToMb(+slider.value);
