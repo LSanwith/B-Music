@@ -691,38 +691,32 @@
       const isSongLine = (plain) => /——|—|--|－/.test(plain) && plain.trim().length > 3;
       const used = cards.map(() => false);
       const lines = String(html).split('<br>');
+      // 只按“歌名”精确匹配（忽略大小写/空格/标点/括号）。宁缺勿错：匹配不上就不配卡，绝不硬塞。
       const out = lines.map((line) => {
         const plain = line.replace(/<[^>]+>/g, '');
         const np = norm(plain);
         let card = '';
-        // 第一优先：歌名逐字命中（忽略大小写/空格/标点）
-        for (let i = 0; i < cards.length; i++) {
-          if (used[i]) continue;
-          const nm = norm(cards[i].name);
-          if (nm && nm.length >= 2 && np.indexOf(nm) >= 0) { used[i] = true; card = this._hbCardOne(cards[i], i); break; }
+        for (let k = 0; k < cards.length; k++) {
+          if (used[k]) continue;
+          const nm = norm(cards[k].name);
+          if (!nm || nm.length < 2) continue;
+          if (np.indexOf(nm) >= 0) { used[k] = true; card = this._hbCardOne(cards[k], k); break; }
         }
         return { line: line, card: card, isSong: isSongLine(plain) };
       });
-      // 第二优先：若“歌曲行数”与“卡片数”一致 → 按顺序 1:1 配对（保证一行介绍一行卡片）
-      const songIdx = out.map((r, i) => r.isSong ? i : -1).filter(i => i >= 0);
-      const soloIdx = songIdx.filter(i => !out[i].card);
-      const restCards = cards.map((c, i) => used[i] ? -1 : i).filter(i => i >= 0);
-      if (soloIdx.length && soloIdx.length === restCards.length) {
-        soloIdx.forEach((li, k) => {
-          const ci = restCards[k];
-          used[ci] = true;
-          out[li].card = this._hbCardOne(cards[ci], ci);
-        });
+      const matched = used.filter(Boolean).length;
+      // 完全没有匹配：说明 AI 正文与真实结果不符（多为幻觉）→ 只展示真实卡片
+      if (!matched && cards.length) {
+        let all = '';
+        cards.forEach((c, k) => { all += this._hbCardOne(c, k); });
+        console.log('[hibetter] 正文与搜索结果不匹配，已隐藏文字、只展示真实卡片');
+        return '<div class="hb-cards-title">🎵 为你找到以下歌曲</div><div class="hb-cards">' + all + '</div>';
       }
-      // 清理：没有卡片支撑的歌曲行不显示（防幻觉）；卡片全部未用则统一列末尾
-      const kept = [];
-      out.forEach((r) => { if (!r.card && r.isSong) return; kept.push(r.line + r.card); });
+      // 部分匹配：无卡片支撑的歌曲行不显示（避免图文不符）
+      const kept = out.filter(r => r.card || !r.isSong).map(r => r.line + r.card);
+      // 剩下未被匹配的卡片：列在末尾
       let tail = '';
-      cards.forEach((c, i) => { if (!used[i]) tail += this._hbCardOne(c, i); });
-      const usedCount = used.filter(Boolean).length;
-      if (usedCount === 0 && cards.length) {
-        return '<div class="hb-cards-title">🎵 为你找到以下歌曲</div><div class="hb-cards">' + tail + '</div>';
-      }
+      cards.forEach((c, k) => { if (!used[k]) tail += this._hbCardOne(c, k); });
       return kept.join('<br>') + (tail ? '<div class="hb-cards">' + tail + '</div>' : '');
     },
     /** 单张内嵌卡片（点击即播；索引与所属消息的歌曲数组对齐） */
@@ -905,17 +899,25 @@
           const noChinese = !/[\u4e00-\u9fa5]/.test(txt);
           const songLines = txt.split('\n').filter(l => /——|—|--/.test(l) && l.trim().length > 3).length;
           const lastUser = String(((this._hbHistory.filter(m => m.role === 'user').slice(-1)[0] || {}).content) || '');
+          // 幻觉检测：正文里一个真实卡片歌名都没提到 → 让它照抄搜索结果重写
+          const normT = (s) => String(s || '').toLowerCase().replace(/[\s\-—_·・,，.。:：;；()（）\[\]【】"'“”‘’!！?？&/]/g, '');
+          const hasCardsNow = !!(this._hbCards && this._hbCards.length);
+          const hitAnyCard = hasCardsNow && this._hbCards.some(c => {
+            const nm = normT(c.name);
+            return nm.length >= 2 && normT(txt).indexOf(nm) >= 0;
+          });
+          const hallucinated = hasCardsNow && txt && !hitAnyCard;
           const isRecommend = !!(this._hbCards && this._hbCards.length) || /推荐|来点|适合|歌单|几首|换一批/.test(lastUser);
           const lazy = !(this._hbCards && this._hbCards.length) && txt.length < 80 && (noChinese || txt.length < 40);
           const badFormat = isRecommend && txt && ((songLines < 4 || songLines > 6) || noChinese);
-          if ((lazy || badFormat) && nudged < 2 && rounds < 6) {
+          if ((lazy || badFormat || hallucinated) && nudged < 2 && rounds < 6) {
             nudged++;
             this._hbHistory.push({ role: 'assistant', content: msg.content || '' });
             const tip = lazy
               ? '（系统提示：你刚才没有调用工具或只回了一句话。现在立即调用 get_my_library 与 search_music，然后用简体中文按格式回复。）'
               : '（系统提示：格式不合格。请重新输出：正文必须是 4~6 行、全中文，每行严格为「歌名 —— 歌手 —— 20 字内推荐语」，歌名与歌手逐字来自 search_music 结果，不要任何其它文字。）';
             this._hbHistory.push({ role: 'user', content: tip, hidden: true });
-            console.log('[hibetter] 输出不合格（' + (lazy ? '空话/英文' : '格式仅 ' + songLines + ' 行') + '）→ 自动纠错重试 #' + nudged);
+            console.log('[hibetter] 输出不合格（' + (hallucinated ? '歌名与搜索结果不符' : (lazy ? '空话/英文' : '格式仅 ' + songLines + ' 行')) + '）→ 自动纠错重试 #' + nudged);
             continue;
           }
           this._hbHistory.push({ role: 'assistant', content: msg.content || '（没有返回内容）', cards: this._hbCards || null, reasoning: reasoningAcc, trace: traceAcc.slice() });
