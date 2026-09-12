@@ -344,7 +344,7 @@
         function: { name, description: desc, parameters: { type: 'object', properties: props, required: required || Object.keys(props) } },
       });
       return [
-        fn('search_music', '按关键词搜索歌曲，返回可点击播放的卡片；最多 4 首（limit 传 4）。为多样化，可用不同歌手/语言/曲风的关键词多次调用', { keyword: { type: 'string', description: '歌名/歌手/关键词' }, limit: { type: 'number', description: '返回条数，最多 4' } }, ['keyword']),
+        fn('search_music', '按关键词搜索歌曲，返回可点击播放的卡片；最多 6 首（limit 传 6）。为多样化，可用不同歌手/语言/曲风的关键词多次调用', { keyword: { type: 'string', description: '歌名/歌手/关键词' }, limit: { type: 'number', description: '返回条数，最多 4' } }, ['keyword']),
         fn('play_music', '按关键词搜索并立即播放最匹配的一首', { keyword: { type: 'string', description: '歌名 + 歌手更准' } }, ['keyword']),
         fn('play_index', '播放当前播放列表中的第 N 首（1 开始）', { index: { type: 'number' } }, ['index']),
         fn('control', '播放控制', { action: { type: 'string', enum: ['play', 'pause', 'toggle', 'next', 'prev'] } }, ['action']),
@@ -378,8 +378,8 @@
         '',
         '【铁律·最高优先】',
         '1. 每次回复都必须先调用工具（get_my_library / search_music / search_playlists / control 等），禁止只回一句说明文字、禁止英文；拿到工具结果后再用简体中文回答。允许一句极短问候，但必须与系统给出的【当前时间】一致（早上写“早上好”、中午写“中午好”、下午写“下午好”、晚上写“晚上好”，严禁说错时段），且严禁长篇大论。',
-        '2. 推荐歌曲时，正文【只能】是正好 4 行，每行格式：歌名 —— 歌手 —— 不超过 20 字的推荐语；系统会在每行文字下方自动渲染该歌曲的卡片，所以【不要】把歌名罗列在一起、也不要额外重复歌名（不要空行、不要序号、不要 Markdown 符号、不要开场白/总结/客套话；问候语只能出现在 4 行之前，且最多一句）。',
-        '3. 歌名与歌手必须与 search_music 返回的 songs 字段【逐字一致】，绝不编造、不得替换成你记忆里的其它歌、不得翻译或改写；4 首互不相同（不要 Live/Remix/翻唱/伴奏等版本重复）。',
+        '2. 推荐歌曲时，正文【只能】是 4~6 行（最多 6 首），每行格式：歌名 —— 歌手 —— 不超过 20 字的推荐语；系统会在每行文字下方自动渲染该歌曲的卡片，所以【不要】把歌名罗列在一起、也不要额外重复歌名（不要空行、不要序号、不要 Markdown 符号、不要开场白/总结/客套话；问候语只能出现在 4 行之前，且最多一句）。',
+        '3. 歌名与歌手必须与 search_music 返回的 songs 字段【逐字一致】，绝不编造、不得替换成你记忆里的其它歌、不得翻译或改写；各首互不相同（不要 Live/Remix/翻唱/伴奏等版本重复；同一歌手最多 1 首）。',
         '',
         '【输出格式·照抄这个模板】',
         '歌名 —— 歌手 —— 不超过 20 字的推荐语',
@@ -395,10 +395,10 @@
         '',
         '【推荐流程】',
         '4. 收到“推荐/来点/适合…”：先 get_my_library 了解口味（收藏歌曲、收藏歌单、自建歌单——歌单名以工具返回为准，必要时用 get_playlist_songs 看具体曲目），再用 search_music 找同类歌，注意【语言、曲风、年代】与口味一致。',
-        '4c. 用户明确说“来点大众口味/热门/最近很火的歌”时，同样先用 get_hot_songs 取热歌榜，再挑 4 首。',
-        '4b. 【必须多样化·重要】不要每次都给同一位歌手（例如反复推 Taylor Swift）。要求：① 4 首里同一歌手的歌最多 1 首；② 参考工具返回的“收藏中的歌手分布”，优先覆盖不同歌手/不同风格；③ 每次推荐都要重新随机组合，不要沿用上一轮的选择；④ 搜索时用不同关键词（可换不同歌手名、语言、曲风）而不是只搜一个词。',
-        '5. 一次搜索不足 4 首 → 换更宽的关键词再搜（本轮最多 3 次），务必凑够 4 首不同歌曲；多次仍无结果就如实说“搜索服务暂时不可用”，不要给记不准的列表。',
-        '6. 音乐库为空（未登录或无收藏）→ 不要追问，也【不要凭记忆】推荐；必须先调用 get_hot_songs 获取网易云【热歌榜】的真实歌曲，再从榜单结果里挑 4 首（歌名歌手逐字来自榜单）。若榜单取不到，再退回 search_music 用“热歌榜/热门流行”等关键词搜索。',
+        '4c. 用户明确说“来点大众口味/热门/最近很火的歌”时，同样先用 get_hot_songs 取热歌榜，再挑 4~6 首。',
+        '4b. 【必须多样化·重要】不要每次都给同一位歌手（例如反复推 Taylor Swift）。要求：① 同一歌手的歌最多 1 首；② 参考工具返回的“收藏中的歌手分布”，优先覆盖不同歌手/不同风格；③ 每次推荐都要重新随机组合，不要沿用上一轮的选择；④ 搜索时用不同关键词（可换不同歌手名、语言、曲风）而不是只搜一个词。',
+        '5. 一次搜索不足 4 首 → 换更宽的关键词再搜（本轮最多 3 次），尽量凑够 6 首不同歌曲（至少 4 首）；多次仍无结果就如实说“搜索服务暂时不可用”，不要给记不准的列表。',
+        '6. 音乐库为空（未登录或无收藏）→ 不要追问，也【不要凭记忆】推荐；必须先调用 get_hot_songs 获取网易云【热歌榜】的真实歌曲，再从榜单结果里挑 4~6 首（歌名歌手逐字来自榜单）。若榜单取不到，再退回 search_music 用“热歌榜/热门流行”等关键词搜索。',
         '7. 用户想找歌单/歌单推荐 → 用 search_playlists（最多 4 个），正文逐字使用返回的歌单名。',
         '8. 用户问“我收藏里有没有…” → 用 search_my_library 或 get_playlist_songs 回答。',
         '',
@@ -667,7 +667,7 @@
         return '<div class="hb-row me"' + tag + '><div class="hb-bubble">' + esc(m.display || m.content) + '</div></div>';
       }
       if (m.role !== 'assistant') return '';
-      const cards = Array.isArray(m.cards) ? m.cards.slice(0, 4) : [];
+      const cards = Array.isArray(m.cards) ? m.cards.slice(0, 6) : [];
       const trace = Array.isArray(m.trace) ? m.trace : [];
       let thinkBody = '';
       if (m.reasoning) thinkBody += '<div class="hb-think-line">' + esc(m.reasoning).replace(/\n/g, '<br>') + '</div>';
@@ -739,7 +739,7 @@
         '<span class="hb-icard-play">' + (isPl ? '打开' : '▶') + '</span></div>';
     },
     _hbCardsHtml(songs) {
-      songs = (songs || []).slice(0, 4); // 最多 4 张，避免页面臃肿
+      songs = (songs || []).slice(0, 6); // 最多 6 张
       return '<div class="hb-cards">' + songs.map((s, i) =>
         '<div class="hb-card" data-hbplay="' + i + '">' +
         '<img src="' + esc(coverUrl((s.album && (s.album.picUrl || s.album.cover)) || s.cover || s.picUrl || '')) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
@@ -871,7 +871,7 @@
       if (!text || this._hbBusy) return;
       if (!this._hbHistory) this._hbHistory = [];
       this._hbBusy = true;
-      this._hbCards = withCards && withCards.length ? withCards.slice(0, 4) : null; // 可携带初始卡片（如识曲结果）
+      this._hbCards = withCards && withCards.length ? withCards.slice(0, 6) : null; // 可携带初始卡片（如识曲结果）
       this._hbSearchCount = 0; // 本轮搜索次数（结果不足时允许换关键词补足 4 首）
       let reasoningAcc = ''; // 累积本轮 AI 思考文本（若有）
       const traceAcc = [];   // 累积工具调用轨迹（思考过程的实际内容）
@@ -907,13 +907,13 @@
           const lastUser = String(((this._hbHistory.filter(m => m.role === 'user').slice(-1)[0] || {}).content) || '');
           const isRecommend = !!(this._hbCards && this._hbCards.length) || /推荐|来点|适合|歌单|几首|换一批/.test(lastUser);
           const lazy = !(this._hbCards && this._hbCards.length) && txt.length < 80 && (noChinese || txt.length < 40);
-          const badFormat = isRecommend && txt && (songLines < 4 || noChinese);
+          const badFormat = isRecommend && txt && ((songLines < 4 || songLines > 6) || noChinese);
           if ((lazy || badFormat) && nudged < 2 && rounds < 6) {
             nudged++;
             this._hbHistory.push({ role: 'assistant', content: msg.content || '' });
             const tip = lazy
               ? '（系统提示：你刚才没有调用工具或只回了一句话。现在立即调用 get_my_library 与 search_music，然后用简体中文按格式回复。）'
-              : '（系统提示：格式不合格。请重新输出：正文必须【正好 4 行】、全中文，每行严格为「歌名 —— 歌手 —— 20 字内推荐语」，歌名与歌手逐字来自 search_music 结果，不要任何其它文字。）';
+              : '（系统提示：格式不合格。请重新输出：正文必须是 4~6 行、全中文，每行严格为「歌名 —— 歌手 —— 20 字内推荐语」，歌名与歌手逐字来自 search_music 结果，不要任何其它文字。）';
             this._hbHistory.push({ role: 'user', content: tip, hidden: true });
             console.log('[hibetter] 输出不合格（' + (lazy ? '空话/英文' : '格式仅 ' + songLines + ' 行') + '）→ 自动纠错重试 #' + nudged);
             continue;
@@ -975,7 +975,7 @@
     },
     /** 多源搜索：镜像失败自动换红云，并把长句关键词逐步简化重试 */
     async _hbSearchAny(keyword, limit) {
-      const want = Math.min(4, Math.max(1, limit || 4));
+      const want = Math.min(6, Math.max(1, limit || 6));
       const kw = String(keyword || '').trim();
       const cands = [];
       if (kw) cands.push(kw);
@@ -1001,7 +1001,7 @@
       const ok = (payload, cards) => {
         if (cards && cards.length) {
           const acc = this._hbCards || [];
-          const room = Math.max(0, 4 - acc.length); // 硬上限 4 张
+          const room = Math.max(0, 6 - acc.length); // 硬上限 6 张
           const take = cards.slice(0, room);
           if (take.length) { this._hbCards = acc.concat(take); this._hbCardSongs = (this._hbCardSongs || []).concat(take); }
           return { payload: payload, cards: take };
@@ -1014,7 +1014,7 @@
           case 'search_music': {
             this._hbSearchCount = (this._hbSearchCount || 0) + 1;
             if (this._hbSearchCount > 3) return ok({ error: '本轮搜索次数已达上限，请直接用已有结果写正文' });
-            const r = await this._hbSearchAny(a.keyword, Math.min(4, a.limit || 4));
+            const r = await this._hbSearchAny(a.keyword, Math.min(6, a.limit || 6));
             const songs = r.list || [];
             if (!songs.length) return ok({ error: '搜索无结果（可换个更短的关键词）', keyword: a.keyword });
             return ok({
@@ -1094,7 +1094,7 @@
             });
           }
           case 'search_playlists': {
-            const want = Math.min(4, Math.max(1, a.limit || 4));
+            const want = Math.min(6, Math.max(1, a.limit || 6));
             let list = [];
             try {
               const res = await API.search(a.keyword || '', 1000, want, 0);
@@ -1230,7 +1230,7 @@
             let pl = (Store.MyPlaylists.all || []).find(p => p.name === pname);
             if (!pl) { pl = Store.MyPlaylists.create(pname); }
             const r = await this._hbSearchAny(a.keyword, 4);
-            const songs = (r.list || []).slice(0, 4);
+            const songs = (r.list || []).slice(0, 6);
             if (!songs.length) return ok({ error: '没搜到《' + a.keyword + '》' });
             const added = Store.MyPlaylists.addSongs(pl.id, songs) || 0;
             return ok({ playlist: pname, added: added, songs: songs.map(s => s.name) }, songs);
