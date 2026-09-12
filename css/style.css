@@ -2108,3 +2108,13 @@ body:has(.hb-wrap) .hb-bar { }
 .hb-chat > * { flex: none; }
 .hb-chat .hb-empty { margin: auto 0; }   /* zE->:4• */
 body:has(.hb-wrap) #main, body:has(.hb-wrap) #view { min-height: 0; }
+/* ????????????????????????? */
+#hb-msgs.hb-chat {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end !important;
+  overflow-y: auto !important;
+}
+#hb-msgs.hb-chat > * { flex: 0 0 auto !important; }
+#hb-msgs.hb-chat > *:first-child { margin-top: auto !important; }
+#hb-msgs.hb-chat .hb-empty { margin: auto 0 !important; }

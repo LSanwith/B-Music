@@ -473,6 +473,11 @@
       chat.style.height = avail + 'px';
       chat.style.maxHeight = avail + 'px';
       chat.style.minHeight = '0';
+      chat.style.display = 'flex';
+      chat.style.flexDirection = 'column';
+      chat.style.justifyContent = 'flex-end'; // 双保险：内联也设一次
+      const first = chat.firstElementChild;
+      if (first && !first.classList.contains('hb-empty')) first.style.marginTop = 'auto';
     },
     _hbLayoutBind() {
       if (this._hbLayoutBound) return;
