@@ -2139,7 +2139,7 @@ body:has(.hb-wrap) { overscroll-behavior: contain; }
   --ease: cubic-bezier(.22, .61, .36, 1);
   --t-fast: .18s;
   --t-mid: .28s;
-  --t-slow: .40s;
+  --t-slow: .32s;
 }
 
 /* 1) ???????????????? transform/opacity/???????? */
@@ -2199,8 +2199,8 @@ input, select, textarea, a, .side-item, .search-item {
 }
 
 /* 7) ?????????/????????????????? */
-html, body, #app, .side, #topbar, #view, .modal-panel, .card,
-.song-row, .list-row, .set-group, .side-item {
+/* ê©¹h§C Z;˜Ç!hy/aGÂMLUIC ubb;˜öa */
+html, body, #app, #view, .side, #topbar, .modal-panel {
   transition: background-color var(--t-slow) var(--ease), color var(--t-slow) var(--ease),
               border-color var(--t-slow) var(--ease);
 }
@@ -2210,3 +2210,15 @@ html, body, #app, .side, #topbar, #view, .modal-panel, .card,
   transition: transform var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
 }
 .btn:hover svg, .icon-btn:hover svg { transform: scale(1.06); }
+
+/* ===== ?????????????????????? ===== */
+#topbar { position: fixed; }
+#topbar::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -14px;
+  height: 14px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, var(--bg), rgba(var(--bg-rgb), 0));
+  z-index: -1;
+}
