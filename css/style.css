@@ -1763,12 +1763,10 @@ html[data-theme="white-purple"] {
 }
 .hb-entry-btn em { font-style: normal; font-size: 11.5px; font-weight: 500; color: var(--sub); }
 .hb-entry-btn:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 10px 26px rgba(var(--accent-rgb), .28); }
-.hb-wrap { max-width: 760px; margin: 0 auto 30px; display: flex; flex-direction: column; min-height: 62vh; }
 .hb-head { text-align: center; margin-bottom: 16px; }
 .hb-title { font-size: 24px; font-weight: 800; color: var(--fg-strong); margin: 0 0 6px; }
 .hb-title em { font-style: normal; font-size: 13px; font-weight: 700; color: var(--accent); border: 1px solid rgba(var(--accent-rgb), .5); border-radius: 6px; padding: 1px 6px; vertical-align: 3px; margin-left: 6px; }
 .hb-sub { font-size: 12.5px; color: var(--sub); }
-.hb-chat { flex: none; overflow-y: auto; padding: 6px 4px 10px; display: flex; flex-direction: column; gap: 12px; }
 .hb-empty { text-align: center; color: var(--sub); font-size: 13px; padding: 40px 0; }
 .hb-row { display: flex; gap: 10px; align-items: flex-start; }
 .hb-row.me { justify-content: flex-end; }
@@ -1831,8 +1829,6 @@ html[data-theme="white-purple"] {
 .hb-card-sub { font-size: 11px; margin-top: 2px; }
 .hb-card-play { font-size: 11px; }
 .hb-bubble { font-size: 13.5px; padding: 9px 13px; }
-.hb-chat { gap: 10px; }
-.hb-wrap { max-width: 700px; min-height: 56vh; }
 .hb-chips { gap: 6px; }
 .hb-chip { padding: 5px 10px; font-size: 11.5px; }
 /* HiBetter Markdown ???? */
@@ -1907,11 +1903,9 @@ body:has(.hb-bar) #playerbar { border-top-color: transparent; }
 }
 .hb-chips { position: static; padding-bottom: 2px; margin-top: 12px; }
 /* •èY}…¹«úš“enO */
-.hb-wrap { padding-bottom: 0; }
-body:has(#playerbar:not(.hidden)) .hb-wrap { padding-bottom: 0; }
-.hb-chat { padding-bottom: 4px; }
+
 /* HiBetter ???????????????? fixed ????????????? */
-#view.view-anim > .hb-wrap { animation: none !important; filter: none !important; transform: none !important; }
+
 /* ?????????????????????? */
 .hb-icard { margin: 6px 0 12px; }
 .hb-bubble.md ul { margin: 4px 0 6px 2px; }
@@ -2091,18 +2085,26 @@ body:has(#playerbar:not(.hidden)) .hb-wrap { padding-bottom: 0; }
   .hb-cards.hb-grid { grid-template-columns: minmax(0, 1fr) !important; }
 }
 /* ????????????????????????????? */
-.hb-wrap { min-height: 0 !important; padding-bottom: 92px !important; }
-.hb-chat { flex: none !important; height: auto !important; max-height: none !important; overflow: visible !important; }
-@media (max-height: 10000px) { .hb-wrap { min-height: 0 !important; } }
 /* ?????????? JS ????????????? */
-.hb-wrap { padding-bottom: 0 !important; }
+
 /* HiBetter ???????????????? 100vh ???????????? */
 body:has(.hb-wrap) #main { min-height: 0 !important; }
 body:has(.hb-wrap) #view { min-height: 0 !important; }
 body:has(.hb-wrap) { min-height: 0 !important; }
-.hb-wrap { min-height: 0 !important; }
 /* ?????????????? */
 body:has(.hb-wrap) .hb-bar { }
 /* ????????????????????????????????? */
-.hb-chat { padding-bottom: 4px !important; }
-.hb-wrap { padding-bottom: 17px !important; }
+
+/* ?????????????????????????????????????? */
+.hb-chat > * { flex: none; }
+
+/* ===== HiBetter @ È	ùÝFká0“e
+¹…¹4• ===== */
+.hb-wrap { max-width: 700px; margin: 0 auto; min-height: 0; padding-bottom: 0; display: flex; flex-direction: column; }
+.hb-chat {
+  display: flex; flex-direction: column; justify-content: flex-end;
+  overflow-y: auto; padding: 6px 4px 6px; gap: 12px;
+}
+.hb-chat > * { flex: none; }
+.hb-chat .hb-empty { margin: auto 0; }   /* zE->:4• */
+body:has(.hb-wrap) #main, body:has(.hb-wrap) #view { min-height: 0; }

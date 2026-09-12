@@ -467,10 +467,11 @@
       const barH = bar.offsetHeight || 60;
       // 内容底部只留“输入栏高度 + 间隙”，不再出现大片空白
       const wrap = $('.hb-wrap');
-      if (wrap) wrap.style.paddingBottom = (bottomPx + 14) + 'px';
-      // 自然流式：对话区不设高度上限，内容多时整页滚动（彻底消除底部大片留白）
-      chat.style.height = 'auto';
-      chat.style.maxHeight = 'none';
+      if (wrap) wrap.style.paddingBottom = '0px';
+      // 对话区填满“顶部 → 输入栏上方”的整块区域：直接顶到输入栏，不留空白
+      const avail = Math.max(200, Math.round(window.innerHeight - top - barH - bottomPx - 8));
+      chat.style.height = avail + 'px';
+      chat.style.maxHeight = avail + 'px';
       chat.style.minHeight = '0';
     },
     _hbLayoutBind() {
