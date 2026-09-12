@@ -364,6 +364,7 @@
         fn('favorite_playlist', '收藏或取消收藏一个歌单（按名称，来自搜索或收藏列表）', { name: { type: 'string' }, on: { type: 'boolean' } }, ['name']),
         fn('playlist_create', '新建一个自建歌单', { name: { type: 'string' } }, ['name']),
         fn('playlist_add', '搜索歌曲并加入指定自建歌单（歌单不存在时会自动创建）', { playlist: { type: 'string' }, keyword: { type: 'string' } }, ['playlist', 'keyword']),
+        fn('get_hot_songs', '获取网易云音乐【热歌榜】的真实歌曲（大众口味推荐必须用它取歌，不得凭记忆编造）', { limit: { type: 'number', description: '取多少首，默认 30' } }, []),
         fn('get_recent', '读取最近播放与搜索历史', {}, []),
         fn('set_theme', '切换界面主题', { name: { type: 'string', enum: ['黑红', '黑蓝', '黑金', '黑紫', '白红', '白蓝', '白金', '白紫'] } }, ['name']),
         fn('download_current', '下载当前播放的歌曲到本机', {}, []),
@@ -394,9 +395,10 @@
         '',
         '【推荐流程】',
         '4. 收到“推荐/来点/适合…”：先 get_my_library 了解口味（收藏歌曲、收藏歌单、自建歌单——歌单名以工具返回为准，必要时用 get_playlist_songs 看具体曲目），再用 search_music 找同类歌，注意【语言、曲风、年代】与口味一致。',
+        '4c. 用户明确说“来点大众口味/热门/最近很火的歌”时，同样先用 get_hot_songs 取热歌榜，再挑 4 首。',
         '4b. 【必须多样化·重要】不要每次都给同一位歌手（例如反复推 Taylor Swift）。要求：① 4 首里同一歌手的歌最多 1 首；② 参考工具返回的“收藏中的歌手分布”，优先覆盖不同歌手/不同风格；③ 每次推荐都要重新随机组合，不要沿用上一轮的选择；④ 搜索时用不同关键词（可换不同歌手名、语言、曲风）而不是只搜一个词。',
         '5. 一次搜索不足 4 首 → 换更宽的关键词再搜（本轮最多 3 次），务必凑够 4 首不同歌曲；多次仍无结果就如实说“搜索服务暂时不可用”，不要给记不准的列表。',
-        '6. 音乐库为空（未登录或无收藏）→ 不要追问，直接按大众口味推荐 4 首。',
+        '6. 音乐库为空（未登录或无收藏）→ 不要追问，也【不要凭记忆】推荐；必须先调用 get_hot_songs 获取网易云【热歌榜】的真实歌曲，再从榜单结果里挑 4 首（歌名歌手逐字来自榜单）。若榜单取不到，再退回 search_music 用“热歌榜/热门流行”等关键词搜索。',
         '7. 用户想找歌单/歌单推荐 → 用 search_playlists（最多 4 个），正文逐字使用返回的歌单名。',
         '8. 用户问“我收藏里有没有…” → 用 search_my_library 或 get_playlist_songs 回答。',
         '',
@@ -1150,7 +1152,8 @@
             const favPl = (Store.FavPlaylists.all || []).find(p => norm2(p.name).indexOf(norm2(kw2)) >= 0 || norm2(kw2).indexOf(norm2(p.name)) >= 0);
             if (favPl) {
               try {
-                const list = await API.playlistTracks(favPl.id, 30, 0);
+                const res2 = await API.playlistTracks(favPl.id, 30, 0);
+                const list = Array.isArray(res2) ? res2 : ((res2 && res2.songs) || []);
                 const songs = (list || []).slice(0, 30);
                 return ok({ playlist: favPl.name, count: songs.length, songs: songs.map(s => ({ name: s.name, artists: names(s) })) }, songs);
               } catch (e) { return ok({ error: '读取歌单失败：' + e.message }); }
@@ -1231,6 +1234,31 @@
             if (!songs.length) return ok({ error: '没搜到《' + a.keyword + '》' });
             const added = Store.MyPlaylists.addSongs(pl.id, songs) || 0;
             return ok({ playlist: pname, added: added, songs: songs.map(s => s.name) }, songs);
+          }
+          case 'get_hot_songs': {
+            const want = Math.min(60, Math.max(8, a.limit || 30));
+            const HOT_ID = 3778678; // 网易云「热歌榜」
+            let list = [];
+            try {
+              const res = await API.playlistTracks(HOT_ID, want, 0);
+              list = Array.isArray(res) ? res : ((res && res.songs) || []);
+            } catch (e) { list = []; }
+            if (!list.length) {
+              try {
+                const d = await API.playlistDetail(HOT_ID);
+                const tr = (d && (d.tracks || (d.playlist && d.playlist.tracks))) || [];
+                list = tr.map(t => t && t.song ? t.song : t).filter(Boolean);
+              } catch (e) { list = []; }
+            }
+            if (!list || !list.length) return ok({ error: '热歌榜暂时取不到，请稍后重试' });
+            const shuffle = (arr) => { const x = arr.slice(); for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = x[i]; x[i] = x[j]; x[j] = t; } return x; };
+            const picks = shuffle(list).slice(0, 12);
+            return ok({
+              source: '网易云音乐 热歌榜（真实榜单数据）',
+              榜单总数: list.length,
+              随机抽样: picks.map(s => ({ name: s.name, artists: names(s) })),
+              instruction: '这是大众口味的真实榜单歌曲。正文必须逐字使用其中歌名与歌手（不要编造、不要用你记忆里的其它热歌）。',
+            }, picks.map(s => Object.assign({}, s, { hotRank: true })));
           }
           case 'get_recent': {
             const rec = (Store.Recent.all || []).slice(0, 12).map(s => ({ name: s.name, artists: names(s) }));
