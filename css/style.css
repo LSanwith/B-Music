@@ -2248,3 +2248,9 @@ html, body, #app, #view, .side, #topbar, .modal-panel {
   pointer-events: none;
   background: linear-gradient(to right, rgba(var(--panel-rgb), 0), rgba(var(--panel-rgb), .92));
 }
+
+/* §Îv¹ Ëv—å*/tO½æ§«§n! */
+.side { top: calc(var(--topbar-h) + 12px) !important; }
+/* vn§K
+İÁtaÌoïÁ˜ï¹ */
+#topbar { z-index: 70 !important; }
