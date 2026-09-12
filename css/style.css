@@ -2233,3 +2233,18 @@ html, body, #app, #view, .side, #topbar, .modal-panel {
 
 /* „O§6w:½Iv…¹4æ */
 @media (max-width: 900px) { #topbar { padding-left: 14px; } }
+
+/* vÌo§rûˆdæ§rîl¹	+ æï½Ç! */
+#topbar {
+  background: rgba(var(--panel-rgb), .92) !important;
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+}
+#topbar::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 44px;
+  pointer-events: none;
+  background: linear-gradient(to right, rgba(var(--panel-rgb), 0), rgba(var(--panel-rgb), .92));
+}
