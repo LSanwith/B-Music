@@ -226,10 +226,30 @@
       const params = new URLSearchParams(query || '');
       const seg = path.split('/').filter(Boolean);
       const root = seg[0] || 'discover'; // 默认首页：发现音乐
+      const titleEl = $('#page-title');
+      if (titleEl) this._prevTitleLeft = titleEl.getBoundingClientRect().left; // 动画起点：布局变化前先量
       this._highlightNav(root);
       // 顶栏返回按钮：仅在 歌单/专辑/歌手/单曲/自建歌单 等详情页显示（位于顶部标题文本左侧）
       const topBack = $('#btn-topback');
-      if (topBack) topBack.classList.toggle('hidden', !(root === 'playlist' || root === 'album' || root === 'artist' || root === 'song' || root === 'myplaylist' || root === 'share'));
+      const wantBack = !!(root === 'playlist' || root === 'album' || root === 'artist' || root === 'song' || root === 'myplaylist' || root === 'share');
+      const backWasHidden = topBack ? topBack.classList.contains('hidden') : true;
+      const backIn = backWasHidden && wantBack;    // 返回按钮出现
+      const backOut = !backWasHidden && !wantBack; // 返回按钮退出：标题滑过去把它吸收掉
+      const titleNow = $('#page-title') ? $('#page-title').textContent : '';
+      const titleChanged = !this._gooBoot || titleNow !== this._gooTitle;
+      if (topBack && backIn) topBack.classList.remove('hidden'); // 先就位，动画期间它自身的收起动画被冻结
+      if (backIn || backOut) {
+        // 返回按钮出现/退出：才需要位移 + 融球
+        if (!this._topbarGoo({ toBack: backOut, hideBackAfter: backOut })) this._animateTitleInPlace();
+      } else if (titleChanged) {
+        // 侧栏直接切页：控件不动，原地换标题
+        this._animateTitleInPlace();
+      } else if (topBack) {
+        topBack.classList.toggle('hidden', !wantBack);
+        this._unlockTitleWidth();
+      }
+      this._gooBoot = true;
+      this._gooTitle = titleNow;
       // 分享深度链接的 ?song= 参数：页面就绪后在原列表定位并自动播放该曲
       this._autoSong = params.get('song') ? String(params.get('song')) : null;
       this._autoSongTries = 0;
@@ -252,12 +272,209 @@
     _highlightNav(root) {
       $$('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.nav === root));
       const titles = { hibetter: 'HiBetter', discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', recognize: '听歌识曲', hibetter: 'HiBetter', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单' };
-      const t = $('#page-title');
-      if (t) {
-        t.textContent = titles[root] || '发现';
-      }
+      this._setTopTitle(titles[root] || '发现');
       const cur = Player.current();
       document.title = cur ? cur.name + ' - B·Music' : 'B·Music · 网页版';
+    },
+
+    /** 顶栏标题换字：先锁住旧宽度，宽度过渡交给动画层（避免胶囊宽度瞬变） */
+    _setTopTitle(next) {
+      const t = $('#page-title');
+      if (!t) return;
+      if (t.textContent === next) { this._titleWidth = null; return; }
+      const oldW = this._gooBoot ? Math.round(t.getBoundingClientRect().width) : 0;
+      t.style.width = '';
+      t.textContent = next;
+      const newW = Math.round(t.getBoundingClientRect().width);
+      if (oldW && newW && oldW !== newW) {
+        t.style.width = oldW + 'px';
+        this._titleWidth = { oldW, newW };
+      } else {
+        this._titleWidth = null;
+      }
+    },
+
+    _unlockTitleWidth() {
+      const t = $('#page-title');
+      if (t) t.style.width = '';
+      this._titleWidth = null;
+    },
+
+    /** 只有标题变化（例如侧栏直接切页）：控件原地不动，只做宽度过渡 + 轻微模糊 */
+    _animateTitleInPlace() {
+      const t = $('#page-title');
+      if (!t) { this._titleWidth = null; return; }
+      const w = this._titleWidth;
+      this._titleWidth = null;
+      clearTimeout(this._widthT);
+      t.style.transition = 'none';
+      t.style.animation = 'none';
+      if (w) {
+        t.style.width = w.oldW + 'px';
+        t.style.textOverflow = 'clip';
+      }
+      void t.offsetWidth; // 提交起点
+      if (w) {
+        t.style.transition = 'width 320ms cubic-bezier(.3, 1.4, .5, 1)';
+        t.style.width = w.newW + 'px';
+      }
+      if (this._gooBoot) {
+        // 换字瞬间用一层轻微模糊盖一下，避免生硬
+        t.style.setProperty('--mb', '3px');
+        t.style.animation = 'gooMotionBlur 320ms var(--ease) both';
+      }
+      this._widthT = setTimeout(() => {
+        t.style.width = '';
+        t.style.transition = '';
+        t.style.textOverflow = '';
+        t.style.animation = '';
+        t.style.removeProperty('--mb');
+      }, 340);
+    },
+
+    /**
+     * 通用「融球滑动」：标题从返回键位置滑出 / 滑回返回键并被吸收（顶栏与设置弹窗共用）
+     * cfg = { title, back, lockEl, host, from, to, widthFrom, widthTo, hideBackAfter, layerId }
+     */
+    _gooSlide(cfg) {
+      const title = cfg.title;
+      const host = cfg.host || document.body;
+      if (!title || !host) return false;
+      const MS = 320;
+      const EASE = 'cubic-bezier(.3, 1.4, .5, 1)'; // 轻微回弹
+      const layerId = cfg.layerId || 'goo-layer';
+      clearTimeout(this._gooT);
+      clearTimeout(this._gooT2);
+      const old = document.getElementById(layerId);
+      if (old) old.remove();
+      if (cfg.lockEl) cfg.lockEl.classList.remove('goo-lock');
+      title.style.transition = '';
+      title.style.transform = '';
+      title.style.width = '';
+      title.style.textOverflow = '';
+      title.style.willChange = '';
+      title.style.removeProperty('--mb'); // 清掉原地动画可能残留的模糊峰值
+      const tr = title.getBoundingClientRect();
+      if (tr.width < 1) return false;
+      const back = cfg.back && !cfg.back.classList.contains('hidden') ? cfg.back : null;
+      const br = back ? back.getBoundingClientRect() : null;
+      const from = Number(cfg.from) || 0;
+      const to = Number(cfg.to) || 0;
+      const inHost = host !== document.body;
+      const hr = host.getBoundingClientRect();
+      const ox = inHost ? hr.left + host.clientLeft : 0;
+      const oy = inHost ? hr.top + host.clientTop : 0;
+      const startLeft = tr.left + from;
+      const l = Math.min(startLeft, tr.left, br ? br.left : tr.left) - 34;
+      const r = Math.max(startLeft + tr.width, tr.right, br ? br.right : tr.right) + 34;
+      const tp = Math.min(tr.top, br ? br.top : tr.top) - 34;
+      const bt = Math.max(tr.bottom, br ? br.bottom : tr.bottom) + 34;
+      const wrap = document.createElement('div');
+      wrap.id = layerId;
+      wrap.style.cssText = 'position:' + (inHost ? 'absolute' : 'fixed') + ';left:' + Math.round(l - ox) +
+        'px;top:' + Math.round(tp - oy) + 'px;width:' + Math.round(r - l) + 'px;height:' + Math.round(bt - tp) + 'px;';
+      const mk = (rc, off, cls) => {
+        const b = document.createElement('i');
+        b.className = 'goo-blob' + (cls ? ' ' + cls : '');
+        b.style.cssText = 'transition:none;left:' + Math.round(rc.left - l) + 'px;top:' + Math.round(rc.top - tp) +
+          'px;width:' + Math.round(rc.width) + 'px;height:' + Math.round(rc.height) + 'px;' +
+          'transform:translateX(' + off + 'px);';
+        wrap.appendChild(b);
+        return b;
+      };
+      const titleBlob = mk(tr, from, 'goo-blob-title');
+      if (br) mk(br, 0, 'goo-blob-back');
+      host.appendChild(wrap);
+      if (cfg.lockEl) cfg.lockEl.classList.add('goo-lock'); // 冻结返回键自身动画 + 运动模糊
+      const wFrom = Number(cfg.widthFrom) || 0;
+      const wTo = Number(cfg.widthTo) || 0;
+      const wAnim = wFrom > 0 && wTo > 0 && wFrom !== wTo;
+      // 真实标题跟着一起走（文字随形状移动，不闪、不重排）
+      title.style.willChange = 'transform';
+      title.style.transition = 'none'; // 先无过渡地落到起点
+      title.style.transform = 'translateX(' + from + 'px)';
+      if (wAnim) {
+        title.style.width = wFrom + 'px';
+        title.style.textOverflow = 'clip';
+      }
+      void wrap.offsetWidth; // 提交起点状态
+      title.style.transition = 'transform ' + MS + 'ms ' + EASE + (wAnim ? ', width ' + MS + 'ms ' + EASE : '');
+      title.style.transform = 'translateX(' + to + 'px)';
+      titleBlob.style.transition = '';
+      titleBlob.style.transform = 'translateX(' + to + 'px)';
+      if (wAnim) {
+        title.style.width = wTo + 'px';
+        titleBlob.style.width = wTo + 'px';
+      }
+      const clearTitle = () => {
+        title.style.transition = '';
+        title.style.transform = '';
+        title.style.width = '';
+        title.style.textOverflow = '';
+      };
+      this._gooT = setTimeout(() => {
+        if (cfg.hideBackAfter && back) {
+          // 同一帧内换手：清掉位移 + 收起返回键（布局同时回拢，视觉位置不变）
+          title.style.transition = 'none';
+          title.style.transform = '';
+          title.style.width = '';
+          title.style.textOverflow = '';
+          back.classList.add('hidden');
+          void title.offsetWidth;
+        } else {
+          clearTitle();
+        }
+        if (cfg.lockEl) cfg.lockEl.classList.remove('goo-lock');
+        // 融球层淡出后再移除，避免末尾「桥」突然断掉
+        wrap.style.transition = 'opacity .12s linear';
+        wrap.style.opacity = '0';
+        this._gooT2 = setTimeout(() => {
+          wrap.remove();
+          clearTitle();
+          title.style.willChange = '';
+        }, 140);
+      }, MS + 30);
+      return true;
+    },
+
+    /** 顶栏控件位移：进入详情页从返回按钮滑出，返回时滑回并被返回按钮「吸收」 */
+    _topbarGoo(opts) {
+      opts = opts || {};
+      const bar = $('#topbar');
+      const title = $('#page-title');
+      const wAnim = this._titleWidth; // 换字造成的宽度差（由本动画一并过渡）
+      this._titleWidth = null;
+      if (!bar || !title || !document.body) { this._unlockTitleWidth(); return false; }
+      const back = $('#btn-topback');
+      const hasBack = !!(back && !back.classList.contains('hidden'));
+      const tr = title.getBoundingClientRect();
+      if (tr.width < 1) { this._unlockTitleWidth(); return false; }
+      const br = hasBack ? back.getBoundingClientRect() : null;
+      const gap = br ? Math.round(tr.left - br.left) : 0;
+      // from/to 都是 translateX 值：有返回按钮时两个控件共享同一段行程
+      let from = -40;
+      let to = 0;
+      if (opts.toBack && br) {
+        from = Math.round((this._prevTitleLeft || tr.left) - tr.left); // 通常 0：标题先停在原位
+        to = -gap;                                                     // 再滑到返回按钮的位置
+      } else if (br) {
+        from = -gap;                                                   // 从返回按钮身上扯出来
+        to = 0;
+      }
+      const ok = this._gooSlide({
+        title: title,
+        back: br ? back : null,
+        lockEl: bar,
+        host: document.body,
+        from: from,
+        to: to,
+        widthFrom: wAnim ? wAnim.oldW : 0,
+        widthTo: wAnim ? wAnim.newW : 0,
+        hideBackAfter: !!opts.hideBackAfter,
+        layerId: 'topbar-goo',
+      });
+      if (!ok) this._unlockTitleWidth();
+      return ok;
     },
 
     _setView(html) {
@@ -1657,7 +1874,8 @@
       if (!wrap) return;
       clearInterval(wrap._timer);
       const slides = $$('.banner-slide', wrap);
-      const dots = $$('.dot', wrap);
+      // 点点在 .banner-dots 里，是 .banner 的兄弟节点，必须往上找一层（否则一个都选不到、点击无效）
+      const dots = $$('.dot', wrap.parentElement || wrap);
       let cur = 0, timer = null;
       const go = (i) => {
         cur = (i + slides.length) % slides.length;
@@ -3925,13 +4143,34 @@
         }));
       }
       this._noticeShow(n);
-      $('#notice').classList.remove('hidden');
-      document.body.classList.add('no-scroll');
+      this._openModal('#notice');
       this._markNoticeSeen();
     },
     closeNotice() {
-      $('#notice').classList.add('hidden');
-      document.body.classList.remove('no-scroll');
+      this._closeModal('#notice');
+    },
+
+    /** 浮窗通用开关：带入场 / 退场动画（退场动画播完再真正 hidden） */
+    _openModal(sel) {
+      const m = $(sel);
+      if (!m) return;
+      if (m._closeT) { clearTimeout(m._closeT); m._closeT = null; }
+      m.classList.remove('closing');
+      m.classList.remove('hidden');
+      document.body.classList.add('no-scroll');
+    },
+    _closeModal(sel) {
+      const m = $(sel);
+      if (!m || m.classList.contains('hidden') || m._closeT) return;
+      m.classList.add('closing');
+      const t = setTimeout(() => {
+        if (m._closeT !== t) return; // 已被重新打开，放弃这次关闭
+        m._closeT = null;
+        m.classList.remove('closing');
+        m.classList.add('hidden');
+        if (!$$('.modal').some(x => !x.classList.contains('hidden'))) document.body.classList.remove('no-scroll');
+      }, 300);
+      m._closeT = t;
     },
     /** 版本未读过时自动弹出一次 */
     _maybeShowNotice() {
@@ -3944,35 +4183,78 @@
      * 设置
      * ============================================================ */
     openSettings() {
-      $('#settings').classList.remove('hidden');
-      document.body.classList.add('no-scroll');
+      this._showSetPage('', true); // 先无动画复位到一级列表（否则会残留二级页的退场动画）
+      this._openModal('#settings');
       this._applySettingsToUI();
-      this._showSetPage(''); // 打开设置总是复位到一级列表
       this._renderSettingsAccount();
     },
     closeSettings() {
-      $('#settings').classList.add('hidden');
-      document.body.classList.remove('no-scroll');
+      this._closeModal('#settings');
     },
     /** 设置弹窗二级页导航：'' → 一级列表（默认）；account/prefs/cache → 对应二级页
      *  带过渡动画：当前页高斯模糊淡出 → 目标页高斯模糊淡入，面板高度平滑拉长/缩短 */
-    _showSetPage(name) {
+    _showSetPage(name, instant) {
       const pages = ['account', 'prefs', 'cache'];
       const main = $('#set-page-main');
       if (!main) return;
       const panel = $('.modal-panel', $('#settings'));
+      const scroller = $('.modal-body', $('#settings')) || panel;
       const switchNow = () => {
         main.classList.toggle('hidden', pages.indexOf(name) !== -1);
         pages.forEach(p => {
           const pg = $('#set-page-' + p);
           if (pg) pg.classList.toggle('hidden', p !== name);
         });
-        if (panel) panel.scrollTop = 0;
+        if (scroller) scroller.scrollTop = 0;
+        // 顶栏一行：返回键 + 当前页标题（一级=设置，二级=对应名称），过渡动画与主页面完全一致
+        const titleEl = $('#set-title');
+        const backEl = $('#set-back');
+        const headEl = $('.modal-head', $('#settings'));
+        const panelEl = $('.modal-panel', $('#settings'));
+        const nextTitle = ({ account: '账号设置', prefs: '偏好设置', cache: '缓存设置' })[name] || '设置';
+        if (titleEl && backEl && headEl && panelEl) {
+          const toBack = !name && !backEl.classList.contains('hidden'); // 回一级：标题滑回并吸收返回键
+          const prevLeft = titleEl.getBoundingClientRect().left;
+          const w0 = Math.round(titleEl.getBoundingClientRect().width);
+          if (!toBack) backEl.classList.toggle('hidden', !name); // 出场立即就位；退出留到动画收尾
+          titleEl.style.width = '';
+          titleEl.textContent = nextTitle;
+          const w1 = Math.round(titleEl.getBoundingClientRect().width);
+          const tr = titleEl.getBoundingClientRect();
+          const br = backEl.classList.contains('hidden') ? null : backEl.getBoundingClientRect();
+          const gap = br ? Math.round(tr.left - br.left) : 0;
+          this._gooSlide({
+            title: titleEl,
+            back: br ? backEl : null,
+            lockEl: headEl,
+            host: panelEl,
+            from: toBack ? Math.round(prevLeft - tr.left) : -gap,
+            to: toBack ? -gap : 0,
+            widthFrom: w0,
+            widthTo: w1,
+            hideBackAfter: toBack,
+            layerId: 'set-goo',
+          });
+        }
         if (name === 'account') this._renderSettingsAccount();
         if (name === 'cache') this._bindCacheSettings();
 
         if (!name) this._refreshSettingsMenuAccount();
       };
+      // 打开设置时直接复位（instant）：否则会先播上一次二级页的退场动画
+      if (instant) {
+        [main].concat(pages.map(p => $('#set-page-' + p))).forEach(el => {
+          if (!el) return;
+          el.style.transition = 'none';
+          el.style.filter = '';
+          el.style.opacity = '';
+          el.style.transform = '';
+          void el.offsetWidth;
+          el.style.transition = '';
+        });
+        switchNow();
+        return;
+      }
       // 若非切换（打开时首次 / 连续点击同一页）→ 直接切换
       const cur = main.classList.contains('hidden') ? null : main;
       const curPg = (pages.find(p => { const el = $('#set-page-' + p); return el && !el.classList.contains('hidden'); }) || '');
@@ -4020,13 +4302,11 @@
       if (capRow) capRow.classList.toggle('hidden', this._authMode !== 'register');
       if (pass2) pass2.classList.toggle('hidden', this._authMode !== 'register');
       if (this._authMode === 'register') this._resetAltcha();
-      $('#auth').classList.remove('hidden');
-      document.body.classList.add('no-scroll');
+      this._openModal('#auth');
       setTimeout(() => { const e = $('#auth-email'); if (e) e.focus(); }, 60);
     },
     closeAuth() {
-      $('#auth').classList.add('hidden');
-      document.body.classList.remove('no-scroll');
+      this._closeModal('#auth');
     },
     /** 加载滑动验证（缺口位置来自服务端） */
     async _loadCaptcha() {
@@ -4867,10 +5147,21 @@
       { key: 'white-gold', name: '白金', bg: '#f7f5f0', ac: '#b8860b', dark: false },
       { key: 'white-purple', name: '白紫', bg: '#f6f4fa', ac: '#7c3aed', dark: false },
     ],
-    /** 应用主题（设置 data-theme + 浏览器栏配色） */
+    /** 应用主题（设置 data-theme + 浏览器栏配色）
+     *  说明：主题切换一律「一帧落地」，不做任何过渡动画 ——
+     *  1) 逐元素颜色过渡会让浏览器逐帧重绘整页（歌单广场最明显，实测单帧 100ms+）；
+     *  2) 全屏纯色层淡出会在深浅互切时闪一下；
+     *  3) View Transition 在部分机器上会把 fixed/合成层元素画成实时的，内容却还是旧快照，
+     *     出现「面板已经黑了、列表还是白的」这种半新半旧。
+     *  所以只保留最稳的做法：同一帧全部切完，不闪、不丢背景模糊、不卡。 */
     applyTheme(t) {
       const key = (this.THEMES.some(x => x.key === t) ? t : 'black-red');
-      document.documentElement.setAttribute('data-theme', key);
+      const root = document.documentElement;
+      // 切换期间统一禁止过渡，保证所有控件在同一帧完成深浅切换
+      root.classList.add('theme-switching');
+      clearTimeout(this._themeT);
+      this._themeT = setTimeout(() => root.classList.remove('theme-switching'), 320);
+      root.setAttribute('data-theme', key);
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) meta.setAttribute('content', key.indexOf('white-') === 0 ? '#f3f5f9' : '#0b0b0e');
     },
@@ -4893,15 +5184,19 @@
           if (el) this.setTheme(el.dataset.t);
         });
       }
-      box.innerHTML = this.THEMES.map(t =>
-        '<button type="button" class="theme-card' + (cur === t.key ? ' active' : '') + '" data-t="' + t.key + '">' +
-        '<span class="theme-prev" style="background:' + t.bg + '">' +
-        '<i class="tp-side" style="background:' + (t.dark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.07)') + '"></i>' +
-        '<i class="tp-line" style="background:' + (t.dark ? 'rgba(255,255,255,.42)' : 'rgba(0,0,0,.34)') + '"></i>' +
-        '<i class="tp-line short" style="background:' + (t.dark ? 'rgba(255,255,255,.24)' : 'rgba(0,0,0,.18)') + '"></i>' +
-        '<i class="tp-btn" style="background:' + t.ac + '"></i>' +
-        '</span>' +
-        '<span class="theme-name">' + t.name + '</span></button>').join('');
+      // 只在首次渲染时生成卡片：切换主题只改 active，避免切换瞬间重建整块 DOM
+      if (!box.children.length) {
+        box.innerHTML = this.THEMES.map(t =>
+          '<button type="button" class="theme-card" data-t="' + t.key + '">' +
+          '<span class="theme-prev" style="background:' + t.bg + '">' +
+          '<i class="tp-side" style="background:' + (t.dark ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.07)') + '"></i>' +
+          '<i class="tp-line" style="background:' + (t.dark ? 'rgba(255,255,255,.42)' : 'rgba(0,0,0,.34)') + '"></i>' +
+          '<i class="tp-line short" style="background:' + (t.dark ? 'rgba(255,255,255,.24)' : 'rgba(0,0,0,.18)') + '"></i>' +
+          '<i class="tp-btn" style="background:' + t.ac + '"></i>' +
+          '</span>' +
+          '<span class="theme-name">' + t.name + '</span></button>').join('');
+      }
+      $$('.theme-card', box).forEach(el => el.classList.toggle('active', el.dataset.t === cur));
     },
 
     /* ---------------- 侧边栏收藏歌单 ---------------- */

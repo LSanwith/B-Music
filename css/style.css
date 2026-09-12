@@ -268,7 +268,10 @@ svg { fill: currentColor; }
   letter-spacing: .3px;
 }
 .banner-dots { display: flex; justify-content: center; gap: 7px; margin-top: 12px; }
-.dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(var(--fg-rgb),.22); cursor: pointer; transition: all .3s; }
+.dot { position: relative; width: 6px; height: 6px; border-radius: 50%; background: rgba(var(--fg-rgb),.22); cursor: pointer; transition: all .3s; }
+/* i'π˚Ì:6px Ñπ*π-	 */
+.dot::after { content: ''; position: absolute; inset: -9px -3px; }
+.dot:hover { background: rgba(var(--fg-rgb), .45); }
 .dot.active { width: 22px; border-radius: 4px; background: var(--accent); }
 
 /* ============ Âç°ÁâáÁΩëÊ†º ============ */
@@ -2213,51 +2216,322 @@ html, body, #app, #view, .side, #topbar, .modal-panel {
 
 /* ===== ?????????????????????? ===== */
 #topbar { position: fixed; }
-
-/* ===== vïËΩ¢F	(ni©vêÖπÍ6T• ===== */
+/* ===== v68: transparent topbar + capsule title + round back button + sticky slide-in ===== */
 #topbar {
-
-/* v:¯1400 ◊ 704sE- */
-#topbar { left: 0; right: 0; max-width: none; margin: 0; height: 70px; padding-left: calc(var(--side-offset) + 28px); }
-
-/* ===== ????????????????????????????? ===== */
-#topbar { overflow: visible; }
-#topbar::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; top: 100%;
-  height: 16px;
+  left: 0; right: 0; max-width: none; margin: 0;
+  height: 70px;
+  padding-left: calc(var(--side-offset) + 9px);
+  background: transparent !important;
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  border-bottom: none !important;
+  overflow: visible;
+  z-index: 70 !important;
   pointer-events: none;
-  background: linear-gradient(to bottom, rgba(var(--bg-rgb), .78), rgba(var(--bg-rgb), 0));
+}
+#topbar > * { pointer-events: auto; }
+
+/* goo layer: sits just under the topbar so the real controls stay crisp on top */
+#topbar-goo {
+  position: fixed;
+  pointer-events: none; z-index: 65;
+  filter: url(#goo-filter);
+  -webkit-filter: url(#goo-filter);
+}
+#topbar-goo .goo-blob {
+  position: absolute; display: block;
+  border-radius: 999px;
+  background: rgba(var(--panel-rgb), .92);
+  will-change: transform;
+  transition: transform .32s cubic-bezier(.3, 1.4, .5, 1), width .32s cubic-bezier(.3, 1.4, .5, 1);
 }
 
-/* ÑOß6w:ΩIvÖπ4Ê */
-@media (max-width: 900px) { #topbar { padding-left: 14px; } }
+/* page title: capsule, 20px type, 4px below the bar centre line */
+#page-title {
+  font-size: 20px;
+  letter-spacing: -.2px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(var(--panel-rgb), .92);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+  position: relative;
+  top: 4px;
+  transition: background-color var(--t-mid) var(--ease), border-color var(--t-mid) var(--ease),
+              color var(--t-mid) var(--ease), box-shadow var(--t-mid) var(--ease),
+              transform var(--t-fast) var(--ease);
+}
 
-/* vÃoßr˚àdÊßrÓlπ	+ ÊÔΩ«! */
-#topbar {
-  background: rgba(var(--panel-rgb), .92) !important;
-  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+/* back button: big round icon, same fill as the capsule (seamless merge) */
+#topbar .topbar-back {
+  width: 44px; height: 44px; padding: 0; gap: 0; flex: none;
+  border-radius: 50%; justify-content: center;
+  background: rgba(var(--panel-rgb), .92);
+  position: relative;
+  top: 4px;
+  transform: none;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+  transition: max-width .28s var(--ease), opacity .22s var(--ease), padding .28s var(--ease),
+              margin .28s var(--ease), border-color var(--t-mid) var(--ease),
+              background-color var(--t-mid) var(--ease), color var(--t-mid) var(--ease),
+              box-shadow var(--t-mid) var(--ease), transform var(--t-fast) var(--ease);
+}
+#topbar .topbar-back span { display: none; }
+#topbar .topbar-back svg { width: 22px; height: 22px; transition: fill var(--t-fast) var(--ease); }
+
+/* hover: pure zoom (no vertical shift), press: shrink back */
+#topbar .topbar-back:hover, #page-title:hover {
+  transform: scale(1.045);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .22);
+}
+#topbar .topbar-back:active, #page-title:active {
+  transform: scale(.97);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .14);
+}
+
+@media (max-width: 900px) {
+  #topbar { padding-left: 8px; }
+  #page-title { font-size: 17px; padding: 7px 15px; }
+  #topbar .topbar-back { width: 40px; height: 40px; }
+  #topbar .topbar-back svg { width: 20px; height: 20px; }
+}
+
+/* ===== v69: motion blur while the controls travel + lock for the back button ===== */
+@keyframes gooMotionBlur {
+  /* full blur on the very first frame: the label swaps in the same frame,
+     otherwise the new text pops in sharp before the blur ramps up */
+  0%, 30% { filter: blur(var(--mb, 6px)); }
+  100% { filter: blur(0px); }
+}
+/* ®;Ùª”‘ﬁ	ÆÍ´Ñ6w®;Mn1çB# */
+#topbar.goo-lock .topbar-back { transition: none !important; }
+#topbar.goo-lock #page-title {
+  --mb: 4px;
+  animation: gooMotionBlur .32s var(--ease) both;
+}
+#topbar.goo-lock .topbar-back {
+  --mb: 3px;
+  animation: gooMotionBlur .32s var(--ease) both;
+}
+#topbar-goo .goo-blob {
+  --mb: 4px;
+  animation: gooMotionBlur .32s var(--ease) both;
+}
+
+/* ===== v72: modal enter/leave animation (mask + panel, blur assisted) ===== */
+.modal-mask { animation: modalMaskIn .3s var(--ease) both; }
+.modal-panel { animation: modalPanelIn .38s var(--ease) both; }
+.modal.closing { pointer-events: none; }
+.modal.closing .modal-mask { animation: modalMaskOut .28s var(--ease) both; }
+.modal.closing .modal-panel { animation: modalPanelOut .3s var(--ease) both; }
+@keyframes modalMaskIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes modalPanelIn {
+  from { opacity: 0; transform: translateY(22px) scale(.955); filter: blur(10px); }
+  55%  { filter: blur(0px); }
+  to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0px); }
+}
+@keyframes modalMaskOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes modalPanelOut {
+  from { opacity: 1; transform: translateY(0) scale(1); filter: blur(0px); }
+  to   { opacity: 0; transform: translateY(16px) scale(.965); filter: blur(6px); }
+}
+
+/* ===== v73: settings level-2 page: sticky round back button + title capsule ===== */
+.set-page-head {
+  position: sticky; top: -24px; z-index: 6; /* µàb padding-top⁄®ˆ4ObÖv */
+  display: flex; align-items: center; gap: 10px;
+  margin: 0 -28px 18px; padding: 12px 28px 12px;
+  background: rgba(var(--panel-rgb), .97);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
 }
-#topbar::before {
-  content: '';
-  position: absolute;
-  left: 0; top: 0; bottom: 0;
-  width: 44px;
+/* {ÆΩÖπ⁄
+ªl */
+.set-page-head::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 14px;
   pointer-events: none;
-  background: linear-gradient(to right, rgba(var(--panel-rgb), 0), rgba(var(--panel-rgb), .92));
+  background: linear-gradient(to bottom, rgba(var(--panel-rgb), .92), rgba(var(--panel-rgb), 0));
+}
+.set-page-head .view-back {
+  width: 40px; height: 40px; padding: 0; flex: none;
+  border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(var(--panel-rgb), .92); border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+  position: relative; top: 0; transform: none; margin: 0;
+  transition: background-color var(--t-mid) var(--ease), border-color var(--t-mid) var(--ease),
+              box-shadow var(--t-mid) var(--ease), transform var(--t-fast) var(--ease);
+}
+.set-page-head .view-back span { display: none; }
+.set-page-head .view-back svg { width: 20px; height: 20px; fill: var(--sub); transition: fill var(--t-fast) var(--ease); }
+.set-page-head .view-back:hover { transform: scale(1.045); box-shadow: 0 10px 24px rgba(0, 0, 0, .22); }
+.set-page-head .view-back:hover svg { fill: var(--accent); }
+.set-page-head .view-back:active { transform: scale(.97); box-shadow: 0 4px 12px rgba(0, 0, 0, .14); }
+.set-page-title {
+  font-size: 20px; font-weight: 700; letter-spacing: -.2px; color: var(--fg-strong);
+  background: rgba(var(--panel-rgb), .92); border: 1px solid var(--border);
+  border-radius: 999px; padding: 8px 18px; white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+}
+/* òÚnvêœcáÃÑòMÕ */
+.set-page .set-head { display: none; }
+@media (max-width: 560px) {
+  .set-page-head { margin: 0 -18px 14px; padding: 10px 18px; top: -20px; }
+  .set-page-title { font-size: 17px; padding: 7px 15px; }
+  .set-page-head .view-back { width: 36px; height: 36px; }
+  .set-page-head .view-back svg { width: 18px; height: 18px; }
 }
 
-/* ßŒvπ ÀvóÂ*/tOΩÊßç´ßn! */
-.side { top: calc(var(--topbar-h) + 12px) !important; }
-/* vnéßK
-›¡taÃoÔ¡òÔπ */
-#topbar { z-index: 70 !important; }
+/* ===== v74: modal head = capsule title + round close button, pinned ===== */
+.modal-head {
+  position: sticky; top: -24px; z-index: 7;
+  margin: 0 -28px 18px; padding: 12px 28px;
+  background: rgba(var(--panel-rgb), .97);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+.modal-head::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 14px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(var(--panel-rgb), .92), rgba(var(--panel-rgb), 0));
+}
+/* ò í ˆ v / åßuò W7	 */
+.modal-head > span:first-child {
+  font-size: 20px; font-weight: 700; letter-spacing: -.2px;
+  background: rgba(var(--panel-rgb), .92); border: 1px solid var(--border);
+  border-radius: 999px; padding: 8px 18px; white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+}
+/* sÌ	Æ í b˛	Æ‘ﬁ. W7	 */
+.modal-head .icon-btn {
+  width: 40px; height: 40px; flex: none;
+  background: rgba(var(--panel-rgb), .92); border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+  transition: background-color var(--t-mid) var(--ease), border-color var(--t-mid) var(--ease),
+              box-shadow var(--t-mid) var(--ease), transform var(--t-fast) var(--ease), color var(--t-mid) var(--ease);
+}
+.modal-head .icon-btn svg { width: 18px; height: 18px; }
+.modal-head .icon-btn:hover { transform: scale(1.045); box-shadow: 0 10px 24px rgba(0, 0, 0, .22); color: var(--fg-strong); }
+.modal-head .icon-btn:active { transform: scale(.97); box-shadow: 0 4px 12px rgba(0, 0, 0, .14); }
+/* åßuˆvËò©MåßuÍÒ	òˆ 	MÕ */
+#settings:has(.set-page:not(.hidden)) .modal-head > span:first-child { visibility: hidden; }
+/* åßuÑ‘ﬁ'4(vËòb */
+#settings { --modal-head-h: 70px; }
+#settings .set-page-head { top: calc(var(--modal-head-h, 70px) - 24px); }
+@media (max-width: 560px) {
+  .modal-head { margin: 0 -18px 16px; padding: 10px 18px; }
+  .modal-head > span:first-child { font-size: 17px; padding: 7px 15px; }
+  .modal-head .icon-btn { width: 36px; height: 36px; }
+  #settings { --modal-head-h: 56px; }
+  #settings .set-page-head { top: calc(var(--modal-head-h, 56px) - 20px); }
+}
 
-/* ß˚0vπ	ÈhÓc#sidebardMÔ( .side Œ*H	 */
-#sidebar { top: calc(var(--topbar-h) + 12px) !important; padding-top: 0 !important; }
-#sidebar .side-logo { padding-top: 6px !important; }
-@media (max-width: 900px) {
-  #sidebar { top: 0 !important; padding-top: calc(var(--topbar-h) + 4px) !important; }
+/* ===== v75: settings modal  fixed head row, only the body scrolls ===== */
+#settings .modal-panel {
+  display: flex; flex-direction: column;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+#settings .modal-head {
+  position: static; top: auto;
+  flex: none;
+  margin: 0;
+  padding: 18px 28px 14px;
+  background: rgba(var(--panel-rgb), .97);
+  border-bottom: 1px solid var(--border);
+}
+#settings .modal-head::after { display: none; }
+#settings .modal-body {
+  flex: 1 1 auto; min-height: 0;
+  overflow-y: auto; overscroll-behavior: contain;
+  padding: 16px 28px 24px;
+}
+#set-page-main { padding-top: 0; }
+/* åßuˆvËò`MŸ LçYz“P */
+#settings:has(.set-page:not(.hidden)) .modal-head > span:first-child { display: none; }
+/* òêœsÌ.ÕY(Ûß */
+#settings:has(.set-page:not(.hidden)) .modal-head { justify-content: flex-end; }
+/* åßu‘ﬁ8(Öπ:vË8‹´⁄p */
+#settings .set-page-head { top: 0; }
+@media (max-width: 560px) {
+  #settings .modal-head { padding: 14px 18px 12px; }
+  #settings .modal-body { padding: 14px 18px 20px; }
+}
+
+/* ===== v76: settings head  back + title + close in ONE row ===== */
+#settings .modal-head { justify-content: flex-start; gap: 10px; }
+#settings .modal-head .modal-title {
+  font-size: 20px; font-weight: 700; letter-spacing: -.2px; color: var(--fg-strong);
+  background: rgba(var(--panel-rgb), .92); border: 1px solid var(--border);
+  border-radius: 999px; padding: 8px 18px; white-space: nowrap;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+  overflow: hidden;
+}
+/* sÌ.˙ö®0  */
+#settings .modal-head .icon-btn[data-close] { margin-left: auto; }
+#settings .modal-head .set-back.hidden { display: none !important; }
+/* ÁÑåßuÏÀòç Å */
+.set-page .set-page-head { display: none !important; }
+/* åßuvËç ÅY}e */
+#settings .set-page-head { top: 0; }
+@media (max-width: 560px) {
+  #settings .modal-head .modal-title { font-size: 17px; padding: 7px 15px; }
+}
+
+/* ===== v77: settings modal reuses the goo slide (layer inside the panel) ===== */
+/* 4Ëã(çBK
+b∂Œb—«áW›p */
+#settings .modal-head { position: relative; z-index: 2; }
+#set-goo {
+  pointer-events: none;
+  z-index: 1;
+  filter: url(#goo-filter);
+  -webkit-filter: url(#goo-filter);
+}
+#set-goo .goo-blob {
+  position: absolute; display: block;
+  border-radius: 999px;
+  background: rgba(var(--panel-rgb), .92);
+  will-change: transform;
+  --mb: 4px;
+  transition: transform .32s cubic-bezier(.3, 1.4, .5, 1), width .32s cubic-bezier(.3, 1.4, .5, 1);
+  animation: gooMotionBlur .32s var(--ease) both;
+}
+/* –®ÙÑÿØ! òˆ  + ‘ﬁ. */
+#settings .modal-head.goo-lock .modal-title {
+  --mb: 4px;
+  animation: gooMotionBlur .32s var(--ease) both;
+}
+#settings .modal-head.goo-lock .set-back {
+  --mb: 3px;
+  animation: gooMotionBlur .32s var(--ease) both;
+}
+/* ===== v87: only the page canvas fades (150ms); all surfaces switch in one frame ===== */
+/* fading the modal panel too made its content look washed out mid-fade (the content
+   had already switched while its background was still travelling). So: the canvas
+   (page background + inherited text colour) crossfades, every surface - panel, sidebar,
+   topbar, cards, buttons - lands in the same frame. */
+html.theme-switching,
+html.theme-switching body,
+html.theme-switching #app,
+html.theme-switching #app *,
+html.theme-switching #view,
+html.theme-switching .side,
+html.theme-switching #topbar {
+  transition: none !important;
+}
+/* canvas fade: background + the text colour inherited from it */
+html.theme-switching,
+html.theme-switching body {
+  transition: background-color .15s linear, color .15s linear !important;
+}
+/* modal panel: same frame, but keep its height morph */
+html.theme-switching #app .modal-panel,
+html.theme-switching .modal-panel {
+  transition-property: height !important;
+  transition-duration: .36s !important;
 }
