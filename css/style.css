@@ -2535,3 +2535,32 @@ html.theme-switching .modal-panel {
   transition-property: height !important;
   transition-duration: .36s !important;
 }
+
+/* ===== v88: notice panel layout -- content up, button down, radii aligned ===== */
+/* less gap under the head row so the version list starts higher */
+/* drop the panel top padding and let the head row carry it, so the top inset
+   equals the side inset (28px) - every corner then reads as concentric */
+.notice-panel { padding-top: 0; }
+.notice-panel .modal-head { margin-bottom: 10px; padding-top: 28px; }
+/* no extra top padding, more room at the bottom */
+.notice-panel .modal-body { padding: 0 0 4px; }
+/* gap above the confirm button pushes it to the bottom of the panel */
+.notice-panel .modal-body > .btn { margin-top: 18px; }
+/* radii follow the panel (20px) - inner boxes one step in, button keeps the
+   same language as every other button in the app */
+.notice-panel .notice-ver-item { border-radius: 12px; }
+.notice-panel .notice-side { border-right: none; padding-right: 0; }
+.notice-panel .notice-main { padding-right: 8px; }
+
+/* ===== v91: feathered clip on the notice text column ===== */
+/* the scroll box fades its own edges; the fade only appears on a side that can
+   actually still scroll (classes toggled from JS), so the first line stays crisp
+   while the panel sits at the top */
+.notice-panel .notice-main {
+  --nf-top: 0px;
+  --nf-bottom: 0px;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 var(--nf-top), #000 calc(100% - var(--nf-bottom)), transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--nf-top), #000 calc(100% - var(--nf-bottom)), transparent 100%);
+}
+.notice-panel .notice-main.fade-top { --nf-top: 18px; }
+.notice-panel .notice-main.fade-bottom { --nf-bottom: 26px; }

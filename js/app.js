@@ -4126,6 +4126,28 @@
       const list = $('#notice-list');
       if (list) list.innerHTML = (entry.items || []).map(t => '<li>' + esc(t) + '</li>').join('');
       $$('#notice-side .notice-ver-item').forEach(b => b.classList.toggle('active', b.dataset.noticeVer === entry.version));
+      const box = document.querySelector('#notice .notice-main');
+      if (box) box.scrollTop = 0; // 切版本回到顶部，羽化状态跟着复位
+      this._bindNoticeFade();
+    },
+    /** 公告正文滚动区：只在「确实还能往那个方向滚」时才给该边缘加羽化遮罩 */
+    _bindNoticeFade() {
+      const box = document.querySelector('#notice .notice-main');
+      if (!box) return;
+      if (!box.dataset.fadeBound) {
+        box.dataset.fadeBound = '1';
+        box.addEventListener('scroll', () => this._updateNoticeFade(), { passive: true });
+      }
+      // 内容刚换过，先复位再按实际高度判断
+      requestAnimationFrame(() => this._updateNoticeFade());
+    },
+    _updateNoticeFade() {
+      const box = document.querySelector('#notice .notice-main');
+      if (!box) return;
+      const up = box.scrollTop > 2;
+      const down = box.scrollTop + box.clientHeight < box.scrollHeight - 2;
+      box.classList.toggle('fade-top', up);
+      box.classList.toggle('fade-bottom', down);
     },
     /** 打开更新公告：左侧版本列表 + 默认显示最新版；打开即视为已读 */
     openNotice() {
