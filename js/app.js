@@ -378,21 +378,10 @@
         '',
         '【铁律·最高优先】',
         '1. 每次回复都必须先调用工具（get_my_library / search_music / search_playlists / control 等），禁止只回一句说明文字、禁止英文；拿到工具结果后再用简体中文回答。允许一句极短问候，但必须与系统给出的【当前时间】一致（早上写“早上好”、中午写“中午好”、下午写“下午好”、晚上写“晚上好”，严禁说错时段），且严禁长篇大论。',
-        '2. 推荐歌曲时，正文【只能】是 4~6 行（最多 6 首），每行格式：歌名 —— 歌手 —— 不超过 20 字的推荐语；系统会在每行文字下方自动渲染该歌曲的卡片，所以【不要】把歌名罗列在一起、也不要额外重复歌名（不要空行、不要序号、不要 Markdown 符号、不要开场白/总结/客套话；问候语只能出现在 4 行之前，且最多一句）。',
-        '3. 歌名与歌手必须与 search_music 返回的 songs 字段【逐字一致】，绝不编造、不得替换成你记忆里的其它歌、不得翻译或改写；各首互不相同（不要 Live/Remix/翻唱/伴奏等版本重复；同一歌手最多 1 首）。',
+        '2. 推荐歌曲时，正文【只写一句】问候或引导语（例如“晚上好～给你推荐 6 首好歌”或“按你的口味挑了这几首”），【不要】再逐首罗列歌名、歌手或推荐语——歌曲会由系统以卡片网格自动展示（正文最多一两句，不要序号、不要 Markdown、不要长篇解释）。',
+        '3. 你挑选的歌曲必须来自工具返回的真实结果（search_music 的 songs 字段 / get_hot_songs 的热歌榜），绝不编造、不得使用你记忆里的其它歌；各首互不相同（不要同一首歌的 Live/Remix/翻唱/伴奏等版本；同一歌手最多 1 首）。',
         '',
-        '【输出格式·照抄这个模板】',
-        '歌名 —— 歌手 —— 不超过 20 字的推荐语',
-        '歌名 —— 歌手 —— 不超过 20 字的推荐语',
-        '歌名 —— 歌手 —— 不超过 20 字的推荐语',
-        '歌名 —— 歌手 —— 不超过 20 字的推荐语',
-        '正确示例：',
-        'Love Story —— Taylor Swift —— 经典乡村流行，旋律一秒入心',
-        'Cruel Summer —— Taylor Swift —— 夏日感合成器流行，副歌抓耳',
-        'Welcome To New York —— Taylor Swift —— 轻快节奏，都市感满满',
-        'Fortnight —— Taylor Swift / Post Malone —— 慵懒气声，氛围感拉满',
-        '（分隔符固定是“ —— ”：空格+两个破折号+空格，每行恰好两处）',
-        '',
+                '',
         '【推荐流程】',
         '4. 收到“推荐/来点/适合…”：先 get_my_library 了解口味（收藏歌曲、收藏歌单、自建歌单——歌单名以工具返回为准，必要时用 get_playlist_songs 看具体曲目），再用 search_music 找同类歌，注意【语言、曲风、年代】与口味一致。',
         '4c. 用户明确说“来点大众口味/热门/最近很火的歌”时，同样先用 get_hot_songs 取热歌榜，再挑 4~6 首。',
@@ -687,37 +676,24 @@
     },
     /** 把卡片穿插进文字：文案里提到哪首，卡片就出现在那一行下面 */
     _hbInlineCards(html, cards) {
+      // 统一渲染：正文只保留 AI 的问候/引导短句，歌曲全部以卡片网格展示（3 列 × 2 行）
       const norm = (s) => String(s || '').toLowerCase().replace(/[\s\-—_·・,，.。:：;；()（）\[\]【】"'“”‘’!！?？&/]/g, '');
-      const isSongLine = (plain) => /——|—|--|－/.test(plain) && plain.trim().length > 3;
-      const used = cards.map(() => false);
       const lines = String(html).split('<br>');
-      // 只按“歌名”精确匹配（忽略大小写/空格/标点/括号）。宁缺勿错：匹配不上就不配卡，绝不硬塞。
-      const out = lines.map((line) => {
-        const plain = line.replace(/<[^>]+>/g, '');
-        const np = norm(plain);
-        let card = '';
-        for (let k = 0; k < cards.length; k++) {
-          if (used[k]) continue;
-          const nm = norm(cards[k].name);
-          if (!nm || nm.length < 2) continue;
-          if (np.indexOf(nm) >= 0) { used[k] = true; card = this._hbCardOne(cards[k], k); break; }
-        }
-        return { line: line, card: card, isSong: isSongLine(plain) };
-      });
-      const matched = used.filter(Boolean).length;
-      // 完全没有匹配：说明 AI 正文与真实结果不符（多为幻觉）→ 只展示真实卡片
-      if (!matched && cards.length) {
-        let all = '';
-        cards.forEach((c, k) => { all += this._hbCardOne(c, k); });
-        console.log('[hibetter] 正文与搜索结果不匹配，已隐藏文字、只展示真实卡片');
-        return '<div class="hb-cards-title">🎵 为你找到以下歌曲</div><div class="hb-cards">' + all + '</div>';
+      const cardsAll = (cards || []).slice(0, 6);
+      const hasAny = cardsAll.length > 0;
+      // 过滤掉任何“歌名 —— 歌手 —— …”形式的行（AI 偶发仍会写），只保留普通句子
+      const keeps = lines.filter((l) => {
+        const plain = l.replace(/<[^>]+>/g, '').trim();
+        if (!plain) return false;
+        if (/——|—|--|－/.test(plain)) return false;                 // 歌名行
+        if (hasAny && cardsAll.some(c => { const nm = norm(c.name); return nm.length >= 2 && norm(plain).indexOf(nm) >= 0; })) return false; // 提到歌名
+        return true;
+      }).slice(0, 2); // 最多保留两句
+      let grid = '';
+      if (hasAny) {
+        grid = '<div class="hb-cards hb-grid">' + cardsAll.map((c, k) => this._hbCardOne(c, k)).join('') + '</div>';
       }
-      // 部分匹配：无卡片支撑的歌曲行不显示（避免图文不符）
-      const kept = out.filter(r => r.card || !r.isSong).map(r => r.line + r.card);
-      // 剩下未被匹配的卡片：列在末尾
-      let tail = '';
-      cards.forEach((c, k) => { if (!used[k]) tail += this._hbCardOne(c, k); });
-      return kept.join('<br>') + (tail ? '<div class="hb-cards">' + tail + '</div>' : '');
+      return keeps.join('<br>') + grid;
     },
     /** 单张内嵌卡片（点击即播；索引与所属消息的歌曲数组对齐） */
     _hbCardOne(s, i) {

@@ -2055,3 +2055,23 @@ body:has(#playerbar:not(.hidden)) .hb-wrap { padding-bottom: 0; }
 .set-ai-card:not(.open) .set-btns { display: none; }
 .set-ai-card:not(.open) { padding-bottom: 10px; }
 .set-ai-card .set-ai-fields { animation: hbFadeIn .22s ease both; }
+/* ???????3 ? ? 2 ???? 6 ?????????? */
+.hb-cards.hb-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+.hb-grid .hb-icard {
+  display: flex; flex-direction: column; align-items: stretch;
+  gap: 8px; padding: 10px; border-radius: 12px; margin: 0;
+}
+.hb-grid .hb-icard img { width: 100%; height: auto; aspect-ratio: 1 / 1; border-radius: 9px; object-fit: cover; }
+.hb-grid .hb-icard-tx { min-width: 0; }
+.hb-grid .hb-icard-name { font-size: 13px; }
+.hb-grid .hb-icard-sub { font-size: 11.5px; }
+.hb-grid .hb-icard-play { position: absolute; right: 10px; bottom: 10px; }
+.hb-grid .hb-icard { position: relative; }
+@media (max-width: 720px) {
+  .hb-cards.hb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
