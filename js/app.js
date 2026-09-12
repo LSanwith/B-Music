@@ -64,7 +64,6 @@
       this.render();
       this._applySettingsToUI();
       this._syncAuthUI();
-      this._syncHibetterNav();
       // 启动即拉取云端最新资料（头像）：此前已登录的旧会话（localStorage 里存着旧 avatar）
       // 打开应用也能立即同步为其他设备设置的头像（失败静默，无碍本地）
       this._refreshProfile();
@@ -226,8 +225,7 @@
       const [path, query] = h.split('?');
       const params = new URLSearchParams(query || '');
       const seg = path.split('/').filter(Boolean);
-      const logged = !!(Store.Session && Store.Session.loggedIn);
-      const root = seg[0] || (logged ? 'hibetter' : 'discover'); // 默认首页：登录后 HiBetter，未登录发现音乐
+      const root = seg[0] || 'discover'; // 默认首页：发现音乐
       this._highlightNav(root);
       // 顶栏返回按钮：仅在 歌单/专辑/歌手/单曲/自建歌单 等详情页显示（位于顶部标题文本左侧）
       const topBack = $('#btn-topback');
@@ -242,13 +240,6 @@
       if (root === 'search') return this.vSearch(params.get('q') || '');
       if (root === 'favorites') return this.vFavorites();
       if (root === 'recognize') return this.vRecognize();
-      if (root === 'hibetter') {
-        if (!(Store.Session && Store.Session.loggedIn)) {
-          toast('HiBetter 需要登录后使用，请先登录', 'warn');
-          return this.nav('discover');
-        }
-        return this.vHibetter();
-      }
       if (root === 'myplaylist' && seg[1]) return this.vMyPlaylist(seg[1]);
       if (root === 'share' && seg[1] === 'mp' && seg[2]) return this.vShareMp(seg[2]);
       if (root === 'song' && seg[1]) return this.vSong(seg[1]);
@@ -263,11 +254,7 @@
       const titles = { hibetter: 'HiBetter', discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', recognize: '听歌识曲', hibetter: 'HiBetter', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单' };
       const t = $('#page-title');
       if (t) {
-        if (root === 'hibetter') {
-          t.innerHTML = 'HiBetter <em class="beta-tag">Beta·AI</em>'; // 顶栏固定展示产品名与阶段
-        } else {
-          t.textContent = titles[root] || 'HiBetter';
-        }
+        t.textContent = titles[root] || '发现';
       }
       const cur = Player.current();
       document.title = cur ? cur.name + ' - B·Music' : 'B·Music · 网页版';
@@ -3970,7 +3957,7 @@
     /** 设置弹窗二级页导航：'' → 一级列表（默认）；account/prefs/cache → 对应二级页
      *  带过渡动画：当前页高斯模糊淡出 → 目标页高斯模糊淡入，面板高度平滑拉长/缩短 */
     _showSetPage(name) {
-      const pages = ['account', 'prefs', 'cache', 'ai'];
+      const pages = ['account', 'prefs', 'cache'];
       const main = $('#set-page-main');
       if (!main) return;
       const panel = $('.modal-panel', $('#settings'));
@@ -3983,7 +3970,7 @@
         if (panel) panel.scrollTop = 0;
         if (name === 'account') this._renderSettingsAccount();
         if (name === 'cache') this._bindCacheSettings();
-        if (name === 'ai' && typeof this._renderSettingsAI === 'function') this._renderSettingsAI();
+
         if (!name) this._refreshSettingsMenuAccount();
       };
       // 若非切换（打开时首次 / 连续点击同一页）→ 直接切换
@@ -4150,14 +4137,7 @@
       this._hbGreeted = false;
       this._hbBusy = false;
       this._hbLoaded = true; // 本次加载已初始化过，不再整页清空
-      const root = ((location.hash || '').replace(/^#\/?/, '').split('/')[0]) || '';
-      if (root !== 'hibetter') return;
-      if (Store.Session && Store.Session.loggedIn) {
-        this.render(); // 重建 HiBetter（用户名、门禁、主动推荐）
-      } else {
-        toast('该页面需要登录后使用，已返回发现音乐', 'warn');
-        this.nav('discover');
-      }
+      /* HiBetter 已下线（后续版本重做） */
     },
     /** HiBetter 入口仅登录后可见 */
     _syncHibetterNav() {
