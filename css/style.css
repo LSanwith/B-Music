@@ -23,7 +23,7 @@
   --radius: 12px;
   --side-w: 238px;
   --bar-h: 76px;
-  --topbar-h: 64px;
+  --topbar-h: 70px;
   --ease: cubic-bezier(.25, .1, .25, 1);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
 }
@@ -2219,3 +2219,6 @@ html, body, #app, #view, .side, #topbar, .modal-panel {
   -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
   mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
 }
+
+/* v:ø1400 × 704sE- */
+#topbar { left: 0; right: 0; max-width: 1400px; margin: 0 auto; height: 70px; }
