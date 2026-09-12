@@ -344,7 +344,7 @@
         function: { name, description: desc, parameters: { type: 'object', properties: props, required: required || Object.keys(props) } },
       });
       return [
-        fn('search_music', '按关键词搜索歌曲，返回可点击播放的卡片；最多 6 首（limit 传 6）。为多样化，可用不同歌手/语言/曲风的关键词多次调用', { keyword: { type: 'string', description: '歌名/歌手/关键词' }, limit: { type: 'number', description: '返回条数，最多 4' } }, ['keyword']),
+        fn('search_music', '按关键词搜索歌曲，返回可点击播放的卡片；数量按用户要求（默认 6 首，最少 1 最多 20；limit 传对应数量）。为多样化，可用不同歌手/语言/曲风的关键词多次调用', { keyword: { type: 'string', description: '歌名/歌手/关键词' }, limit: { type: 'number', description: '返回条数，最多 4' } }, ['keyword']),
         fn('play_music', '按关键词搜索并立即播放最匹配的一首', { keyword: { type: 'string', description: '歌名 + 歌手更准' } }, ['keyword']),
         fn('play_index', '播放当前播放列表中的第 N 首（1 开始）', { index: { type: 'number' } }, ['index']),
         fn('control', '播放控制', { action: { type: 'string', enum: ['play', 'pause', 'toggle', 'next', 'prev'] } }, ['action']),
@@ -378,6 +378,7 @@
         '',
         '【铁律·最高优先】',
         '1. 每次回复都必须先调用工具（get_my_library / search_music / search_playlists / control 等），禁止只回一句说明文字、禁止英文；拿到工具结果后再用简体中文回答。允许一句极短问候，但必须与系统给出的【当前时间】一致（早上写“早上好”、中午写“中午好”、下午写“下午好”、晚上写“晚上好”，严禁说错时段），且严禁长篇大论。',
+        '1b. 【推荐数量】默认推荐 6 首；若用户明确说了数量（如“推荐 3 首”“来一首”“给我 10 首”），就【严格按用户要的数量】推荐（最少 1 首、最多 20 首）。数量不要写进正文。',
         '2. 推荐歌曲时，正文【只写一句】问候或引导语（例如“晚上好～按你的口味挑了这几首”），【不要】逐首罗列歌名/歌手/推荐语，也【不要写具体数量】（不要说“5 首/6 首”，数量由系统标注）——歌曲会以卡片网格自动展示（正文【严格一句话】，不要序号、不要 Markdown、不要长篇解释）。',
         '3. 你挑选的歌曲必须来自工具返回的真实结果（search_music 的 songs 字段 / get_hot_songs 的热歌榜），绝不编造、不得使用你记忆里的其它歌；各首互不相同（不要同一首歌的 Live/Remix/翻唱/伴奏等版本；同一歌手最多 1 首）。',
         '',
@@ -681,7 +682,7 @@
         return '<div class="hb-row me"' + tag + '><div class="hb-bubble">' + esc(m.display || m.content) + '</div></div>';
       }
       if (m.role !== 'assistant') return '';
-      const cards = Array.isArray(m.cards) ? m.cards.slice(0, 6) : [];
+      const cards = Array.isArray(m.cards) ? m.cards.slice(0, 20) : [];
       const trace = Array.isArray(m.trace) ? m.trace : [];
       let thinkBody = '';
       if (m.reasoning) thinkBody += '<div class="hb-think-line">' + esc(m.reasoning).replace(/\n/g, '<br>') + '</div>';
@@ -703,7 +704,7 @@
       // 统一渲染：正文只保留 AI 的问候/引导短句，歌曲全部以卡片网格展示（3 列 × 2 行）
       const norm = (s) => String(s || '').toLowerCase().replace(/[\s\-—_·・,，.。:：;；()（）\[\]【】"'“”‘’!！?？&/]/g, '');
       const lines = String(html).split('<br>');
-      const cardsAll = (cards || []).slice(0, 6);
+      const cardsAll = (cards || []).slice(0, 20);
       const hasAny = cardsAll.length > 0;
       // 过滤掉任何“歌名 —— 歌手 —— …”形式的行（AI 偶发仍会写），只保留普通句子
       const keeps = lines.filter((l) => {
@@ -715,7 +716,11 @@
       }).slice(0, 2); // 最多保留两句
       let grid = '';
       if (hasAny) {
-        grid = '<div class="hb-cards hb-grid">' + cardsAll.map((c, k) => this._hbCardOne(c, k)).join('') + '</div>';
+        const cnt = cardsAll.length;
+        // 动态列数：1~2 首 2 列大卡；3~6 首 3 列；7~12 首 4 列；13~20 首 5 列
+        const cols = cnt <= 1 ? 1 : cnt <= 4 ? 2 : cnt <= 6 ? 3 : cnt <= 12 ? 4 : 5;
+        grid = '<div class="hb-cards hb-grid" data-cols="' + cols + '" style="grid-template-columns:repeat(' + cols + ',minmax(0,1fr))">' +
+          cardsAll.map((c, k) => this._hbCardOne(c, k)).join('') + '</div>';
       }
       return keeps.join('<br>') + grid;
     },
@@ -733,7 +738,7 @@
         '<span class="hb-icard-play">' + (isPl ? '打开' : '▶') + '</span></div>';
     },
     _hbCardsHtml(songs) {
-      songs = (songs || []).slice(0, 6); // 最多 6 张
+      songs = (songs || []).slice(0, 20); // 最多 20 张
       return '<div class="hb-cards">' + songs.map((s, i) =>
         '<div class="hb-card" data-hbplay="' + i + '">' +
         '<img src="' + esc(coverUrl((s.album && (s.album.picUrl || s.album.cover)) || s.cover || s.picUrl || '')) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
@@ -865,7 +870,7 @@
       if (!text || this._hbBusy) return;
       if (!this._hbHistory) this._hbHistory = [];
       this._hbBusy = true;
-      this._hbCards = withCards && withCards.length ? withCards.slice(0, 6) : null; // 可携带初始卡片（如识曲结果）
+      this._hbCards = withCards && withCards.length ? withCards.slice(0, 20) : null; // 可携带初始卡片（如识曲结果）
       this._hbSearchCount = 0; // 本轮搜索次数（结果不足时允许换关键词补足 4 首）
       let reasoningAcc = ''; // 累积本轮 AI 思考文本（若有）
       const traceAcc = [];   // 累积工具调用轨迹（思考过程的实际内容）
@@ -909,7 +914,7 @@
           const hallucinated = hasCardsNow && txt && !hitAnyCard;
           const isRecommend = !!(this._hbCards && this._hbCards.length) || /推荐|来点|适合|歌单|几首|换一批/.test(lastUser);
           const lazy = !(this._hbCards && this._hbCards.length) && txt.length < 80 && (noChinese || txt.length < 40);
-          const badFormat = isRecommend && txt && ((songLines < 4 || songLines > 6) || noChinese);
+          const badFormat = isRecommend && txt && noChinese; // 正文只需一句中文，不再校验行数
           if ((lazy || badFormat || hallucinated) && nudged < 2 && rounds < 6) {
             nudged++;
             this._hbHistory.push({ role: 'assistant', content: msg.content || '' });
@@ -979,7 +984,7 @@
     },
     /** 多源搜索：镜像失败自动换红云，并把长句关键词逐步简化重试 */
     async _hbSearchAny(keyword, limit) {
-      const want = Math.min(6, Math.max(1, limit || 6));
+      const want = Math.min(20, Math.max(1, limit || 6));
       const kw = String(keyword || '').trim();
       const cands = [];
       if (kw) cands.push(kw);
@@ -1005,7 +1010,7 @@
       const ok = (payload, cards) => {
         if (cards && cards.length) {
           const acc = this._hbCards || [];
-          const room = Math.max(0, 6 - acc.length); // 硬上限 6 张
+          const room = Math.max(0, 20 - acc.length); // 硬上限 20 张
           const take = cards.slice(0, room);
           if (take.length) { this._hbCards = acc.concat(take); this._hbCardSongs = (this._hbCardSongs || []).concat(take); }
           return { payload: payload, cards: take };
@@ -1018,7 +1023,7 @@
           case 'search_music': {
             this._hbSearchCount = (this._hbSearchCount || 0) + 1;
             if (this._hbSearchCount > 3) return ok({ error: '本轮搜索次数已达上限，请直接用已有结果写正文' });
-            const r = await this._hbSearchAny(a.keyword, Math.min(6, a.limit || 6));
+            const r = await this._hbSearchAny(a.keyword, Math.min(20, Math.max(1, a.limit || 6)));
             const songs = r.list || [];
             if (!songs.length) return ok({ error: '搜索无结果（可换个更短的关键词）', keyword: a.keyword });
             return ok({

@@ -2083,3 +2083,10 @@ body:has(#playerbar:not(.hidden)) .hb-wrap { padding-bottom: 0; }
 }
 /* ???????????? I ??? */
 .hb-icard-name, .hb-icard-sub { cursor: pointer !important; }
+/* ????????? 2 ????????? */
+@media (max-width: 720px) {
+  .hb-cards.hb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
+@media (max-width: 460px) {
+  .hb-cards.hb-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
