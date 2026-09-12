@@ -3036,3 +3036,20 @@ body::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: no
   border-bottom: 0;
 }
 #share .modal-head::after { display: none; }
+
+/* ===== v123: logout pill in the mobile sheet =====
+ * v109 gave every .side-auth-btn a horizontal padding of 0 (fine for the
+ * full-width login/register pair), which squashed the standalone logout
+ * button into an oval with the label sticking out. Give it a proper pill.
+ */
+@media (max-width: 900px) {
+  #sidebar .side-user { gap: 10px; }
+  #sidebar .side-user .side-auth-btn {
+    flex: none; padding: 9px 16px; border-radius: 999px;
+    font-size: 13px; font-weight: 600; line-height: 1.2;
+    color: var(--accent); border-color: rgba(var(--accent-rgb), .45);
+  }
+  #sidebar .side-user .side-auth-btn:hover {
+    background: var(--accent-soft); color: var(--accent);
+  }
+}
