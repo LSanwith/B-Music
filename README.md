@@ -45,14 +45,29 @@ PORT=8080 node server.js
 ### 注册邮箱验证码（发信）
 
 注册流程：填邮箱/密码 → **Altcha 人机验证** → 「发送验证码」→ 收邮件填 6 位码 → 注册。
-发信用 [Nodemailer](https://github.com/nodemailer/nodemailer)（MIT），默认走 **QQ 邮箱 SMTP**
-（本应用只允许 QQ 邮箱注册，同域投递送达率最好、免费、无需第三方服务）：
+发信用 [Nodemailer](https://github.com/nodemailer/nodemailer)（MIT），可用任意 SMTP 服务商，
+配置只有 4 个变量（`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS`，`SMTP_FROM` 可选），换服务商不用改代码。
 
-1. 打开 mail.qq.com → 设置 → 账户 → 开启「POP3/SMTP服务」→ 生成 **16 位授权码**（不是 QQ 密码）；
-2. 本地：复制 `mail.local` 里的模板，去掉注释并填好，重启本地服务；
-   线上（Vercel）：项目 Settings → Environment Variables 添加同名变量
-   `SMTP_HOST=smtp.qq.com`、`SMTP_PORT=465`、`SMTP_USER=你的邮箱`、`SMTP_PASS=授权码`（`SMTP_FROM` 可选）；
-3. 换其它服务商（Resend / Brevo / Gmail 等）只需改这四个变量。
+**推荐服务商（免费额度，2026 年实测）**
+
+| 服务商 | 免费额度 | 折合每月 | 说明 |
+| --- | --- | --- | --- |
+| **Brevo**（推荐） | 300 封/天 | **≈ 9000 封** | 免费额度最大、老牌稳定；`smtp-relay.brevo.com:587`，用户名 = 面板给的 SMTP 登录名，密码 = SMTP Key |
+| Mailjet | 200 封/天 | 6000 封 | `in-v3.mailjet.com:587`，用户名 = API Key，密码 = Secret Key |
+| Resend | 100 封/天 | 3000 封 | 开发者体验最好；`smtp.resend.com:465`，用户名 `resend`，密码 = API Key |
+| QQ 邮箱 SMTP | 自有额度 | — | 免费但需邮箱授权码、限流较严；`smtp.qq.com:465` |
+| SendGrid / Mailgun | 已取消免费额度（仅试用） | — | 不建议 |
+
+**配置步骤（以 Brevo 为例）**
+
+1. [brevo.com](https://www.brevo.com) 注册（免费，无需信用卡）；
+2. Settings → Senders, Domains & Dedicated IPs → **Domains** 添加 `de5.net`，按提示到域名 DNS
+   加 DKIM/验证记录（想快速验证也可先只验证一个发件邮箱）；
+3. Settings → **SMTP & API** → SMTP 页签：复制 SMTP 登录名（形如 `xxxxx001@smtp-brevo.com`），
+   并生成一个 **SMTP key**；
+4. 本地：把这几行填进 `mail.local`（模板已备好，去掉注释即可），重启本地服务；
+   线上（Vercel）：Settings → Environment Variables 配同名变量，然后 Redeploy；
+5. 自检：`node tools/test-mail.js 你的邮箱@qq.com`（先认证自检、再真发一封测试邮件）。
 
 服务端限制：必须先过人机验证才发信；同一邮箱 60 秒内只能发一次、每天最多 10 次；
 验证码 10 分钟有效、最多试 5 次、注册成功即失效。未配置 SMTP 时接口返回 503 并提示，不影响其它功能。
