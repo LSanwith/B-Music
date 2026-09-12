@@ -3249,10 +3249,14 @@
         setSide(!sb.classList.contains('open'));
       });
       $('#side-mask').addEventListener('click', () => setSide(false));
+      // Esc 关闭（浮层形态下更顺手；宽屏侧栏常驻时无影响）
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && window.innerWidth <= 900 && $('#sidebar').classList.contains('open')) setSide(false);
+      });
       const sideClose = $('#side-close');
       if (sideClose) sideClose.addEventListener('click', (e) => { e.stopPropagation(); setSide(false); });
       $('#sidebar').addEventListener('click', (e) => {
-        if (e.target.closest('a') || e.target.closest('[data-spl]')) setSide(false);
+        if (e.target.closest('a') || e.target.closest('[data-spl]') || e.target.closest('.side-logo')) setSide(false);
       });
 
       /* 播放栏 */

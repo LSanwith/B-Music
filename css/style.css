@@ -2720,3 +2720,33 @@ html.theme-switching .modal-panel {
   }
   #sidebar.open { box-shadow: 24px 0 70px rgba(0, 0, 0, .55); }
 }
+
+/* ===== v103: mobile sidebar as centered popup =====
+ * K:ïÎæ§Ñú½I9E-„nBÙ…9—Î< ô	
+ * )> + áeÛúÒ/•qPØ…èÚ¨ni¹ûsí
+ */
+@media (max-width: 900px) {
+  #sidebar {
+    top: 50%; left: 50%; right: auto; bottom: auto;
+    width: min(340px, 88vw);
+    max-height: min(78vh, 640px);
+    border-radius: 22px;
+    z-index: 80;
+    padding: 0 0 max(10px, env(safe-area-inset-bottom));
+    transform: translate(-50%, -50%) scale(.94);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    box-shadow: none;
+    transition: transform .26s var(--ease), opacity .2s ease, visibility .2s ease, box-shadow .26s var(--ease);
+  }
+  #sidebar.open {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1; visibility: visible; pointer-events: auto;
+    box-shadow: 0 24px 70px rgba(0, 0, 0, .55);
+  }
+  /* 9—…:WÚ¨¤Ù6ÏhvYúš */
+  #sidebar .side-logo { padding: 16px 54px 12px 20px; }
+  #sidebar .side-nav { flex: none; }
+  #sidebar .side-favs { flex: 1 1 auto; min-height: 60px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  /* nBS öOubÚ¨MÌ„…¹ß@¨ */
+  body.drawer-open { overflow: hidden; }
+}
