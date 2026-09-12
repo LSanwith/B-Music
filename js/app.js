@@ -465,10 +465,12 @@
       }
       bar.style.bottom = bottomPx + 'px';
       const barH = bar.offsetHeight || 60;
-      const top = chat.getBoundingClientRect().top;
-      const h = Math.max(180, Math.round(window.innerHeight - top - barH - bottomPx - 5));
-      chat.style.height = 'auto';       // 内容自适应（避免底部大片留白）
-      chat.style.maxHeight = h + 'px';  // 上限为可视区域
+      // 内容底部只留“输入栏高度 + 间隙”，不再出现大片空白
+      const wrap = $('.hb-wrap');
+      if (wrap) wrap.style.paddingBottom = (bottomPx + barH + 14) + 'px';
+      // 自然流式：对话区不设高度上限，内容多时整页滚动（彻底消除底部大片留白）
+      chat.style.height = 'auto';
+      chat.style.maxHeight = 'none';
       chat.style.minHeight = '0';
     },
     _hbLayoutBind() {
@@ -620,6 +622,7 @@
     },
     /** 首次进入的主动推荐：内部消息（hidden）触发 AI 读库并推荐 */
     /** 首次进入的主动推荐：脚本直接取歌生成（不调用 AI，秒出） */
+    /** 首次进入的欢迎推荐：只作为“待定欢迎”存在，用户一发消息就丢弃（避免出现两段 AI） */
     async _hbGreet() {
       if (this._hbBusy || (this._hbHistory && this._hbHistory.length)) return;
       const shuffle = (arr) => { const x = arr.slice(); for (let i = x.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); const t = x[i]; x[i] = x[k]; x[k] = t; } return x; };
@@ -627,25 +630,20 @@
         const favs = (Store.FavSongs.all || []).slice();
         let songs = [];
         let fromFav = false;
-        if (favs.length) {
-          songs = shuffle(favs).slice(0, 6);
-          fromFav = true;
-        } else {
-          // 没有收藏 → 取网易云热歌榜
+        if (favs.length) { songs = shuffle(favs).slice(0, 6); fromFav = true; }
+        else {
           try {
             const res = await API.playlistTracks(3778678, 30, 0);
             const list = Array.isArray(res) ? res : ((res && res.songs) || []);
             songs = shuffle(list).slice(0, 6);
           } catch (e) { songs = []; }
         }
-        if (!songs.length) return; // 取不到就静默，等用户主动提问
-        // 补齐封面（保证卡片有图）
+        if (!songs.length) return;
         try { await this._hbFillCovers(songs); } catch (e) {}
-        const greet = this._hbGreeting();
-        const text = greet + '～' + (fromFav ? '按你的收藏口味挑了' : '从热歌榜里挑了') + ' ' + songs.length + ' 首，点卡片就能直接播放';
-        this._hbHistory.push({ role: 'assistant', content: text, cards: songs.slice(0, 6), reasoning: '', trace: [], greet: true });
+        const text = this._hbGreeting() + '～' + (fromFav ? '按你的收藏口味挑了' : '从热歌榜里挑了') + ' ' + songs.length + ' 首，点卡片就能直接播放';
+        this._hbPending = { role: 'assistant', content: text, cards: songs.slice(0, 6), trace: [], welcome: true };
         this._hbRenderAll();
-        console.log('[hibetter] 脚本首推 ' + songs.length + ' 首（' + (fromFav ? '收藏随机' : '热歌榜') + '）');
+        console.log('[hibetter] 欢迎推荐已就绪（' + songs.length + ' 首，进入对话后自动让位）');
       } catch (e) { console.warn('[hibetter] greet failed:', e && e.message); }
     },
     _hbSave() { /* 不保留对话：历史仅存在于内存（刷新即清空） */ },
@@ -757,11 +755,13 @@
     },
     _hbRenderAllInner(box) {
       const hasUserMsg = (this._hbHistory || []).some(m => m.role === 'user' && !m.hidden);
-      const items = (this._hbHistory || []).filter(m => {
+      const list = (this._hbHistory || []).filter(m => {
         if (m.hidden) return false;
-        if (m.greet && hasUserMsg) return false; // 用户已提问 → 首推不再单独显示（合并成一段）
         return m.role === 'user' || (m.role === 'assistant' && (m.content || (m.cards && m.cards.length)));
-      }).slice(-8);
+      });
+      // 欢迎消息：只在用户还没说话时展示（自动让位给真实对话）
+      if (!hasUserMsg && this._hbPending) list.push(this._hbPending);
+      const items = list.slice(-30);
       const rendered = items.map((m, i) => this._hbBubble(m, i)).join('');
       box.innerHTML = rendered || '<div class="hb-empty">看看 ai 推荐中有没有你心仪的歌曲吧~</div>';
       // 卡片点击播放：直接用所属消息的歌曲数组，避免索引错位
@@ -898,10 +898,7 @@
       this._hbWantCount = asked || 6; // 本轮上限（默认 6，最多 20）
       let reasoningAcc = ''; // 累积本轮 AI 思考文本（若有）
       const traceAcc = [];   // 累积工具调用轨迹（思考过程的实际内容）
-      // 用户开始提问后，把“脚本首推”那条合并掉（避免出现两条 AI 消息）
-      if (!hidden && this._hbHistory.some(m => m.greet)) {
-        this._hbHistory = this._hbHistory.filter(m => !m.greet);
-      }
+      if (!hidden) this._hbPending = null; // 用户开始对话 → 丢弃待定欢迎（永远只有一段 AI 回复）
       this._hbHistory.push({ role: 'user', content: text, hidden: !!hidden, display: displayText || '' });
       this._hbSave(); // 立即落盘：刷新/中断也不丢对话
       this._hbRenderAll();

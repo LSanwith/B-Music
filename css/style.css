@@ -2090,3 +2090,9 @@ body:has(#playerbar:not(.hidden)) .hb-wrap { padding-bottom: 0; }
 @media (max-width: 460px) {
   .hb-cards.hb-grid { grid-template-columns: minmax(0, 1fr) !important; }
 }
+/* ????????????????????????????? */
+.hb-wrap { min-height: 0 !important; padding-bottom: 92px !important; }
+.hb-chat { flex: none !important; height: auto !important; max-height: none !important; overflow: visible !important; }
+@media (max-height: 10000px) { .hb-wrap { min-height: 0 !important; } }
+/* ?????????? JS ????????????? */
+.hb-wrap { padding-bottom: 0 !important; }
