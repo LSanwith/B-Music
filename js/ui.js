@@ -37,14 +37,53 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  /** 封面地址统一转 https（页面为 https 时） */
+  /** 封面占位图（透明底白色音符，内联 SVG） */
+  const COVER_PLACEHOLDER = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">' +
+    '<rect width="80" height="80" fill="rgba(127,127,127,.16)"/>' +
+    '<path fill="rgba(127,127,127,.55)" d="M52 16.5c-1.2.2-15.4 3.1-16 3.3-.6.2-1 .5-1 1v26.6c0 .2 0 .9-.3 1.5-.4.8-1.1 1.3-2.1 1.7-.4.1-1 .3-1.7.4-3.2.7-8.5 1.9-8.5 6.8 0 3.9 2.8 5.8 4.6 6.2.7.1 1.4.1 1.8.1 1.1 0 4.7-.4 6.7-1.7 1.4-.9 3.2-2.8 3.2-6.3V30.6c0-.5.4-.9.8-1l12.2-2.5c1-.2 1.7-1.1 1.7-2V17c0-.6-.5-1.2-1.4-1z"/>' +
+    '</svg>'
+  );
+
+  /** 已知取不到的封面地址：图片加载失败后记下来，后续直接给占位图，不再反复请求 */
+  const BAD_COVERS = new Set();
+
+  /** 封面地址统一转 https（页面为 https 时）；坏图直接返回占位图 */
   function coverUrl(u) {
     if (!u) return '';
-    if (location.protocol === 'https:' && u.startsWith('http://')) {
-      return 'https://' + u.slice(7);
-    }
-    return u;
+    const s = (location.protocol === 'https:' && u.startsWith('http://')) ? 'https://' + u.slice(7) : u;
+    return BAD_COVERS.has(s) ? COVER_PLACEHOLDER : s;
   }
+
+  /* 图片加载兜底（全局捕获，error 事件不冒泡所以要 capture）：
+   *  1) 网易云 CDN 有多台（p1~p4），先换一台再试一次；
+   *  2) 仍失败 → 换占位图，并记入 BAD_COVERS，避免同一张坏图被反复请求。
+   *  典型场景：上游返回的封面本身在 CDN 上是坏图（返回 NotAnImage）。 */
+  function altCoverHost(src) {
+    const m = /^https?:\/\/p([1-4])\.music\.126\.net\/(.+)$/.exec(src);
+    if (!m) return '';
+    const cur = Number(m[1]);
+    const next = cur >= 4 ? 1 : cur + 1;
+    return 'https://p' + next + '.music.126.net/' + m[2];
+  }
+  document.addEventListener('error', (e) => {
+    const el = e.target;
+    if (!el || el.tagName !== 'IMG' || !el.getAttribute) return;
+    const src = el.getAttribute('src') || '';
+    if (src.slice(0, 5) === 'data:') return; // 占位图自己也失败就不再处理
+    if (src && el.dataset.coverRetried !== '1') {
+      const alt = altCoverHost(src);
+      if (alt) {
+        el.dataset.coverRetried = '1';
+        el.src = alt;
+        return;
+      }
+    }
+    if (el.dataset.coverDead === '1') return;
+    el.dataset.coverDead = '1';
+    if (src) BAD_COVERS.add(src);
+    el.src = COVER_PLACEHOLDER;
+  }, true);
 
   /** Toast 提示 */
   let toastTimer = null;
@@ -82,5 +121,5 @@
     return h;
   }
 
-  window.UI = { $, $$, fmtTime, fmtCount, fmtDuration, esc, coverUrl, toast, modeIcon, modeText, empty, skeleton };
+  window.UI = { $, $$, fmtTime, fmtCount, fmtDuration, esc, coverUrl, toast, modeIcon, modeText, empty, skeleton, COVER_PLACEHOLDER, BAD_COVERS };
 })();

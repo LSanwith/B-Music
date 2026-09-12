@@ -957,7 +957,7 @@
         ? ((s.creator ? s.creator + ' · ' : '') + (s.trackCount ? s.trackCount + ' 首' : '歌单'))
         : artistList(s.artists).map(x => x.name).join(' / ');
       return '<div class="hb-icard" data-hbcard="' + i + '" data-hbtype="' + (isPl ? 'playlist' : 'song') + '" style="animation-delay:' + (i * 70) + 'ms">' +
-        '<img src="' + esc(coverUrl(pic)) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+        '<img src="' + esc(coverUrl(pic)) + '" alt="" loading="lazy" data-hide-on-error=1>' +
         '<div class="hb-icard-tx"><div class="hb-icard-name">' + esc(s.name) + '</div>' +
         '<div class="hb-icard-sub">' + esc(sub) + '</div></div>' +
         '<span class="hb-icard-play">' + (isPl ? '打开' : '▶') + '</span></div>';
@@ -966,7 +966,7 @@
       songs = (songs || []).slice(0, 20); // 最多 20 张
       return '<div class="hb-cards">' + songs.map((s, i) =>
         '<div class="hb-card" data-hbplay="' + i + '">' +
-        '<img src="' + esc(coverUrl((s.album && (s.album.picUrl || s.album.cover)) || s.cover || s.picUrl || '')) + '" alt="" loading="lazy" onerror="this.style.visibility=\'hidden\'">' +
+        '<img src="' + esc(coverUrl((s.album && (s.album.picUrl || s.album.cover)) || s.cover || s.picUrl || '')) + '" alt="" loading="lazy" data-hide-on-error=1>' +
         '<div class="hb-card-tx"><div class="hb-card-name">' + esc(s.name) + '</div>' +
         '<div class="hb-card-sub">' + esc(artistList(s.artists).map(x => x.name).join(' / ')) + '</div></div>' +
         '<span class="hb-card-play">▶</span></div>').join('') + '</div>';
