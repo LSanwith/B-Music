@@ -913,9 +913,11 @@
           if ((lazy || badFormat || hallucinated) && nudged < 2 && rounds < 6) {
             nudged++;
             this._hbHistory.push({ role: 'assistant', content: msg.content || '' });
-            const tip = lazy
-              ? '（系统提示：你刚才没有调用工具或只回了一句话。现在立即调用 get_my_library 与 search_music，然后用简体中文按格式回复。）'
-              : '（系统提示：格式不合格。请重新输出：正文必须是 4~6 行、全中文，每行严格为「歌名 —— 歌手 —— 20 字内推荐语」，歌名与歌手逐字来自 search_music 结果，不要任何其它文字。）';
+            const tip = hallucinated
+              ? '（系统提示：你正文里的歌名不在搜索结果中。请严格照抄 search_music 返回的 songs 字段里的歌名与歌手，重新输出 4~6 行「歌名 —— 歌手 —— 20 字内推荐语」，不要写任何其它歌。）'
+              : (lazy
+                ? '（系统提示：你刚才没有调用工具或只回了一句话。现在立即调用 get_my_library 与 search_music，然后用简体中文按格式回复。）'
+                : '（系统提示：格式不合格。请重新输出：正文必须是 4~6 行、全中文，每行严格为「歌名 —— 歌手 —— 20 字内推荐语」，歌名与歌手逐字来自工具结果，不要任何其它文字。）');
             this._hbHistory.push({ role: 'user', content: tip, hidden: true });
             console.log('[hibetter] 输出不合格（' + (hallucinated ? '歌名与搜索结果不符' : (lazy ? '空话/英文' : '格式仅 ' + songLines + ' 行')) + '）→ 自动纠错重试 #' + nudged);
             continue;
