@@ -152,55 +152,71 @@
       const base = location.href.split('#')[0];
       return base + hash;
     },
-    /** 分享：系统面板立即弹出（不等待图片，杜绝“点了没反应”）；支持 files 时后台补图后二次唤起文件分享 */
-    async _doShare(title, hash, imageUrl) {
+    /** 分享入口：先弹应用内分享面板（跨应用分享再调系统面板） */
+    _doShare(title, hash, imageUrl) {
       const url = this.shareUrl(hash);
+      this._share = { title: title || '', url: url, image: imageUrl || '' };
       try { window.__lastShareUrl = url; } catch (e) {}
-      // ① 有系统分享：立刻弹纯文本/链接面板（首击必有响应）
-      if (navigator.share) {
-        try {
-          await navigator.share({ title: title || '', text: title || '', url: url });
-          // ② 成功后在后台拉封面，若有 files 支持再补一次“带图分享”（用户取消则忽略）
-          if (imageUrl && navigator.canShare && typeof navigator.canShare === 'function') {
-            try {
-              const res = await fetch(imageUrl, { mode: 'cors', signal: AbortSignal.timeout(3000) });
-              if (res.ok) {
-                const blob = await res.blob();
-                const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
-                const file = new File([blob], 'cover.' + ext, { type: blob.type || 'image/jpeg' });
-                const withFile = { title: title || '', url: url, files: [file] };
-                if (navigator.canShare(withFile)) await navigator.share(withFile);
-              }
-            } catch (e) { /* 忽略：无图/取消均可 */ }
-          }
-          return;
-        } catch (e) {
-          if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return; // 用户取消
-          // 其它失败继续走复制兜底
-        }
+      const t = $('#share-title');
+      if (t) t.textContent = title || '分享';
+      const u = $('#share-url');
+      if (u) u.textContent = url;
+      const img = $('#share-cover');
+      if (img) {
+        if (imageUrl) { img.src = imageUrl; img.classList.remove('hidden'); }
+        else { img.removeAttribute('src'); img.classList.add('hidden'); }
       }
-      try {
-        await navigator.clipboard.writeText(url);
-        toast('分享链接已复制，发送给好友打开即可');
-        return;
-      } catch (e) { /* 继续 execCommand 兜底 */ }
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = url;
-        ta.setAttribute('readonly', '');
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        const ok = document.execCommand('copy');
-        ta.remove();
-        if (ok) {
-          toast('分享链接已复制，发送给好友打开即可');
-          return;
-        }
-      } catch (e) { /* 继续 */ }
-      toast('请手动复制链接：' + url, 'warn');
+      this._openModal('#share');
     },
+    closeShare() { this._closeModal('#share'); },
+    /** 复制链接 / 复制文案 */
+    async _copyShare(kind) {
+      const sh = this._share || {};
+      const text = kind === 'text' ? (((sh.title || '') + ' ').trim() + (sh.title ? '\n' : '') + sh.url) : (sh.url || '');
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; } catch (e) { /* 继续兜底 */ }
+      if (!ok) {
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          ok = document.execCommand('copy');
+          ta.remove();
+        } catch (e) { /* 忽略 */ }
+      }
+      toast(ok ? (kind === 'text' ? '文案已复制，粘贴给好友即可' : '分享链接已复制，发送给好友打开即可') : '复制失败，请手动长按链接复制');
+      // 不自动关闭：由用户自己关（点了复制/分享后弹窗保留）
+    },
+    /** 跨应用分享：调用系统分享面板（支持时附带封面） */
+    async _systemShare() {
+      const sh = this._share || {};
+      if (!navigator.share) { toast('当前环境不支持系统分享，已复制链接'); return this._copyShare('link'); }
+      try {
+        await navigator.share({ title: sh.title || '', text: sh.title || '', url: sh.url });
+      } catch (e) {
+        if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return; // 用户取消
+        toast('系统分享不可用，已复制链接');
+        return this._copyShare('link');
+      }
+      // 成功后尝试补一次「带封面」分享（不支持则忽略）
+      if (sh.image && navigator.canShare && typeof navigator.canShare === 'function') {
+        try {
+          const res = await fetch(sh.image, { mode: 'cors', signal: AbortSignal.timeout(3000) });
+          if (res.ok) {
+            const blob = await res.blob();
+            const ext = (blob.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+            const file = new File([blob], 'cover.' + ext, { type: blob.type || 'image/jpeg' });
+            const withFile = { title: sh.title || '', url: sh.url, files: [file] };
+            if (navigator.canShare(withFile)) await navigator.share(withFile);
+          }
+        } catch (e) { /* 忽略 */ }
+      }
+    },
+
     _artistText(song) {
       return artistList(song.artists).map(a => a.name).join(' / ') || '未知歌手';
     },
@@ -271,8 +287,24 @@
 
     _highlightNav(root) {
       $$('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.nav === root));
+      $$('.tab-item').forEach(a => a.classList.toggle('active', a.dataset.tab === root));
+      this._moveTabInd(root);
       const titles = { hibetter: 'HiBetter', discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', recognize: '听歌识曲', hibetter: 'HiBetter', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单' };
       this._setTopTitle(titles[root] || '发现');
+    },
+
+    /** 底部菜单栏滑块：移动到当前标签（instant=true 时不播动画） */
+    _moveTabInd(root, instant) {
+      const bar = $('#tabbar');
+      if (!bar) return;
+      const ind = bar.querySelector('.tab-ind');
+      if (!ind) return;
+      const el = (root && bar.querySelector('.tab-item[data-tab="' + root + '"]')) || bar.querySelector('.tab-item.active') || bar.querySelector('.tab-item');
+      if (!el) return;
+      if (instant) ind.classList.add('instant');
+      ind.style.width = el.offsetWidth + 'px';
+      ind.style.transform = 'translateX(' + el.offsetLeft + 'px)';
+      if (instant) requestAnimationFrame(() => requestAnimationFrame(() => ind.classList.remove('instant')));
       const cur = Player.current();
       document.title = cur ? cur.name + ' - B·Music' : 'B·Music · 网页版';
     },
@@ -3249,12 +3281,47 @@
         setSide(!sb.classList.contains('open'));
       });
       $('#side-mask').addEventListener('click', () => setSide(false));
+      /* 手机端底部菜单栏：由侧栏导航生成（图标在上、文字在下，文案精简） */
+      /* 标签顺序：搜索放最右；图标在上、文字在下（文案精简） */
+      const TAB_ORDER = ['discover', 'leaderboard', 'playlists', 'favorites', 'recognize', 'search'];
+      const TAB_LABELS = { discover: '发现', leaderboard: '排行', playlists: '歌单', search: '搜索', recognize: '识曲', favorites: '我的' };
+      const tabbar = $('#tabbar');
+      if (tabbar) {
+        const navMap = {};
+        $$('.side-nav .nav-item').forEach((a) => { navMap[a.dataset.nav] = a; });
+        tabbar.innerHTML = TAB_ORDER.map((key) => {
+          const a = navMap[key];
+          if (!a) return '';
+          const svg = a.querySelector('svg');
+          return '<a class="tab-item" href="' + a.getAttribute('href') + '" data-tab="' + key + '">' +
+            (svg ? svg.outerHTML : '') + '<em>' + (TAB_LABELS[key] || key) + '</em></a>';
+        }).join('') + '<span class="tab-ind" aria-hidden="true"></span>';
+        // 生成后按当前路由就位（首次不播动画）
+        const root0 = (location.hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean)[0]) || 'discover';
+        $$('.tab-item').forEach(a => a.classList.toggle('active', a.dataset.tab === root0));
+        App._moveTabInd(root0, true);
+        window.addEventListener('resize', () => App._moveTabInd(null, true));
+      }
       // Esc 关闭（浮层形态下更顺手；宽屏侧栏常驻时无影响）
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape' && window.innerWidth <= 900 && $('#sidebar').classList.contains('open')) setSide(false);
       });
       const sideClose = $('#side-close');
       if (sideClose) sideClose.addEventListener('click', (e) => { e.stopPropagation(); setSide(false); });
+      /* 宽窄屏断点切换时，侧栏会从"桌面常驻"直接变成"移动端隐藏"，
+       * 若不掐掉过渡，就会看到它淡出一下再消失（闪烁）。
+       * 跨界瞬间临时禁用 transition，切换完成后再恢复。 */
+      let _wasWide = window.innerWidth > 900;
+      window.addEventListener('resize', () => {
+        const wide = window.innerWidth > 900;
+        if (wide === _wasWide) return;
+        _wasWide = wide;
+        const sb = $('#sidebar');
+        sb.classList.add('side-noanim');
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          setTimeout(() => sb.classList.remove('side-noanim'), 50);
+        }));
+      });
       $('#sidebar').addEventListener('click', (e) => {
         if (e.target.closest('a') || e.target.closest('[data-spl]') || e.target.closest('.side-logo')) setSide(false);
       });
@@ -3446,6 +3513,15 @@
       });
       this._bindSliderCaptcha();
       /* 更新公告 */
+      /* 分享弹窗按钮 */
+      $('#share').querySelectorAll('[data-close]').forEach(el => el.addEventListener('click', () => this.closeShare()));
+      $('#share-copy-link').addEventListener('click', () => this._copyShare('link'));
+      $('#share-copy-text').addEventListener('click', () => this._copyShare('text'));
+      const shareSysBtn = $('#share-system');
+      if (shareSysBtn) {
+        if (!navigator.share) shareSysBtn.classList.add('hidden');
+        shareSysBtn.addEventListener('click', () => this._systemShare());
+      }
       $('#set-notice').addEventListener('click', () => this.openNotice());
       $('#notice').querySelectorAll('[data-close]').forEach(el =>
         el.addEventListener('click', () => this.closeNotice()));
@@ -4231,6 +4307,7 @@
       m.classList.remove('closing');
       m.classList.remove('hidden');
       document.body.classList.add('no-scroll');
+      document.body.classList.add('modal-open');
     },
     _closeModal(sel) {
       const m = $(sel);
@@ -4241,7 +4318,10 @@
         m._closeT = null;
         m.classList.remove('closing');
         m.classList.add('hidden');
-        if (!$$('.modal').some(x => !x.classList.contains('hidden'))) document.body.classList.remove('no-scroll');
+        if (!$$('.modal').some(x => !x.classList.contains('hidden'))) {
+          document.body.classList.remove('no-scroll');
+          document.body.classList.remove('modal-open');
+        }
       }, 300);
       m._closeT = t;
     },

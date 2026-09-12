@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0b0b0e">
 <title>B·Music · 网页版</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='%23fa2d3c' d='M728.6 96.4c-9.4 1.8-236 48.2-244.4 49.8-8.4 1.6-16.2 7.2-16.2 16v510.2c0 3.2-0.2 14.4-4.8 23.4-6.2 11.8-17 20.4-32.2 25.4-6.6 2.2-15.6 4.2-26.2 6.6-48.2 10.8-128.8 29.2-128.8 103.6 0 60.2 43.4 89 70 94.2 10 2 22 2 27.6 2 16.4 0 72-6.6 102.4-26.4 22-14.4 48.2-42.8 48.2-95.6V346.2c0-7.6 5.4-14.2 12.8-15.6l185.6-38c14.8-3 25.6-16.2 25.6-31.4V111.6c-0.2-8.6-7.6-17.6-19.6-15.2z'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=108">
+<link rel="stylesheet" href="css/style.css?v=110">
 <script>
 /* 主题引导：在样式应用前从本地设置读取主题（避免首帧闪色） */
 (function () {
@@ -65,7 +65,7 @@
         <svg viewBox="0 0 1024 1024"><path d="M832.6 512c0-42 26.2-77.8 63.4-92.2-9.8-41-26-79.4-47.4-114.2-12.8 5.6-26.4 8.6-40.2 8.6-25.2 0-50.4-9.6-69.8-28.8-29.8-29.8-36.4-73.6-20.4-110-34.6-21.4-73.2-37.6-114-47.4C590 165 554 191.4 512 191.4S434 165 419.8 128c-41 9.8-79.4 26-114.2 47.4 16.2 36.2 9.4 80.2-20.4 110-19.2 19.2-44.6 28.8-69.8 28.8-13.8 0-27.4-2.8-40.2-8.6C154 340.6 137.8 379 128 420c37 14.2 63.4 50 63.4 92.2 0 42-26.2 77.8-63.2 92.2 9.8 41 26 79.4 47.4 114.2 12.8-5.6 26.4-8.4 40-8.4 25.2 0 50.4 9.6 69.8 28.8 29.6 29.6 36.4 73.6 20.4 109.8 34.8 21.4 73.4 37.6 114.2 47.4 14.2-37 50-63.2 92-63.2s77.8 26.2 92 63.2c41-9.8 79.4-26 114.2-47.4-16-36.2-9.2-80 20.4-109.8 19.2-19.2 44.4-28.8 69.8-28.8 13.6 0 27.4 2.8 40 8.4 21.4-34.8 37.6-73.4 47.4-114.2-36.8-14.4-63.2-50.2-63.2-92.4z m-318.8 159.8c-88.6 0-160-71.8-160-160s71.4-160 160-160 160 71.8 160 160-71.4 160-160 160z"/></svg>
         <span>设置</span>
       </button>
-      <div class="side-ver">B·Music 网页版 · v1.3.1</div>
+      <div class="side-ver">B·Music 网页版 · v1.3.2</div>
     </div>
   </aside>
 
@@ -85,6 +85,9 @@
 
   <!-- 侧栏抽屉遮罩（手机端：点击灰色区域收起菜单） -->
   <div id="side-mask" class="hidden"></div>
+
+  <!-- ===== 手机端底部菜单栏（图标在上、文字在下；由侧栏导航自动生成） ===== -->
+  <nav id="tabbar" aria-label="底部导航"></nav>
 
   <!-- ===== 底部播放栏 ===== -->
   <footer id="playerbar" class="hidden">
@@ -348,6 +351,31 @@
     </div>
   </div>
 
+  <!-- ===== 分享弹窗（先弹应用内面板，跨应用分享再调系统面板） ===== -->
+  <div id="share" class="modal hidden">
+    <div class="modal-mask" data-close="share"></div>
+    <div class="modal-panel share-panel">
+      <div class="modal-head">
+        <span>分享</span>
+        <button class="icon-btn" data-close="share"><svg viewBox="0 0 1024 1024"><path d="M557.2 512l136.4-136.4c12.4-12.4 12.4-32.8 0-45.2-12.4-12.4-32.8-12.4-45.2 0L512 466.8l-136.4-136.4c-12.4-12.4-32.8-12.4-45.2 0-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6l136.4 136.4-136.4 136.4c-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6 12.4 12.4 32.8 12.4 45.2 0l136.4-136.4 136.4 136.4c12.4 12.4 32.8 12.4 45.2 0 12.4-12.4 12.4-32.8 0-45.2L557.2 512z"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="share-card">
+          <img id="share-cover" class="share-cover hidden" alt="">
+          <div class="share-meta">
+            <div class="share-name" id="share-title">分享</div>
+            <div class="share-url" id="share-url"></div>
+          </div>
+        </div>
+        <div class="share-acts">
+          <button class="share-act" id="share-copy-link">复制链接</button>
+          <button class="share-act" id="share-copy-text">复制文案</button>
+          <button class="share-act primary" id="share-system">跨应用分享</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ===== 更新公告弹窗 ===== -->
   <div id="notice" class="modal hidden">
     <div class="modal-mask" data-close="notice"></div>
@@ -372,20 +400,20 @@
   <div id="toast"></div>
 </div>
 
-<script src="js/config.js?v=108"></script>
+<script src="js/config.js?v=110"></script>
 <!-- 听歌识曲：音频指纹（Shazam v2）运行时 + WASM 数据（须在 app.js 之前加载） -->
-<script src="js/afp.wasm.js?v=108"></script>
-<script src="js/afp.js?v=108"></script>
-<script src="js/icons.js?v=108"></script>
-<script src="js/notice.js?v=108"></script>
-<script src="js/lrc.js?v=108"></script>
-<script src="js/store.js?v=108"></script>
-<script src="js/cache.js?v=108"></script>
-<script src="js/ui.js?v=108"></script>
-<script src="js/api.js?v=108"></script>
-<script src="js/altcha.min.js?v=108"></script>
-<script src="js/metadata.js?v=108"></script>
-<script src="js/player.js?v=108"></script>
-<script src="js/app.js?v=108"></script>
+<script src="js/afp.wasm.js?v=110"></script>
+<script src="js/afp.js?v=110"></script>
+<script src="js/icons.js?v=110"></script>
+<script src="js/notice.js?v=110"></script>
+<script src="js/lrc.js?v=110"></script>
+<script src="js/store.js?v=110"></script>
+<script src="js/cache.js?v=110"></script>
+<script src="js/ui.js?v=110"></script>
+<script src="js/api.js?v=110"></script>
+<script src="js/altcha.min.js?v=110"></script>
+<script src="js/metadata.js?v=110"></script>
+<script src="js/player.js?v=110"></script>
+<script src="js/app.js?v=110"></script>
 </body>
 </html>

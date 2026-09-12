@@ -2832,3 +2832,207 @@ n
     color: var(--fg-strong);
   }
 }
+
+/* ===== v109: bigger mobile sidebar card + card nav ===== */
+@media (max-width: 900px) {
+  #sidebar {
+    width: min(424px, 92vw);
+    max-height: min(88vh, 820px);
+    border-radius: 26px;
+  }
+  #sidebar .side-logo { padding: 18px 60px 14px 20px; }
+
+  /* nav items become 2-column cards: bigger tap targets, less vertical space */
+  #sidebar .side-nav {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    padding: 4px 16px 2px;
+  }
+  #sidebar .side-nav .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 14px; border-radius: 14px;
+    font-size: 14.5px; font-weight: 600;
+    background: rgba(var(--fg-rgb), .045);
+    border: 1px solid var(--border);
+  }
+  #sidebar .side-nav .nav-item svg { width: 20px; height: 20px; }
+  #sidebar .side-nav .nav-item.active {
+    background: var(--accent-soft);
+    border-color: rgba(var(--accent-rgb), .45);
+    color: var(--accent);
+  }
+
+  /* saved playlists: rows untouched, only a taller visible area */
+  #sidebar .side-title { padding: 16px 20px 6px; }
+  #sidebar .side-pls { flex: 1 1 auto; min-height: 208px; padding: 0 12px 10px; }
+
+  /* footer buttons: card-sized too */
+  #sidebar .side-footer { padding: 12px 16px 4px; }
+  #sidebar .side-auth-btn { padding: 12px 0; border-radius: 14px; font-size: 14px; }
+  #sidebar .side-btn { padding: 13px 14px; border-radius: 14px; font-size: 14.5px; }
+}
+
+/* ===== v110: bottom tab bar (mobile) ===== */
+#tabbar { display: none; }
+@media (max-width: 900px) {
+  #tabbar {
+    display: flex; position: fixed; z-index: 58;
+    left: 8px; right: 8px; bottom: max(8px, env(safe-area-inset-bottom));
+    height: 58px; padding: 4px; gap: 2px;
+    background: rgba(var(--panel-rgb), .92);
+    backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+    border: 1px solid var(--border); border-radius: 18px;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, .38);
+  }
+  .tab-item {
+    flex: 1 1 0; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    border-radius: 14px; color: var(--sub); text-decoration: none;
+    font-size: 10.5px; font-weight: 600; letter-spacing: .2px;
+    transition: color .18s var(--ease), background-color .18s var(--ease);
+  }
+  .tab-item svg { width: 21px; height: 21px; fill: currentColor; opacity: .9; }
+  .tab-item em { font-style: normal; line-height: 1.1; }
+  .tab-item.active { color: var(--accent); background: var(--accent-soft); }
+  .tab-item.active svg { opacity: 1; }
+
+  /* ­>
+û0ÜUK
+ */
+  #playerbar { bottom: calc(max(8px, env(safe-area-inset-bottom)) + 66px); }
+  /* …¹•èöÙ­> + ÜUYzô */
+  #view-bottom-space { height: 150px; }
+
+  /* ÜUòÅü*nBÌÍü*_>:6Ï„LU */
+  #sidebar .side-nav,
+  #sidebar .side-title,
+  #sidebar #side-playlists { display: none; }
+}
+
+/* ===== v111: sliding tab indicator ===== */
+@media (max-width: 900px) {
+  #tabbar { position: fixed; }
+  .tab-ind {
+    position: absolute; top: 4px; bottom: 4px; left: 0; width: 0;
+    border-radius: 14px; background: var(--accent-soft);
+    transition: transform .3s cubic-bezier(.32, 1.28, .48, 1), width .3s cubic-bezier(.32, 1.28, .48, 1);
+    pointer-events: none; z-index: 0;
+  }
+  .tab-ind.instant { transition: none; }
+  .tab-item { position: relative; z-index: 1; background: transparent; }
+  .tab-item.active { background: transparent; }
+}
+
+/* ===== v112: hide page scrollbar (scrolling still works) =====
+ * Only the page-level scrollbar is hidden; inner scroll areas such as the saved
+ * playlist list, modal bodies and lyrics keep their own thin scrollbar.
+ */
+html, body { scrollbar-width: none; -ms-overflow-style: none; }
+html::-webkit-scrollbar,
+body::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+
+/* ===== v113: no sidebar flash on breakpoint change =====
+ * Applied for a couple of frames from JS while the viewport crosses 900px.
+ */
+#sidebar.side-noanim, #sidebar.side-noanim.open { transition: none !important; }
+
+/* ===== v114: popup entrance animation (no transition on the base state) =====
+ * KM #sidebar „ opacity/visibility /"Ç!"q¨„Î½O0„Oö
+ * ’Såâ ûl1 Ë 0.2s áúŽ/0§ê ˆ1
+ * °(ÏZûUÇ!¬ö	e:9( keyframes ¨;  ê	  .open M­
+ */
+@media (max-width: 900px) {
+  #sidebar, #sidebar.open {
+    transition: none;
+    animation: none;
+  }
+  #sidebar.open { animation: sidePopupIn .24s var(--ease) both; }
+}
+@keyframes sidePopupIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(.94); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ===== v115: menu button on the right + entrance / exit animations =====
+ * 1) mobile: hamburger moves to the far right of the topbar (title stays left)
+ * 2) tab bar + hamburger animate in on load; opening the menu sheet plays
+ *    the tab bar out and gives the hamburger a small pulse.
+ */
+@media (max-width: 900px) {
+  #btn-menu { order: 20; margin-left: auto; }
+  #tabbar { animation: tabbarIn .36s var(--ease); }
+  #btn-menu { animation: menuIn .32s var(--ease); }
+}
+@keyframes tabbarIn {
+  from { opacity: 0; transform: translateY(130%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes menuIn {
+  from { opacity: 0; transform: translateX(12px) scale(.86); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+/* ===== v115b: align menu button with tabbar ===== */
+@media (max-width: 900px) { #topbar { padding-right: 8px; } }
+
+/* ===== v120: share sheet (in-app first) ===== */
+#share .share-panel { width: min(420px, 92vw); }
+.share-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px; border-radius: 16px;
+  background: var(--panel2); border: 1px solid var(--border);
+}
+.share-cover { width: 62px; height: 62px; border-radius: 12px; flex: none; object-fit: cover; box-shadow: 0 6px 18px rgba(0,0,0,.28); }
+.share-meta { min-width: 0; flex: 1; }
+.share-name {
+  font-size: 14.5px; font-weight: 700; color: var(--fg-strong); line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.share-url {
+  margin-top: 5px; font-size: 12px; color: var(--sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  user-select: text; -webkit-user-select: text;
+}
+.share-acts { display: flex; gap: 10px; margin-top: 16px; }
+.share-act {
+  flex: 1; padding: 12px 10px; border-radius: 14px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel2); color: var(--text);
+  font-size: 13.5px; font-weight: 600; transition: background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease);
+}
+.share-act:hover { border-color: rgba(var(--accent-rgb), .45); color: var(--accent); }
+.share-act.primary { background: var(--accent); border-color: transparent; color: var(--fg-strong); }
+.share-act.primary:hover { color: var(--fg-strong); opacity: .9; }
+@media (max-width: 460px) {
+  .share-acts { flex-wrap: wrap; }
+  .share-act { flex: 1 1 100%; }
+  .share-act.primary { order: -1; }
+}
+
+/* ===== v121: share panel insets =====
+ * Align the four sides: same 28px inset for the head, the card and the bottom.
+ * The head no longer adds its own vertical padding, so the whole block sits higher.
+ */
+#share .modal-panel { padding: 26px 28px 28px; }
+#share .modal-head {
+  margin: 0 -28px 14px;
+  padding: 0 28px;
+  min-height: 44px;
+  align-items: center;
+}
+#share .modal-body { padding: 0; }
+#share .modal-head > span { font-size: 18px; padding: 8px 18px; }
+#share .share-card { padding: 13px; }
+
+/* ===== v122: share head without band =====
+ * .modal-head is a sticky bar with a solid background, a bottom border and a
+ * fading ::after strip (built for the scrolling settings modal). On the share
+ * sheet that band cut straight through the capsule / close-button shadows.
+ * The share panel does not scroll, so drop the band entirely.
+ */
+#share .modal-panel { overflow: visible; }
+#share .modal-head {
+  position: static; top: auto; z-index: auto;
+  background: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-bottom: 0;
+}
+#share .modal-head::after { display: none; }
