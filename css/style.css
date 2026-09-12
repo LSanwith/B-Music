@@ -2218,7 +2218,7 @@ html, body, #app, #view, .side, #topbar, .modal-panel {
 #topbar {
 
 /* v:ø1400 × 704sE- */
-#topbar { left: var(--side-offset); right: 16px; max-width: 1400px; margin: 0 auto; height: 70px; }
+#topbar { left: 0; right: 0; max-width: none; margin: 0; height: 70px; padding-left: calc(var(--side-offset) + 28px); }
 
 /* ===== ????????????????????????????? ===== */
 #topbar { overflow: visible; }
