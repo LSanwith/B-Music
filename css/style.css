@@ -2213,12 +2213,9 @@ html, body, #app, #view, .side, #topbar, .modal-panel {
 
 /* ===== ?????????????????????? ===== */
 #topbar { position: fixed; }
-#topbar::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: -14px;
-  height: 14px;
-  pointer-events: none;
-  background: linear-gradient(to bottom, var(--bg), rgba(var(--bg-rgb), 0));
-  z-index: -1;
+
+/* ===== vïËΩ¢F	(ni©vêÖπÍ6T• ===== */
+#topbar {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%);
 }
