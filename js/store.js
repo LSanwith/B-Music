@@ -373,10 +373,18 @@
       return j;
     },
 
-    async register(email, password, altcha) {
+    /** 发送注册邮箱验证码（服务端要求先过人机验证；60 秒内不可重发） */
+    async sendCode(email, altcha) {
+      return await Session._api('/sendcode', {
+        method: 'POST',
+        body: JSON.stringify({ email, altcha: altcha || '' }),
+      });
+    },
+
+    async register(email, password, altcha, code) {
       const j = await Session._api('/register', {
         method: 'POST',
-        body: JSON.stringify({ email, password, altcha: altcha || '' }),
+        body: JSON.stringify({ email, password, altcha: altcha || '', code: code || '' }),
       });
       Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '', name: j.name || '', uid: j.uid || '' });
       document.dispatchEvent(new CustomEvent('ym:session'));

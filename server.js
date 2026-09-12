@@ -117,8 +117,46 @@ function sanitizeAiMessages(list) {
 }
 
 /** 账号 + 数据同步 API（设置/收藏上传下载；最近播放仅存本地） */
+/* register verification code: QQ mail SMTP (auth code), config from env or ./mail.local */
+const MAIL_CONF = (function () {
+  const out = { host: process.env.SMTP_HOST || '', port: Number(process.env.SMTP_PORT || 465), user: process.env.SMTP_USER || '', pass: process.env.SMTP_PASS || '', from: process.env.SMTP_FROM || '' };
+  if (!out.host || !out.user || !out.pass) {
+    try {
+      const txt = require('fs').readFileSync(require('path').join(__dirname, 'mail.local'), 'utf8');
+      txt.split(/\r?\n/).forEach(function (line) {
+        const m = /^\s*(SMTP_[A-Z]+)\s*=\s*(.+?)\s*$/.exec(line);
+        if (!m) return;
+        if (m[1] === 'SMTP_HOST') out.host = m[2];
+        else if (m[1] === 'SMTP_PORT') out.port = Number(m[2]) || 465;
+        else if (m[1] === 'SMTP_USER') out.user = m[2];
+        else if (m[1] === 'SMTP_PASS') out.pass = m[2];
+        else if (m[1] === 'SMTP_FROM') out.from = m[2];
+      });
+    } catch (e) { /* no mail.local */ }
+  }
+  return out;
+})();
+const MAIL_READY = !!(MAIL_CONF.host && MAIL_CONF.user && MAIL_CONF.pass);
+
+/** send verification code mail (nodemailer; keep in sync with api/_mail.js) */
+async function sendCodeMail(to, code, minutes) {
+  if (!MAIL_READY) throw new Error("\u90ae\u4ef6\u670d\u52a1\u672a\u914d\u7f6e\uff08\u7f3a\u5c11 SMTP_HOST / SMTP_USER / SMTP_PASS\uff09");
+  const nodemailer = require('nodemailer');
+  const port = MAIL_CONF.port || 465;
+  const tr = nodemailer.createTransport({
+    host: MAIL_CONF.host, port: port, secure: port === 465,
+    auth: { user: MAIL_CONF.user, pass: MAIL_CONF.pass },
+    connectionTimeout: 10000, greetingTimeout: 8000, socketTimeout: 15000,
+  });
+  const mins = minutes || 10;
+  const from = MAIL_CONF.from || MAIL_CONF.user;
+  const text = "\u4f60\u7684 B\u00b7Music \u6ce8\u518c\u9a8c\u8bc1\u7801\u662f " + code + "\uff0c" + mins + " \u5206\u949f\u5185\u6709\u6548\u3002\u82e5\u975e\u672c\u4eba\u64cd\u4f5c\u8bf7\u5ffd\u7565\u672c\u90ae\u4ef6\u3002";
+  const html = "<div style=\"font-family:-apple-system,PingFang SC,Microsoft YaHei,sans-serif;background:#0b0b0e;color:#e8e8ee;border-radius:16px;padding:28px 26px\">" + "<div style=\"font-size:18px;font-weight:800\">B\u00b7Music</div>" + "<div style=\"margin:18px 0 8px;font-size:14px;opacity:.8\">\u4f60\u7684\u6ce8\u518c\u9a8c\u8bc1\u7801\u662f</div>" + "<div style=\"font-size:34px;font-weight:800;letter-spacing:8px;color:#fa2d3c\">" + code + "</div>" + "<div style=\"font-size:13px;opacity:.72;margin-top:14px\">" + mins + " \u5206\u949f\u5185\u6709\u6548\uff0c\u8bf7\u52ff\u8f6c\u53d1\u7ed9\u4ed6\u4eba\u3002</div></div>";
+  return tr.sendMail({ from: 'B\u00b7Music <' + from + '>', to: to, subject: "B\u00b7Music \u6ce8\u518c\u9a8c\u8bc1\u7801\uff1a" + code, text: text, html: html });
+}
+
 async function handleApi(req, res, urlPath) {
-  const API_PATHS = ['/api/register', '/api/captcha', '/api/login',
+  const API_PATHS = ['/api/register', '/api/sendcode', '/api/captcha', '/api/login',
     '/api/logout', '/api/account/delete', '/api/data',
     '/api/account/avatar', '/api/account/password', '/api/account/profile',
     '/api/cookieurl', '/api/ai', '/api/qq/check'];
@@ -247,6 +285,37 @@ async function handleApi(req, res, urlPath) {
         return sendJson(res, 200, { ok: false, qq, msg: 'QQ 校验服务暂不可用（不影响注册）' });
       }
     }
+    if (urlPath === '/api/sendcode' && method === 'POST') {
+      const b = await readBody(req);
+      const email = String(b.email || '').trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) return sendJson(res, 400, { msg: "\u90ae\u7bb1\u683c\u5f0f\u4e0d\u6b63\u786e" });
+      if (!QQ_MAIL_RE.test(email)) return sendJson(res, 400, { msg: QQ_MAIL_MSG });
+      if (!altchaVerify(b.altcha)) return sendJson(res, 400, { msg: "\u8bf7\u5148\u5b8c\u6210\u4eba\u673a\u9a8c\u8bc1" });
+      if (!MAIL_READY) return sendJson(res, 503, { msg: "\u90ae\u4ef6\u670d\u52a1\u672a\u914d\u7f6e\uff1a\u8bf7\u5728\u670d\u52a1\u7aef\u8bbe\u7f6e SMTP_HOST / SMTP_USER / SMTP_PASS" });
+      if (Object.values(DB.users).some(function (u) { return u.email === email; })) return sendJson(res, 409, { msg: "\u8be5\u90ae\u7bb1\u5df2\u6ce8\u518c\uff0c\u8bf7\u76f4\u63a5\u767b\u5f55" });
+      const now = Date.now();
+      const day = new Date(now).toISOString().slice(0, 10);
+      DB.codes = DB.codes || {};
+      const rec = DB.codes[email] || {};
+      if (rec.lastAt && now - rec.lastAt < 60000) return sendJson(res, 429, { msg: "\u53d1\u9001\u592a\u9891\u7e41\uff0c\u8bf7 " + Math.ceil((60000 - (now - rec.lastAt)) / 1000) + " \u79d2\u540e\u518d\u8bd5" });
+      if (rec.day === day && (rec.count || 0) >= 10) return sendJson(res, 429, { msg: "\u4eca\u65e5\u9a8c\u8bc1\u7801\u53d1\u9001\u6b21\u6570\u5df2\u8fbe\u4e0a\u9650\uff0c\u8bf7\u660e\u5929\u518d\u8bd5" });
+      if (rec.day !== day) { rec.day = day; rec.count = 0; }
+      const code = String(crypto.randomInt(100000, 1000000));
+      rec.hash = crypto.createHash('sha256').update(email + '|' + code).digest('hex');
+      rec.exp = now + 10 * 60 * 1000;
+      rec.tries = 0;
+      rec.lastAt = now;
+      rec.count = (rec.count || 0) + 1;
+      DB.codes[email] = rec;
+      saveDb(DB);
+      try {
+        await sendCodeMail(email, code, 10);
+      } catch (e) {
+        return sendJson(res, 502, { msg: "\u9a8c\u8bc1\u7801\u90ae\u4ef6\u53d1\u9001\u5931\u8d25\uff1a" + (e.message || "\u672a\u77e5\u9519\u8bef") });
+      }
+      console.log('[sendcode] ' + email);
+      return sendJson(res, 200, { ok: true, minutes: 10 });
+    }
     if (urlPath === '/api/register' && method === 'POST') {
       const b = await readBody(req);
       const email = String(b.email || '').trim().toLowerCase();
@@ -267,6 +336,18 @@ async function handleApi(req, res, urlPath) {
       }
       // Altcha 人机验证：校验 payload（重算 challenge + signature）
       if (!altchaVerify(b.altcha)) return sendJson(res, 400, { msg: '请完成人机验证' });
+      // email verification code (required for signup): 10 min, max 5 tries, single use
+      const codeIn = String(b.code || '').trim();
+      const recCode = (DB.codes || {})[email];
+      if (!recCode || !recCode.hash || !recCode.exp || recCode.exp < Date.now()) return sendJson(res, 400, { msg: "\u8bf7\u5148\u83b7\u53d6\u90ae\u7bb1\u9a8c\u8bc1\u7801\uff0810 \u5206\u949f\u5185\u6709\u6548\uff09" });
+      if ((recCode.tries || 0) >= 5) return sendJson(res, 429, { msg: "\u9a8c\u8bc1\u7801\u9519\u8bef\u6b21\u6570\u8fc7\u591a\uff0c\u8bf7\u91cd\u65b0\u83b7\u53d6" });
+      if (recCode.hash !== crypto.createHash('sha256').update(email + '|' + codeIn).digest('hex')) {
+        recCode.tries = (recCode.tries || 0) + 1;
+        DB.codes[email] = recCode;
+        saveDb(DB);
+        return sendJson(res, 400, { msg: "\u9a8c\u8bc1\u7801\u4e0d\u6b63\u786e\uff08\u8fd8\u53ef\u5c1d\u8bd5 " + Math.max(0, 5 - recCode.tries) + " \u6b21\uff09" });
+      }
+      delete DB.codes[email];
       const id = String(++_uid);
       const salt = crypto.randomBytes(16).toString('hex');
       DB.users[id] = { id, email, salt, passHash: hashPass(password, salt), createdAt: Date.now() };

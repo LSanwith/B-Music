@@ -3429,6 +3429,10 @@
       $('#auth-toggle').addEventListener('click', () =>
         this.openAuth(this._authMode === 'register' ? 'login' : 'register'));
       $('#auth-submit').addEventListener('click', () => this._submitAuth());
+      $('#auth-sendcode').addEventListener('click', () => this._sendAuthCode());
+      $('#auth-code').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') this._submitAuth();
+      });
       $('#auth-pass').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') this._submitAuth();
       });
@@ -4362,6 +4366,14 @@
       if (err) { err.textContent = ''; err.classList.add('hidden'); }
       if (capRow) capRow.classList.toggle('hidden', this._authMode !== 'register');
       if (pass2) pass2.classList.toggle('hidden', this._authMode !== 'register');
+      // 邮箱验证码行：仅注册模式显示；切换模式时清空并停掉倒计时
+      const codeRow = $('#auth-code-row');
+      if (codeRow) codeRow.classList.toggle('hidden', this._authMode !== 'register');
+      const codeIn = $('#auth-code');
+      if (codeIn) codeIn.value = '';
+      const sendBtn = $('#auth-sendcode');
+      if (sendBtn) { sendBtn.disabled = false; sendBtn.textContent = '发送验证码'; }
+      clearInterval(this._codeTimer);
       if (this._authMode === 'register') this._resetAltcha();
       this._openModal('#auth');
       setTimeout(() => { const e = $('#auth-email'); if (e) e.focus(); }, 60);
@@ -4934,6 +4946,56 @@
       });
     },
     /** 提交登录/注册表单（注册：滑动验证通过后直接注册并登录，无需邮箱验证码） */
+    /** 发送注册邮箱验证码：先校验邮箱与人机验证，再请求服务端发信（按钮 60 秒倒计时） */
+    async _sendAuthCode() {
+      const err = $('#auth-err');
+      const showErr = (msg, ok) => {
+        if (!err) return;
+        err.textContent = msg;
+        err.classList.toggle('ok', !!ok);
+        err.classList.remove('hidden');
+      };
+      const email = ($('#auth-email').value || '').trim();
+      if (!/^[A-Za-z0-9._%+-]+@(qq\.com|foxmail\.com)$/i.test(email)) {
+        showErr('请先填写 QQ 邮箱（@qq.com / @foxmail.com）');
+        return;
+      }
+      const altcha = this._altchaPayload();
+      if (!altcha) {
+        showErr('请先完成人机验证（点击验证框的复选框）');
+        return;
+      }
+      const btn = $('#auth-sendcode');
+      if (btn) { btn.disabled = true; btn.textContent = '发送中…'; }
+      try {
+        await Store.Session.sendCode(email, altcha);
+        toast('验证码已发送到 ' + email + '，10 分钟内有效');
+        showErr('✓ 验证码已发送，请查收邮箱（含垃圾箱）；10 分钟内有效', true);
+        const codeInput = $('#auth-code');
+        if (codeInput) codeInput.focus();
+        // 60 秒倒计时，防止连点
+        let left = 60;
+        clearInterval(this._codeTimer);
+        this._codeTimer = setInterval(() => {
+          left -= 1;
+          const b = $('#auth-sendcode');
+          if (!b) { clearInterval(this._codeTimer); return; }
+          if (left <= 0) {
+            clearInterval(this._codeTimer);
+            b.disabled = false;
+            b.textContent = '重新发送';
+          } else {
+            b.textContent = left + ' 秒后可重发';
+          }
+        }, 1000);
+        if (btn) btn.textContent = left + ' 秒后可重发';
+      } catch (e) {
+        showErr((e && e.message) || '验证码发送失败');
+        if (btn) { btn.disabled = false; btn.textContent = '发送验证码'; }
+        this._loadCaptcha(); // 人机验证一次一题，失败后刷新
+      }
+    },
+
     async _submitAuth() {
       const email = $('#auth-email').value.trim();
       const password = $('#auth-pass').value;
@@ -4949,6 +5011,8 @@
         const pass2 = $('#auth-pass2').value;
         if (!pass2) { showErr('请再次输入密码确认'); return; }
         if (pass2 !== password) { showErr('两次输入的密码不一致'); return; }
+        const code = ($('#auth-code').value || '').trim();
+        if (!/^\d{6}$/.test(code)) { showErr('请填写邮箱收到的 6 位验证码（点右侧「发送验证码」获取）'); return; }
       }
       const btn = $('#auth-submit');
       if (btn) { btn.disabled = true; btn.style.opacity = .6; }
@@ -4970,7 +5034,7 @@
             }
           }
           if (btn) btn.textContent = '注册中…';
-          const j = await Store.Session.register(email, password, altcha);
+          const j = await Store.Session.register(email, password, altcha, ($('#auth-code').value || '').trim());
           toast(j && j.existing ? '该邮箱已注册，密码正确，已直接登录' : '注册成功，已登录');
         } else {
           await Store.Session.login(email, password);
@@ -4978,6 +5042,8 @@
         }
         $('#auth-pass').value = '';
         $('#auth-pass2').value = '';
+        const ci = $('#auth-code');
+        if (ci) ci.value = '';
         this.closeAuth();
         this._refreshProfile(); // 登录成功后再拉一次云端资料（头像），与启动拉取互补
       } catch (e) {

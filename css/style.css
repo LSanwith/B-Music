@@ -2564,3 +2564,18 @@ html.theme-switching .modal-panel {
 }
 .notice-panel .notice-main.fade-top { --nf-top: 18px; }
 .notice-panel .notice-main.fade-bottom { --nf-bottom: 26px; }
+
+/* ===== v98: auth email verification code row ===== */
+.auth-code-row { display: flex; gap: 8px; align-items: stretch; }
+.auth-code-row .auth-input { flex: 1; min-width: 0; margin-bottom: 10px; }
+.auth-code-btn {
+  flex: none; white-space: nowrap; padding: 0 16px; margin-bottom: 10px;
+  font-size: 13px; font-weight: 600; border-radius: 12px;
+  background: var(--panel2); color: var(--text); border: 1px solid var(--border);
+}
+.auth-code-btn:hover:not(:disabled) { background: var(--panel); border-color: rgba(var(--accent-rgb), .45); }
+.auth-code-btn:disabled { opacity: .55; cursor: default; }
+@media (max-width: 420px) {
+  .auth-code-row { flex-direction: column; }
+  .auth-code-btn { width: 100%; margin-bottom: 10px; }
+}

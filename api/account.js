@@ -3,6 +3,7 @@
  * 路由由 vercel.json 显式 rewrite 映射（避免动态段文件名在 Vercel 上
  * 不可靠）：
  *   /api/captcha        → /api/account?r=captcha        (GET)
+ *   /api/sendcode       → /api/account?r=sendcode       (POST) 发送注册邮箱验证码
  *   /api/register       → /api/account?r=register       (POST)
  *   /api/login          → /api/account?r=login          (POST)
  *   /api/logout         → /api/account?r=logout         (POST)
@@ -16,8 +17,11 @@
  *  - 推荐：Vercel KV（Redis）—— 控制台 Storage → KV → 创建并连接到本项目，
  *    会自动注入 KV_REST_API_URL / KV_REST_API_TOKEN 环境变量；
  *  - 未连接 KV 时退化为内存存储（冷启动/重启后数据不保证保留）。
- * Secret：HONGYUN_KEY（红云点歌密钥，供 /api/proxy 的 hk=1 注入，可选） */
+ * Secret：HONGYUN_KEY（红云点歌密钥，供 /api/proxy 的 hk=1 注入，可选）
+ *         SMTP_HOST / SMTP_PORT / SMTP_USER / SMTP_PASS / SMTP_FROM
+ *         （注册验证码发信，见 api/_mail.js；未配置则 /api/sendcode 返回 503） */
 import crypto from 'crypto';
+import { mailConfigured, sendCodeMail } from './_mail.js';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -172,6 +176,46 @@ export default async function handler(req, res) {
         return res.status(200).json({ ok: false, qq, msg: 'QQ 校验服务暂不可用（不影响注册）' });
       }
     }
+    /* 发送注册验证码：必须先过人机验证（Altcha），带 60 秒 / 每日 10 次限流 */
+    if (r === 'sendcode' && method === 'POST') {
+      const b = await readBody(req);
+      const email = String(b.email || '').trim().toLowerCase();
+      if (!EMAIL_RE.test(email)) return res.status(400).json({ msg: '邮箱格式不正确' });
+      if (!QQ_MAIL_RE.test(email)) return res.status(400).json({ msg: QQ_MAIL_MSG });
+      if (!altchaVerify(b.altcha)) return res.status(400).json({ msg: '请先完成人机验证' });
+      if (!mailConfigured()) {
+        return res.status(503).json({ msg: '邮件服务未配置：请在服务端设置 SMTP_HOST / SMTP_USER / SMTP_PASS' });
+      }
+      if (Object.values(db.users).some(u => u.email === email)) {
+        return res.status(409).json({ msg: '该邮箱已注册，请直接登录' });
+      }
+      const now = Date.now();
+      const day = new Date(now).toISOString().slice(0, 10);
+      db.codes = db.codes || {};
+      const rec = db.codes[email] || {};
+      if (rec.lastAt && now - rec.lastAt < 60 * 1000) {
+        return res.status(429).json({ msg: '发送太频繁，请 ' + Math.ceil((60 * 1000 - (now - rec.lastAt)) / 1000) + ' 秒后再试' });
+      }
+      if (rec.day === day && (rec.count || 0) >= 10) {
+        return res.status(429).json({ msg: '今日验证码发送次数已达上限，请明天再试' });
+      }
+      if (rec.day !== day) { rec.day = day; rec.count = 0; }
+      const code = String(crypto.randomInt(100000, 1000000));
+      rec.hash = crypto.createHash('sha256').update(email + '|' + code).digest('hex');
+      rec.exp = now + 10 * 60 * 1000; // 10 分钟有效
+      rec.tries = 0;
+      rec.lastAt = now;
+      rec.count = (rec.count || 0) + 1;
+      db.codes[email] = rec;
+      await saveDb(db);
+      try {
+        await sendCodeMail(email, code, 10); // 必须 await：函数响应后会暂停后台任务
+      } catch (e) {
+        return res.status(502).json({ msg: '验证码邮件发送失败：' + ((e && e.message) || '未知错误') });
+      }
+      return res.status(200).json({ ok: true, minutes: 10 });
+    }
+
     if (r === 'register' && method === 'POST') {
       const b = await readBody(req);
       const email = String(b.email || '').trim().toLowerCase();
@@ -199,6 +243,22 @@ export default async function handler(req, res) {
         return res.status(409).json({ msg: '该邮箱已注册，密码不正确；请返回登录' });
       }
       if (!altchaVerify(b.altcha)) return res.status(400).json({ msg: '请完成人机验证' });
+      /* 邮箱验证码校验（注册必须）：10 分钟内有效，最多试 5 次，用过即弃 */
+      const codeIn = String(b.code || '').trim();
+      const rec = (db.codes || {})[email];
+      if (!rec || !rec.hash || !rec.exp || rec.exp < Date.now()) {
+        return res.status(400).json({ msg: '请先获取邮箱验证码（验证码 10 分钟内有效）' });
+      }
+      if ((rec.tries || 0) >= 5) {
+        return res.status(429).json({ msg: '验证码错误次数过多，请重新获取' });
+      }
+      if (rec.hash !== crypto.createHash('sha256').update(email + '|' + codeIn).digest('hex')) {
+        rec.tries = (rec.tries || 0) + 1;
+        db.codes[email] = rec;
+        await saveDb(db);
+        return res.status(400).json({ msg: '验证码不正确（还可尝试 ' + Math.max(0, 5 - rec.tries) + ' 次）' });
+      }
+      delete db.codes[email]; // 用掉即失效
       const id = String(Object.keys(db.users).reduce((m, k) => Math.max(m, parseInt(k, 10) || 0), 0) + 1);
       const salt = crypto.randomBytes(16).toString('hex');
       db.users[id] = {

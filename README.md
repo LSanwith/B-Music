@@ -37,9 +37,26 @@ PORT=8080 node server.js
 
 | 用途 | 接口 | 说明 |
 | --- | --- | --- |
-| 搜索/歌单/歌词/详情 | `sience-music-api-backup.de5.net`（silence 备份域名）、`zm.wwoyun.cn`、`music.mcseekeri.com` | 网易云音乐 API（多镜像自动容灾；原 `silence-music-api.cc.cd` 域名已失效） |
+| 搜索/歌单/歌词/详情 | `sience-music-api-backup.de5.net`（silence 备份域名）、`zm.wwoyun.cn`、`www.sanwith.cc.cd`（Sanwith，需 SKey）、`music.mcseekeri.com` | 网易云音乐 API（多镜像自动容灾；原 `silence-music-api.cc.cd` 域名 SSL 不稳） |
+| 辅助搜索 / 解灰直链 | `www.sanwith.cc.cd`（Sanwith API） | 歌曲搜索与镜像并行、结果偏少时合并补充；`/song/url/match` 作为播放兜底（SKey 由代理 `sw=1` 注入） |
 | 播放地址兜底 / 解锁 | `api.xunjinlu.fun/apis/wymusicv4`（红云点歌v4） | 镜像拿不到直链时兜底 |
 | 播放地址竞速 / 解锁 | `api.18years.ink/Interface/Netease/`（落七七） | 与红云并行竞速，VIP 歌常用此源解锁 |
+
+### 注册邮箱验证码（发信）
+
+注册流程：填邮箱/密码 → **Altcha 人机验证** → 「发送验证码」→ 收邮件填 6 位码 → 注册。
+发信用 [Nodemailer](https://github.com/nodemailer/nodemailer)（MIT），默认走 **QQ 邮箱 SMTP**
+（本应用只允许 QQ 邮箱注册，同域投递送达率最好、免费、无需第三方服务）：
+
+1. 打开 mail.qq.com → 设置 → 账户 → 开启「POP3/SMTP服务」→ 生成 **16 位授权码**（不是 QQ 密码）；
+2. 本地：复制 `mail.local` 里的模板，去掉注释并填好，重启本地服务；
+   线上（Vercel）：项目 Settings → Environment Variables 添加同名变量
+   `SMTP_HOST=smtp.qq.com`、`SMTP_PORT=465`、`SMTP_USER=你的邮箱`、`SMTP_PASS=授权码`（`SMTP_FROM` 可选）；
+3. 换其它服务商（Resend / Brevo / Gmail 等）只需改这四个变量。
+
+服务端限制：必须先过人机验证才发信；同一邮箱 60 秒内只能发一次、每天最多 10 次；
+验证码 10 分钟有效、最多试 5 次、注册成功即失效。未配置 SMTP 时接口返回 503 并提示，不影响其它功能。
+
 
 播放地址解析顺序（**并行竞速**）：**镜像接口（下载直链 → 播放直链）→ 红云点歌v4 → 落七七**，全部失败才提示无法播放。
 
