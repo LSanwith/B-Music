@@ -2779,3 +2779,25 @@ n
 #btn-menu:focus,
 #btn-menu:focus-visible { transform: none; }
 #btn-menu svg, #btn-menu:hover svg { transform: none; }
+
+/* ===== v106: side-close matches modal close =====
+ * K:ïnBÌ„  Ÿe/êñ Wp•7ßÙ…9—ó
+Ò„sí	® ô
+ * ÙÌô¥ùP .modal-head .icon-btn „Ä<40px bpanel •Ï¹ + •q
+ * hover >' 1.045 / 	 0.97	„O 560px å: 36px
+ */
+#side-close {
+  width: 40px; height: 40px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  position: absolute; top: 14px; right: 12px;
+  background: rgba(var(--panel-rgb), .92);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+  color: var(--sub);
+  transition: background-color var(--t-mid) var(--ease), border-color var(--t-mid) var(--ease),
+              box-shadow var(--t-mid) var(--ease), transform var(--t-fast) var(--ease), color var(--t-mid) var(--ease);
+}
+#side-close svg { width: 18px; height: 18px; fill: currentColor; }
+#side-close:hover { transform: scale(1.045); box-shadow: 0 10px 24px rgba(0, 0, 0, .22); color: var(--fg-strong); }
+#side-close:active { transform: scale(.97); box-shadow: 0 4px 12px rgba(0, 0, 0, .14); }
+@media (max-width: 560px) { #side-close { width: 36px; height: 36px; } }
