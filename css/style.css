@@ -2750,3 +2750,21 @@ html.theme-switching .modal-panel {
   /* nBS öOubÚ¨MÌ„…¹ß@¨ */
   body.drawer-open { overflow: hidden; }
 }
+
+/* ===== v104: bigger menu button (mobile) =====
+ * v 0 /K:ï/ „ü*eãŸe 40px O>'0 48pxþ 22px
+ * vtSû 3px öÊ˜„ÆÉ-¿ùP( position: relative + top
+ * MŒ hover „ transform S¶	
+ */
+@media (max-width: 900px) {
+  #btn-menu {
+    width: 48px; height: 48px;
+    position: relative; top: 3px;
+    border-radius: 15px;
+  }
+  #btn-menu svg { width: 24px; height: 24px; }
+}
+@media (max-width: 700px) {
+  #btn-menu { width: 46px; height: 46px; top: 3px; }
+  #btn-menu svg { width: 23px; height: 23px; }
+}
