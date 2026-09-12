@@ -378,7 +378,7 @@
         '',
         '【铁律·最高优先】',
         '1. 每次回复都必须先调用工具（get_my_library / search_music / search_playlists / control 等），禁止只回一句说明文字、禁止英文；拿到工具结果后再用简体中文回答。允许一句极短问候，但必须与系统给出的【当前时间】一致（早上写“早上好”、中午写“中午好”、下午写“下午好”、晚上写“晚上好”，严禁说错时段），且严禁长篇大论。',
-        '2. 推荐歌曲时，正文【只写一句】问候或引导语（例如“晚上好～给你推荐 6 首好歌”或“按你的口味挑了这几首”），【不要】再逐首罗列歌名、歌手或推荐语——歌曲会由系统以卡片网格自动展示（正文最多一两句，不要序号、不要 Markdown、不要长篇解释）。',
+        '2. 推荐歌曲时，正文【只写一句】问候或引导语（例如“晚上好～按你的口味挑了这几首”），【不要】逐首罗列歌名/歌手/推荐语，也【不要写具体数量】（不要说“5 首/6 首”，数量由系统标注）——歌曲会以卡片网格自动展示（正文最多两句，不要序号、不要 Markdown、不要长篇解释）。',
         '3. 你挑选的歌曲必须来自工具返回的真实结果（search_music 的 songs 字段 / get_hot_songs 的热歌榜），绝不编造、不得使用你记忆里的其它歌；各首互不相同（不要同一首歌的 Live/Remix/翻唱/伴奏等版本；同一歌手最多 1 首）。',
         '',
                 '',
@@ -617,9 +617,34 @@
       return '晚上好';
     },
     /** 首次进入的主动推荐：内部消息（hidden）触发 AI 读库并推荐 */
-    _hbGreet() {
+    /** 首次进入的主动推荐：脚本直接取歌生成（不调用 AI，秒出） */
+    async _hbGreet() {
       if (this._hbBusy || (this._hbHistory && this._hbHistory.length)) return;
-      this._hbSend('（系统提示：用户刚打开 HiBetter。请先用 get_my_library 了解他的收藏与自建歌单口味，然后主动推荐 4 首他可能会喜欢的歌）', true);
+      const shuffle = (arr) => { const x = arr.slice(); for (let i = x.length - 1; i > 0; i--) { const k = Math.floor(Math.random() * (i + 1)); const t = x[i]; x[i] = x[k]; x[k] = t; } return x; };
+      try {
+        const favs = (Store.FavSongs.all || []).slice();
+        let songs = [];
+        let fromFav = false;
+        if (favs.length) {
+          songs = shuffle(favs).slice(0, 6);
+          fromFav = true;
+        } else {
+          // 没有收藏 → 取网易云热歌榜
+          try {
+            const res = await API.playlistTracks(3778678, 30, 0);
+            const list = Array.isArray(res) ? res : ((res && res.songs) || []);
+            songs = shuffle(list).slice(0, 6);
+          } catch (e) { songs = []; }
+        }
+        if (!songs.length) return; // 取不到就静默，等用户主动提问
+        // 补齐封面（保证卡片有图）
+        try { await this._hbFillCovers(songs); } catch (e) {}
+        const greet = this._hbGreeting();
+        const text = greet + '～' + (fromFav ? '按你的收藏口味挑了' : '从热歌榜里挑了') + ' ' + songs.length + ' 首，点卡片就能直接播放';
+        this._hbHistory.push({ role: 'assistant', content: text, cards: songs.slice(0, 6), reasoning: '', trace: [], greet: true });
+        this._hbRenderAll();
+        console.log('[hibetter] 脚本首推 ' + songs.length + ' 首（' + (fromFav ? '收藏随机' : '热歌榜') + '）');
+      } catch (e) { console.warn('[hibetter] greet failed:', e && e.message); }
     },
     _hbSave() { /* 不保留对话：历史仅存在于内存（刷新即清空） */ },
     /** 轻量 Markdown → HTML（先转义，安全；支持加粗/斜体/行内码/列表/标题/链接/换行） */
@@ -667,8 +692,7 @@
         ? '<details class="hb-think"><summary>💭 思考过程（' + (trace.length || (m.reasoning ? 1 : 0)) + ' 步）</summary><div class="hb-think-body">' + thinkBody + '</div></details>'
         : '';
       let html = m.content ? this._hbMd(m.content) : '';
-      if (cards.length && html) html = this._hbInlineCards(html, cards);
-      else if (cards.length) html = this._hbCardsHtml(cards);
+      if (cards.length) html = this._hbInlineCards(html || '', cards); // 统一走 3×2 卡片网格
       const text = html ? '<div class="hb-bubble md' + (m.error ? ' err' : '') + '">' + html + '</div>' : '';
       if (!text && !think) return '';
       const copyBtn = '<div class="hb-copy-row"><button type="button" class="hb-copy" data-hbcopy="' + idx + '" title="复制这条回复">复制</button></div>';
