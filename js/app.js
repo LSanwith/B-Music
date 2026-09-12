@@ -344,7 +344,7 @@
         function: { name, description: desc, parameters: { type: 'object', properties: props, required: required || Object.keys(props) } },
       });
       return [
-        fn('search_music', '按关键词搜索歌曲，返回可点击播放的卡片；最多 4 首（limit 传 4）', { keyword: { type: 'string', description: '歌名/歌手/关键词' }, limit: { type: 'number', description: '返回条数，最多 4' } }, ['keyword']),
+        fn('search_music', '按关键词搜索歌曲，返回可点击播放的卡片；最多 4 首（limit 传 4）。为多样化，可用不同歌手/语言/曲风的关键词多次调用', { keyword: { type: 'string', description: '歌名/歌手/关键词' }, limit: { type: 'number', description: '返回条数，最多 4' } }, ['keyword']),
         fn('play_music', '按关键词搜索并立即播放最匹配的一首', { keyword: { type: 'string', description: '歌名 + 歌手更准' } }, ['keyword']),
         fn('play_index', '播放当前播放列表中的第 N 首（1 开始）', { index: { type: 'number' } }, ['index']),
         fn('control', '播放控制', { action: { type: 'string', enum: ['play', 'pause', 'toggle', 'next', 'prev'] } }, ['action']),
@@ -393,7 +393,8 @@
         '（分隔符固定是“ —— ”：空格+两个破折号+空格，每行恰好两处）',
         '',
         '【推荐流程】',
-        '4. 收到“推荐/来点/适合…”：先 get_my_library 了解口味（收藏歌曲、收藏歌单、自建歌单——歌单名以工具返回为准，必要时用 get_playlist_songs 看具体曲目），再用 search_music 找同类歌。注意【语言（中文/欧美/日韩）、曲风、年代】与用户口味一致，跨口味拓展最多 1 首。',
+        '4. 收到“推荐/来点/适合…”：先 get_my_library 了解口味（收藏歌曲、收藏歌单、自建歌单——歌单名以工具返回为准，必要时用 get_playlist_songs 看具体曲目），再用 search_music 找同类歌，注意【语言、曲风、年代】与口味一致。',
+        '4b. 【必须多样化·重要】不要每次都给同一位歌手（例如反复推 Taylor Swift）。要求：① 4 首里同一歌手的歌最多 1 首；② 参考工具返回的“收藏中的歌手分布”，优先覆盖不同歌手/不同风格；③ 每次推荐都要重新随机组合，不要沿用上一轮的选择；④ 搜索时用不同关键词（可换不同歌手名、语言、曲风）而不是只搜一个词。',
         '5. 一次搜索不足 4 首 → 换更宽的关键词再搜（本轮最多 3 次），务必凑够 4 首不同歌曲；多次仍无结果就如实说“搜索服务暂时不可用”，不要给记不准的列表。',
         '6. 音乐库为空（未登录或无收藏）→ 不要追问，直接按大众口味推荐 4 首。',
         '7. 用户想找歌单/歌单推荐 → 用 search_playlists（最多 4 个），正文逐字使用返回的歌单名。',
@@ -1113,12 +1114,29 @@
             }, pls);
           }
           case 'get_my_library': {
-            const lim = Math.min(50, Math.max(5, a.limit || 30));
-            const favSongs = (Store.FavSongs.all || []).slice(0, lim).map(s => ({ name: s.name, artists: names(s) }));
+            // 随机抽样：每次取不同的收藏样本，避免总推同一位歌手
+            const shuffle = (arr) => { const x = arr.slice(); for (let i = x.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = x[i]; x[i] = x[j]; x[j] = t; } return x; };
+            const allFav = Store.FavSongs.all || [];
+            const lim = Math.min(40, Math.max(8, a.limit || 20));
+            const favSongs = shuffle(allFav).slice(0, lim).map(s => ({ name: s.name, artists: names(s) }));
+            // 歌手分布（去重统计，帮助 AI 做多样化推荐）
+            const singerCount = {};
+            allFav.forEach(s => { artistList(s.artists).forEach(x => { if (x && x.name) singerCount[x.name] = (singerCount[x.name] || 0) + 1; }); });
+            const singers = Object.keys(singerCount).sort((p, q) => singerCount[q] - singerCount[p]);
             const favPls = (Store.FavPlaylists.all || []).slice(0, 20).map(p => p.name);
-            const myPls = (Store.MyPlaylists.all || []).slice(0, 20).map(p => ({ name: p.name, count: (p.songs || []).length, sample: (p.songs || []).slice(0, 8).map(s => s.name + ' - ' + names(s)) }));
-            if (!favSongs.length && !myPls.length && !favPls.length) return ok({ empty: true, hint: '用户还没有收藏或自建歌单' });
-            return ok({ 收藏歌曲: favSongs, 收藏的歌单: favPls, 自建歌单: myPls });
+            const myPls = (Store.MyPlaylists.all || []).slice(0, 20).map(p => ({
+              name: p.name, count: (p.songs || []).length,
+              sample: shuffle(p.songs || []).slice(0, 6).map(s => s.name + ' - ' + names(s)),
+            }));
+            if (!allFav.length && !myPls.length && !favPls.length) return ok({ empty: true, hint: '用户还没有收藏或自建歌单' });
+            return ok({
+              收藏总数: allFav.length,
+              本次随机抽样: favSongs,
+              收藏中的歌手分布: singers.slice(0, 20).map(n => n + '(' + singerCount[n] + '首)'),
+              收藏的歌单: favPls,
+              自建歌单: myPls,
+              instruction: '推荐时请【多样化】：不要连续或集中推荐同一位歌手的歌；参考上面的歌手分布，优先挑不同歌手/不同风格，每次随机组合，不要照抄抽样里的顺序。',
+            });
           }
           case 'get_playlist_songs': {
             const kw2 = String(a.name || '').trim();
