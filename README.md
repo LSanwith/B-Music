@@ -61,13 +61,24 @@ PORT=8080 node server.js
 **配置步骤（以 Brevo 为例）**
 
 1. [brevo.com](https://www.brevo.com) 注册（免费，无需信用卡）；
-2. Settings → Senders, Domains & Dedicated IPs → **Domains** 添加 `de5.net`，按提示到域名 DNS
-   加 DKIM/验证记录（想快速验证也可先只验证一个发件邮箱）；
+2. Settings → Senders, Domains & Dedicated IPs → **Domains** 添加发信域名，按提示到 DNS 加
+   DKIM / Brevo code / DMARC 记录（Brevo 界面上勾选 *Individual DNS records* + *Manual*）；
 3. Settings → **SMTP & API** → SMTP 页签：复制 SMTP 登录名（形如 `xxxxx001@smtp-brevo.com`），
    并生成一个 **SMTP key**；
 4. 本地：把这几行填进 `mail.local`（模板已备好，去掉注释即可），重启本地服务；
    线上（Vercel）：Settings → Environment Variables 配同名变量，然后 Redeploy；
 5. 自检：`node tools/test-mail.js 你的邮箱@qq.com`（先认证自检、再真发一封测试邮件）。
+
+**当前线上配置（2026-09 生效）**
+
+- 服务商：**Brevo**（免费 300 封/天）；发信域名 **`bmusic.de5.net`**，发件人 `no-reply@bmusic.de5.net`
+- DNS：`bmusic.de5.net` 的 DNS 托管在 **Vercel DNS**（不是 DNSHE），记录加在
+  Vercel → Domains → bmusic.de5.net → DNS Records：
+  `TXT @ brevo-code:…`、`TXT @ v=spf1 include:spf.brevo.com -all`、
+  `CNAME brevo1._domainkey` / `brevo2._domainkey`、`TXT _dmarc`、
+  以及品牌子域 `em` / `r.em` / `img.em` 三条 CNAME
+- 环境变量（Vercel 项目 b-music，Production）：`SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM`
+- 轮换密钥：Brevo → SMTP & API → 删除旧 SMTP key 并新建，然后更新 `mail.local` 与 Vercel 变量后 Redeploy
 
 服务端限制：必须先过人机验证才发信；同一邮箱 60 秒内只能发一次、每天最多 10 次；
 验证码 10 分钟有效、最多试 5 次、注册成功即失效。未配置 SMTP 时接口返回 503 并提示，不影响其它功能。
