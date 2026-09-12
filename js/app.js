@@ -458,10 +458,10 @@
       if (!bar || !chat) return;
       // 用播放栏真实位置定位输入栏：底边 = 播放栏顶边 - 1px（无缝贴合）；无播放时贴视口底部 3px
       const pb = $('#playerbar');
-      let bottomPx = 3;
+      let bottomPx = 24; // 无播放栏时上移，与对话区留出舒适间距
       if (pb && !pb.classList.contains('hidden')) {
         const r = pb.getBoundingClientRect();
-        if (r.height > 0) bottomPx = Math.max(3, Math.round(window.innerHeight - r.top - 1));
+        if (r.height > 0) bottomPx = Math.max(24, Math.round(window.innerHeight - r.top - 1));
       }
       bar.style.bottom = bottomPx + 'px';
       const barH = bar.offsetHeight || 60;
@@ -469,7 +469,7 @@
       const wrap = $('.hb-wrap');
       if (wrap) wrap.style.paddingBottom = '0px';
       // 对话区填满“顶部 → 输入栏上方”的整块区域：直接顶到输入栏，不留空白
-      const avail = Math.max(200, Math.round(window.innerHeight - top - barH - bottomPx - 8));
+      const avail = Math.max(200, Math.round(window.innerHeight - top - barH - bottomPx - 10));
       chat.style.height = avail + 'px';
       chat.style.maxHeight = avail + 'px';
       chat.style.minHeight = '0';
