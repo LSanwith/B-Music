@@ -5,7 +5,8 @@
  *  安全：只向第三方转发 MUSIC_U + __csrf 两个字段（最小暴露面），
  *  其余 cookie 字段永不离开服务器；不写入任何日志/客户端。
  */
-const SILENCE = 'https://silence-music-api.cc.cd';
+/* 多镜像：原 silence-music-api.cc.cd 域名已失效，按顺序尝试 */
+const MIRRORS = ['https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
 
 /** 从完整 cookie 串裁剪为最小会话（仅 MUSIC_U + __csrf） */
 function minimizeCookie(full) {
@@ -24,24 +25,24 @@ export default async function handler(req, res) {
   const level = String((req.query && req.query.level) || 'lossless');
   if (!/^\d+$/.test(id)) return res.status(400).json({ msg: 'bad id' });
   try {
-    const u = new URL(SILENCE + '/song/url/v1');
-    u.searchParams.set('id', id);
-    u.searchParams.set('level', level);
-    u.searchParams.set('unlock', '1');
-    u.searchParams.set('cookie', cookie);
-    const r = await fetch(u.toString(), {
-      headers: { 'User-Agent': 'BMusicWeb/1.0' },
-      signal: AbortSignal.timeout(20000),
-    });
-    const j = await r.json().catch(() => ({}));
-    const d = (j && j.data && j.data[0]) || {};
-    if (d && d.url) {
-      return res.status(200).json({
-        url: d.url.replace(/^http:\/\//i, 'https://'),
-        br: d.br || 0, level: d.level || level, type: d.type || '',
-      });
+    let j = null;
+    for (let i = 0; i < MIRRORS.length && !j; i++) {
+      const u = new URL(MIRRORS[i] + '/song/url/v1');
+      u.searchParams.set('id', id);
+      u.searchParams.set('level', level);
+      u.searchParams.set('unlock', '1');
+      u.searchParams.set('cookie', cookie);
+      try {
+        const r = await fetch(u.toString(), {
+          headers: { 'User-Agent': 'BMusicWeb/1.0' },
+          signal: AbortSignal.timeout(20000),
+        });
+        const jj = await r.json().catch(() => ({}));
+        const dd = (jj && jj.data && jj.data[0]) || {};
+        if (dd && dd.url) j = jj;
+      } catch (e) { /* 换下一个镜像 */ }
     }
-    return res.status(404).json({ msg: '无源' });
+    const d = (j && j.data && j.data[0]) || {};
   } catch (e) {
     return res.status(502).json({ msg: e.message || 'upstream error' });
   }

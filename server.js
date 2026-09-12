@@ -208,7 +208,7 @@ async function handleApi(req, res, urlPath) {
       const lvl = String(((req.url.match(/[?&]level=([a-z]+)/) || [])[1]) || 'lossless');
       if (!id) return sendJson(400, { msg: 'bad id' });
       try {
-        const u2 = new URL('https://silence-music-api.cc.cd/song/url/v1');
+        const u2 = new URL(MIRRORS[0] + '/song/url/v1');
         u2.searchParams.set('id', id);
         u2.searchParams.set('level', lvl);
         u2.searchParams.set('unlock', '1');
@@ -386,8 +386,12 @@ const MIME = {
 };
 
 /* 仅允许代理以下上游（防止开放代理滥用） */
+/* Q� API \�� silence-music-api.cc.cd ��1H	 */
+const MIRRORS = ['https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
 const PROXY_ALLOWED = [
   'https://silence-music-api.cc.cd',
+  'https://zm.wwoyun.cn',
+  'https://music.mcseekeri.com',
   'https://api.xunjinlu.fun',
   'https://api.18years.ink',
   'https://api.bugpk.com',
@@ -562,7 +566,7 @@ async function handleShortLink(res, type, id) {
   const label = SHORT_LABEL[type];
   const hash = '/index.html#/' + type + '/' + id;
   if (!label || !/^\d+$/.test(id)) return sendPreviewHtml(res, 404, _previewFallback('/index.html', '无效链接'));
-  const base = 'https://silence-music-api.cc.cd';
+  const base = MIRRORS[0];
   const realIP = '116.25.146.177';
   const buildUrl = (path, params) => {
     const u = new URL(path, base);

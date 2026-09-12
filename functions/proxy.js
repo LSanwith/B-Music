@@ -6,6 +6,8 @@
  *              NT18_KEY（落七七密钥；不设则 nt=1 返回 500，落七七辅助源不可用） */
 const PROXY_ALLOWED = [
   'https://silence-music-api.cc.cd',
+  'https://zm.wwoyun.cn',
+  'https://music.mcseekeri.com',
   'https://api.xunjinlu.fun',
   'https://api.18years.ink',
   'https://api.bugpk.com',

@@ -10,7 +10,9 @@
  * API_PRIMARY 一致），一律带 realIP（同 js/api.js REAL_IP），超时 10s。
  * 图片链接 http:// 一律转 https://；取不到图则省略 og:image（仍可预览标题）。
  */
-const MIRROR = 'https://silence-music-api.cc.cd';
+/* 多镜像：原 silence-music-api.cc.cd 域名已失效，按顺序尝试 */
+const MIRRORS = ['https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
+let _mirror = 0;
 const REAL_IP = '116.25.146.177';
 const TIMEOUT_MS = 10000;
 const UA = 'Mozilla/5.0 (compatible; BMusicPreview/1.0)';
@@ -40,8 +42,8 @@ function toHttpsImg(u) {
   if (/^\/\//.test(u)) return 'https:' + u;
   return u;
 }
-function upUrl(path, params) {
-  const u = new URL(path, MIRROR);
+function upUrl(path, params, base) {
+  const u = new URL(path, MIRRORS[base === undefined ? _mirror : base]);
   u.searchParams.set('realIP', REAL_IP);
   if (params) {
     for (const k of Object.keys(params)) {
@@ -56,10 +58,23 @@ function fetchJson(url) {
 }
 
 /* ---------- 各类型元数据提取 ---------- */
+/** 按镜像顺序取数：某个镜像挂了就换下一个，成功的记住 */
 async function fetchMeta(type, id) {
+  let lastErr = null;
+  for (let i = 0; i < MIRRORS.length; i++) {
+    const idx = (_mirror + i) % MIRRORS.length;
+    try {
+      const out = await fetchMetaFrom(type, id, idx);
+      _mirror = idx;
+      return out;
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error("all mirrors failed");
+}
+async function fetchMetaFrom(type, id, base) {
   let j;
   if (type === 'song') {
-    j = await fetchJson(upUrl('/song/detail', { ids: id }));
+    j = await fetchJson(upUrl('/song/detail', { ids: id }, base));
     const s = (j && j.songs && j.songs[0]) || null;
     if (!s || !s.name) throw new Error('no song');
     const ar = s.ar || s.artists || [];
@@ -73,7 +88,7 @@ async function fetchMeta(type, id) {
     };
   }
   if (type === 'playlist') {
-    j = await fetchJson(upUrl('/playlist/detail', { id: id }));
+    j = await fetchJson(upUrl('/playlist/detail', { id: id }, base));
     const p = (j && j.playlist) || null;
     if (!p || !p.name) throw new Error('no playlist');
     const creator = (p.creator && p.creator.nickname) ? p.creator.nickname : '';
@@ -86,7 +101,7 @@ async function fetchMeta(type, id) {
     };
   }
   if (type === 'album') {
-    j = await fetchJson(upUrl('/album', { id: id }));
+    j = await fetchJson(upUrl('/album', { id: id }, base));
     const a = (j && j.album) || null;
     if (!a || !a.name) throw new Error('no album');
     const artist = (a.artist && a.artist.name) || '';
@@ -98,7 +113,7 @@ async function fetchMeta(type, id) {
     };
   }
   // artist
-  j = await fetchJson(upUrl('/artist/detail', { id: id }));
+  j = await fetchJson(upUrl('/artist/detail', { id: id }, base));
   const d = (j && j.data) || {};
   const a = d.artist || d;
   if (!a || !a.name) throw new Error('no artist');

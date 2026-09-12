@@ -1,6 +1,7 @@
 /* ============================================================
  * API 层
- *  镜像源: silence-music-api.cc.cd  (网易云音乐API)
+ *  镜像源: 多镜像自动切换（js/config.js 的 API_MIRRORS，
+ *          原 silence-music-api.cc.cd 域名已失效）
  *  兜底/辅助源: 红云点歌v4 + 落七七(18years 网易云整合源)
  *          (仅用于播放地址/歌词；后两者密钥仅发往各自的代理，
  *          浏览器 URL 不携带密钥)
@@ -9,7 +10,12 @@
   'use strict';
 
   const CFG = window.APP_CONFIG;
-  const PRIMARY = CFG.API_PRIMARY;
+  /* 镜像列表：默认用第一个，失败自动切下一个并记住可用的那个 */
+  const MIRRORS = (CFG.API_MIRRORS && CFG.API_MIRRORS.length ? CFG.API_MIRRORS.slice() : [CFG.API_PRIMARY]);
+  let _mirrorIdx = 0;
+  const PRIMARY = MIRRORS[0];
+  /** 当前可用镜像（供播放地址等直接拼 URL 的地方使用） */
+  const mirrorNow = () => MIRRORS[_mirrorIdx] || PRIMARY;
 
   /* ---------- 基础请求 ---------- */
   function buildApiUrl(base, path, params) {
@@ -149,24 +155,29 @@
     }
   }
 
-  /* 单一镜像源请求：首次失败后 400ms 重试一次（单源模式下比双源竞速稳定；
-   * 播放地址另有红云/落七七竞速，不依赖此函数）。默认 12s 超时，
+  /* 单一镜像源请求：多镜像按顺序尝试，当前镜像重试一次；成功即记住该镜像。
+   * 播放地址另有红云/落七七竞速，不依赖此函数。默认 12s 超时，
    * 镜像挂起/缓慢时不阻塞页面与其它操作。 */
   async function requestNetease(path, params, timeoutMs) {
     const tmo = timeoutMs || 12000;
     const ok = (j) => !!(j && (j.code === undefined || j.code === 200 || j.code === 0 ||
       (j.result || j.playlist || j.banners || j.list)));
-    const attempt = async () => {
-      const j = await request(PRIMARY, path, params, tmo);
-      if (ok(j)) return j;
-      throw new Error('bad response');
-    };
-    try {
-      return await attempt();
-    } catch (e1) {
-      await new Promise((r) => setTimeout(r, 400));
-      return await attempt(); // 重试仍失败则抛出，交由调用方处理
+    let lastErr = null;
+    for (let i = 0; i < MIRRORS.length; i++) {
+      const idx = (_mirrorIdx + i) % MIRRORS.length;
+      const tries = i === 0 ? 2 : 1; // 当前镜像重试一次，其余镜像各试一次
+      for (let t = 0; t < tries; t++) {
+        try {
+          const j = await request(MIRRORS[idx], path, params, tmo);
+          if (ok(j)) { _mirrorIdx = idx; return j; }
+          lastErr = new Error('bad response');
+        } catch (e) {
+          lastErr = e;
+        }
+        if (t + 1 < tries) await new Promise((r) => setTimeout(r, 400));
+      }
     }
+    throw lastErr || new Error('all mirrors failed');
   }
 
   /* ---------- 数据归一化 ---------- */
@@ -548,7 +559,7 @@
       await new Promise((done) => {
         const tasks = [
           API.cookieUrl(song.id, lv).then(r => { r.source = '会员源'; return r; }),
-          API.neteaseUrl(PRIMARY, song.id, lv).then(r => { r.source = '镜像接口'; return r; }),
+          API.neteaseUrl(mirrorNow(), song.id, lv).then(r => { r.source = '镜像接口'; return r; }),
           API.hongyunUrl(song.id, lv).then(r => { r.source = '红云点歌'; return r; }),
           API.nt18Url(song.id, lv).then(r => { r.source = '落七七'; return r; }),
           API.oiapiUrl(song.id, lv).then(r => { r.source = 'oiapi'; return r; }),
@@ -597,7 +608,7 @@
       await new Promise((done) => {
         const tasks = [
           API.cookieUrl(id, lv).then(r => { r.source = '会员源'; return r; }),
-          API.neteaseUrl(PRIMARY, id, lv).then(r => { r.source = '镜像接口'; return r; }),
+          API.neteaseUrl(mirrorNow(), id, lv).then(r => { r.source = '镜像接口'; return r; }),
           API.hongyunUrl(id, lv).then(r => { r.source = '红云点歌'; return r; }),
           API.nt18Url(id, lv).then(r => { r.source = '落七七'; return r; }),
           API.oiapiUrl(id, lv).then(r => { r.source = 'oiapi'; return r; }),
