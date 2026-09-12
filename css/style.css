@@ -2809,3 +2809,26 @@ n
 #side-close:hover svg, #side-close:active svg { transform: none; }
 @media (max-width: 900px) { #btn-menu { top: 5px; } }
 @media (max-width: 700px) { #btn-menu { top: 5px; } }
+
+/* ===== v108: menu button capsule background ===== */
+@media (max-width: 900px) {
+  #btn-menu {
+    background: rgba(var(--panel-rgb), .92);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, .16);
+    transition: background-color var(--t-mid) var(--ease), border-color var(--t-mid) var(--ease),
+                color var(--t-mid) var(--ease), box-shadow var(--t-mid) var(--ease);
+  }
+  /* keep the fill identical on hover/press, only the shadow reacts (no movement) */
+  #btn-menu:hover {
+    background: rgba(var(--panel-rgb), .92);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, .22);
+    color: var(--fg-strong);
+  }
+  #btn-menu:active {
+    background: rgba(var(--panel-rgb), .92);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .14);
+    color: var(--fg-strong);
+  }
+}
