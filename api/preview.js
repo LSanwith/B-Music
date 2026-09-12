@@ -11,7 +11,7 @@
  * 图片链接 http:// 一律转 https://；取不到图则省略 og:image（仍可预览标题）。
  */
 /* 多镜像：原 silence-music-api.cc.cd 域名已失效，按顺序尝试 */
-const MIRRORS = ['https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
+const MIRRORS = ['https://sience-music-api-backup.de5.net', 'https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
 let _mirror = 0;
 const REAL_IP = '116.25.146.177';
 const TIMEOUT_MS = 10000;

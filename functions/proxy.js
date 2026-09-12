@@ -7,6 +7,7 @@
  *              SANWITH_SKEY（Sanwith API 密钥；不设则 sw=1 返回 500） */
 const PROXY_ALLOWED = [
   'https://silence-music-api.cc.cd',
+  'https://sience-music-api-backup.de5.net',
   'https://zm.wwoyun.cn',
   'https://music.mcseekeri.com',
   'https://api.xunjinlu.fun',

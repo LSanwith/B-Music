@@ -387,9 +387,10 @@ const MIME = {
 
 /* 仅允许代理以下上游（防止开放代理滥用） */
 /* Q� API \�� silence-music-api.cc.cd ��1H	 */
-const MIRRORS = ['https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
+const MIRRORS = ['https://sience-music-api-backup.de5.net', 'https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
 const PROXY_ALLOWED = [
   'https://silence-music-api.cc.cd',
+  'https://sience-music-api-backup.de5.net',
   'https://zm.wwoyun.cn',
   'https://music.mcseekeri.com',
   'https://api.xunjinlu.fun',

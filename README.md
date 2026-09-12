@@ -37,7 +37,7 @@ PORT=8080 node server.js
 
 | 用途 | 接口 | 说明 |
 | --- | --- | --- |
-| 搜索/歌单/歌词/详情 | `zm.wwoyun.cn`、`music.mcseekeri.com` | 网易云音乐 API（多镜像自动容灾；原 `silence-music-api.cc.cd` 域名已失效） |
+| 搜索/歌单/歌词/详情 | `sience-music-api-backup.de5.net`（silence 备份域名）、`zm.wwoyun.cn`、`music.mcseekeri.com` | 网易云音乐 API（多镜像自动容灾；原 `silence-music-api.cc.cd` 域名已失效） |
 | 播放地址兜底 / 解锁 | `api.xunjinlu.fun/apis/wymusicv4`（红云点歌v4） | 镜像拿不到直链时兜底 |
 | 播放地址竞速 / 解锁 | `api.18years.ink/Interface/Netease/`（落七七） | 与红云并行竞速，VIP 歌常用此源解锁 |
 
