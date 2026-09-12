@@ -2230,3 +2230,6 @@ html, body, #app, #view, .side, #topbar, .modal-panel {
   pointer-events: none;
   background: linear-gradient(to bottom, rgba(var(--bg-rgb), .78), rgba(var(--bg-rgb), 0));
 }
+
+/* „O§6w:½Iv…¹4æ */
+@media (max-width: 900px) { #topbar { padding-left: 14px; } }
