@@ -2588,7 +2588,6 @@ html.theme-switching .modal-panel {
  */
 @media (max-width: 900px) {
   #topbar { transition: opacity .22s ease, transform .22s ease; }
-  body.drawer-open #topbar { opacity: 0; transform: translateY(-8px); visibility: hidden; pointer-events: none; }
   #sidebar {
     top: 12px; left: 12px; bottom: 12px;
     width: min(280px, 78vw);
@@ -2768,3 +2767,15 @@ html.theme-switching .modal-panel {
   #btn-menu { width: 46px; height: 46px; top: 3px; }
   #btn-menu svg { width: 23px; height: 23px; }
 }
+
+/* ===== v105: menu button keeps still =====
+ * (Ä .icon-btn:hover/.icon-btn:active  translateY(-1.5px) 
+n
+ * v 0 /úšeãn¨>—–¨ÙÌŠƒ‰O3px „Oû( top ž°×qÍ	
+ */
+#btn-menu,
+#btn-menu:hover,
+#btn-menu:active,
+#btn-menu:focus,
+#btn-menu:focus-visible { transform: none; }
+#btn-menu svg, #btn-menu:hover svg { transform: none; }
