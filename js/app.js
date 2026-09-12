@@ -378,7 +378,7 @@
         '',
         '【铁律·最高优先】',
         '1. 每次回复都必须先调用工具（get_my_library / search_music / search_playlists / control 等），禁止只回一句说明文字、禁止英文；拿到工具结果后再用简体中文回答。允许一句极短问候，但必须与系统给出的【当前时间】一致（早上写“早上好”、中午写“中午好”、下午写“下午好”、晚上写“晚上好”，严禁说错时段），且严禁长篇大论。',
-        '1b. 【推荐数量】默认推荐 6 首；若用户明确说了数量（如“推荐 3 首”“来一首”“给我 10 首”），就【严格按用户要的数量】推荐（最少 1 首、最多 20 首）。数量不要写进正文。',
+        '1b. 【推荐数量】默认 6 首；用户明确说了数量（如“推荐 3 首”“来一首”“给我 10 首”）就【严格按他要的数量】推荐，多一首都不行（最少 1、最多 20）。不要为了凑数量反复搜索累积，一次 search_music 传对应 limit 即可；数量不要写进正文。',
         '2. 推荐歌曲时，正文【只写一句】问候或引导语（例如“晚上好～按你的口味挑了这几首”），【不要】逐首罗列歌名/歌手/推荐语，也【不要写具体数量】（不要说“5 首/6 首”，数量由系统标注）——歌曲会以卡片网格自动展示（正文【严格一句话】，不要序号、不要 Markdown、不要长篇解释）。',
         '3. 你挑选的歌曲必须来自工具返回的真实结果（search_music 的 songs 字段 / get_hot_songs 的热歌榜），绝不编造、不得使用你记忆里的其它歌；各首互不相同（不要同一首歌的 Live/Remix/翻唱/伴奏等版本；同一歌手最多 1 首）。',
         '',
@@ -467,8 +467,9 @@
       const barH = bar.offsetHeight || 60;
       const top = chat.getBoundingClientRect().top;
       const h = Math.max(180, Math.round(window.innerHeight - top - barH - bottomPx - 5));
-      chat.style.height = h + 'px';
-      chat.style.maxHeight = h + 'px';
+      chat.style.height = 'auto';       // 内容自适应（避免底部大片留白）
+      chat.style.maxHeight = h + 'px';  // 上限为可视区域
+      chat.style.minHeight = '0';
     },
     _hbLayoutBind() {
       if (this._hbLayoutBound) return;
@@ -800,6 +801,11 @@
         }));
       });
       box.scrollTop = box.scrollHeight;
+      // 让最新消息始终可见（对话区 + 页面级都滚到底）
+      try {
+        const last = box.lastElementChild;
+        if (last && last.scrollIntoView) last.scrollIntoView({ block: 'end', behavior: 'smooth' });
+      } catch (e) {}
       if (this._hbLayout) this._hbLayout();
     },
     _hbTyping(on) {
@@ -866,14 +872,31 @@
       if (!j.ok) throw new Error(j.msg || ('HTTP ' + r.status));
       return j;
     },
+    /** 从用户话里解析想要的歌曲数量（1~20），没提则返回 0 */
+    _hbWantedCount(text) {
+      const s = String(text || '');
+      const cn = { 一: 1, 两: 2, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10, 十一: 11, 十二: 12, 十五: 15, 二十: 20 };
+      let m = s.match(/(\d{1,2})\s*[首个條条]/);
+      if (m) return Math.max(1, Math.min(20, parseInt(m[1], 10)));
+      m = s.match(/([一二两三四五六七八九十]{1,3})\s*[首个條条]/);
+      if (m && cn[m[1]]) return Math.max(1, Math.min(20, cn[m[1]]));
+      if (/来一首|放一首|听一首|一首/.test(s)) return 1;
+      return 0;
+    },
     async _hbSend(text, hidden, withCards, displayText) {
       if (!text || this._hbBusy) return;
       if (!this._hbHistory) this._hbHistory = [];
       this._hbBusy = true;
       this._hbCards = withCards && withCards.length ? withCards.slice(0, 20) : null; // 可携带初始卡片（如识曲结果）
-      this._hbSearchCount = 0; // 本轮搜索次数（结果不足时允许换关键词补足 4 首）
+      this._hbSearchCount = 0; // 本轮搜索次数
+      const asked = this._hbWantedCount(text); // 用户明确要的数量
+      this._hbWantCount = asked || 6; // 本轮上限（默认 6，最多 20）
       let reasoningAcc = ''; // 累积本轮 AI 思考文本（若有）
       const traceAcc = [];   // 累积工具调用轨迹（思考过程的实际内容）
+      // 用户开始提问后，把“脚本首推”那条合并掉（避免出现两条 AI 消息）
+      if (!hidden && this._hbHistory.some(m => m.greet)) {
+        this._hbHistory = this._hbHistory.filter(m => !m.greet);
+      }
       this._hbHistory.push({ role: 'user', content: text, hidden: !!hidden, display: displayText || '' });
       this._hbSave(); // 立即落盘：刷新/中断也不丢对话
       this._hbRenderAll();
@@ -1010,7 +1033,8 @@
       const ok = (payload, cards) => {
         if (cards && cards.length) {
           const acc = this._hbCards || [];
-          const room = Math.max(0, 20 - acc.length); // 硬上限 20 张
+          const cap = Math.min(20, this._hbWantCount || 6);
+          const room = Math.max(0, cap - acc.length); // 硬上限 = 用户要求数量（默认 6，最多 20）
           const take = cards.slice(0, room);
           if (take.length) { this._hbCards = acc.concat(take); this._hbCardSongs = (this._hbCardSongs || []).concat(take); }
           return { payload: payload, cards: take };
