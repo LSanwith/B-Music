@@ -756,7 +756,12 @@
       }
     },
     _hbRenderAllInner(box) {
-      const items = (this._hbHistory || []).filter(m => !m.hidden && (m.role === 'user' || (m.role === 'assistant' && (m.content || (m.cards && m.cards.length))))).slice(-8);
+      const hasUserMsg = (this._hbHistory || []).some(m => m.role === 'user' && !m.hidden);
+      const items = (this._hbHistory || []).filter(m => {
+        if (m.hidden) return false;
+        if (m.greet && hasUserMsg) return false; // 用户已提问 → 首推不再单独显示（合并成一段）
+        return m.role === 'user' || (m.role === 'assistant' && (m.content || (m.cards && m.cards.length)));
+      }).slice(-8);
       const rendered = items.map((m, i) => this._hbBubble(m, i)).join('');
       box.innerHTML = rendered || '<div class="hb-empty">看看 ai 推荐中有没有你心仪的歌曲吧~</div>';
       // 卡片点击播放：直接用所属消息的歌曲数组，避免索引错位
