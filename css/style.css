@@ -2127,3 +2127,86 @@ body:has(#playerbar:not(.hidden)) .hb-bar {
 @media (max-width: 600px) { .hb-bar { left: 12px; right: 12px; } }
 /* ????????????????????????????? */
 body:has(.hb-wrap) { overscroll-behavior: contain; }
+
+/* ============================================================
+ * ???????????????????????????????
+ *   --ease   ?????easeOut??????
+ *   --t-fast ???????/??/???
+ *   --t-mid  ????/????
+ *   --t-slow ??????????
+ * ============================================================ */
+:root {
+  --ease: cubic-bezier(.22, .61, .36, 1);
+  --t-fast: .18s;
+  --t-mid: .28s;
+  --t-slow: .40s;
+}
+
+/* 1) ???????????????? transform/opacity/???????? */
+button, .btn, .mini-btn, .icon-btn, .nav-item, .set-menu-row, .view-back,
+.set-quality button, .set-themes .theme-card, .set-opt, .chip,
+.song-row, .list-row, .card, .mp-card, .pl-card, .dt-row,
+input, select, textarea, a, .side-item, .search-item {
+  transition:
+    transform var(--t-fast) var(--ease),
+    opacity var(--t-fast) var(--ease),
+    background-color var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
+}
+
+/* 2) ?????????? 1.5px? */
+.btn:hover, .mini-btn:hover, .icon-btn:hover, .view-back:hover,
+.nav-item:hover, .set-menu-row:hover, .set-quality button:hover,
+.theme-card:hover, .mp-card:hover, .song-row:hover, .list-row:hover, .card:hover {
+  transform: translateY(-1.5px);
+}
+
+/* 3) ????????????? 0.98? */
+.btn:active, .mini-btn:active, .icon-btn:active, .view-back:active,
+.nav-item:active, .set-menu-row:active, .set-quality button:active,
+.theme-card:active, .mp-card:active, .song-row:active {
+  transform: translateY(0) scale(.98);
+}
+
+/* 4) ?? / ??????"????" */
+.modal-panel, .set-page:not(.hidden) {
+  animation: uni-pop var(--t-mid) var(--ease) both;
+}
+@keyframes uni-pop {
+  from { opacity: 0; transform: translateY(10px) scale(.992); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 5) ?????????? */
+.song-row, .list-row, .mp-card, .pl-card, .search-item {
+  animation: uni-in var(--t-mid) var(--ease) both;
+}
+@keyframes uni-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 6) ???????????????? */
+.set-quality button.active, .theme-card.active, .set-opt.active {
+  animation: uni-sel var(--t-mid) var(--ease);
+}
+@keyframes uni-sel {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+
+/* 7) ?????????/????????????????? */
+html, body, #app, .side, #topbar, #view, .modal-panel, .card,
+.song-row, .list-row, .set-group, .side-item {
+  transition: background-color var(--t-slow) var(--ease), color var(--t-slow) var(--ease),
+              border-color var(--t-slow) var(--ease);
+}
+
+/* 8) ???????????? svg? */
+.btn svg, .mini-btn svg, .icon-btn svg, .nav-item svg {
+  transition: transform var(--t-fast) var(--ease), opacity var(--t-fast) var(--ease);
+}
+.btn:hover svg, .icon-btn:hover svg { transform: scale(1.06); }
