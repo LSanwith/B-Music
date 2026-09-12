@@ -4989,10 +4989,10 @@
             b.disabled = false;
             b.textContent = '重新发送';
           } else {
-            b.textContent = left + ' 秒后可重发';
+            b.textContent = left + 's 后重发';
           }
         }, 1000);
-        if (btn) btn.textContent = left + ' 秒后可重发';
+        if (btn) btn.textContent = left + 's 后重发';
       } catch (e) {
         showErr((e && e.message) || '验证码发送失败');
         if (btn) { btn.disabled = false; btn.textContent = '发送验证码'; }
