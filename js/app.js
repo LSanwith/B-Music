@@ -444,6 +444,7 @@
           '🎤 听歌识曲识别成功：' + label
         );
       });
+      try { window.scrollTo(0, 0); } catch (e) {}
       this._hbRenderAll(); // 进入即渲染已有对话（页内切回来也能看到历史）
       this._hbLayoutBind();
       requestAnimationFrame(() => this._hbLayout());
@@ -474,9 +475,9 @@
       // 内容底部只留“输入栏高度 + 间隙”，不再出现大片空白
       const wrap = $('.hb-wrap');
       if (wrap) wrap.style.paddingBottom = '0px';
-      // 高度用 offsetTop（页面内绝对位置，不受滚动影响）→ 不会因滚动反复变大
-      const topAbs = chat.offsetTop || 0;
-      const avail = Math.max(200, Math.round(window.innerHeight - topAbs - barH - bottomPx - 12));
+      // 用“页面内绝对位置”计算可用高度（与当前滚动位置无关，杜绝越滚越多）
+      const docTop = chat.getBoundingClientRect().top + (window.scrollY || 0); // 页面内绝对位置（与滚动无关）
+      const avail = Math.max(200, Math.round(window.innerHeight - docTop - barH - bottomPx - 12));
       chat.style.height = avail + 'px';
       chat.style.maxHeight = avail + 'px';
       chat.style.minHeight = '0';
@@ -824,12 +825,7 @@
           if (idx >= 0) { Player.playQueue(onlySongs, idx); toast('开始播放《' + item.name + '》'); }
         }));
       });
-      box.scrollTop = box.scrollHeight;
-      // 让最新消息始终可见（对话区 + 页面级都滚到底）
-      try {
-        const last = box.lastElementChild;
-        if (last && last.scrollIntoView) last.scrollIntoView({ block: 'end', behavior: 'smooth' });
-      } catch (e) {}
+      box.scrollTop = box.scrollHeight; // 只滚动对话区内部，不动整页
       if (this._hbLayout) this._hbLayout();
     },
     _hbTyping(on) {
