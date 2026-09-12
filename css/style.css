@@ -2707,3 +2707,16 @@ html.theme-switching .modal-panel {
     box-shadow: none;
   }
 }
+
+/* ===== v102: drawer shadow only when open =====
+ * K:ï§6wö/ translateX(-100% - 32px)F box-shadow ß@C  w
+ * ;úe+24px Oû +70px !Ê	Ž/OU æ§‹Y a—rØ
+ * 4q9ê( .open öú°vß@Ñ¨ wÇ!
+ */
+@media (max-width: 900px) {
+  #sidebar {
+    box-shadow: none;
+    transition: transform .3s var(--ease), box-shadow .3s var(--ease);
+  }
+  #sidebar.open { box-shadow: 24px 0 70px rgba(0, 0, 0, .55); }
+}
