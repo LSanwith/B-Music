@@ -2801,3 +2801,11 @@ n
 #side-close:hover { transform: scale(1.045); box-shadow: 0 10px 24px rgba(0, 0, 0, .22); color: var(--fg-strong); }
 #side-close:active { transform: scale(.97); box-shadow: 0 4px 12px rgba(0, 0, 0, .14); }
 @media (max-width: 560px) { #side-close { width: 36px; height: 36px; } }
+
+/* ===== v107: close button same interaction + menu 2px lower ===== */
+#side-close:hover { background: var(--panel2); }
+#side-close:hover, #side-close:focus { transform: scale(1.045); }
+#side-close:active { transform: scale(.97); }
+#side-close:hover svg, #side-close:active svg { transform: none; }
+@media (max-width: 900px) { #btn-menu { top: 5px; } }
+@media (max-width: 700px) { #btn-menu { top: 5px; } }
