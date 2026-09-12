@@ -96,6 +96,7 @@
   const KEYED_SOURCES = {};
   KEYED_SOURCES[CFG.HONGYUN_ENDPOINT] = { flag: 'hk', name: '红云点歌' };
   if (CFG.NT18_ENDPOINT) KEYED_SOURCES[CFG.NT18_ENDPOINT] = { flag: 'nt', name: '落七七' };
+  if (CFG.SANWITH_ENDPOINT) KEYED_SOURCES[CFG.SANWITH_ENDPOINT] = { flag: 'sw', name: 'Sanwith' };
 
   async function request(base, path, params, timeoutMs) {
     const keyed = KEYED_SOURCES[base] || null;
@@ -514,6 +515,45 @@
     /** 红云点歌搜索（兼容新旧结构）。
      *  新版: { code:200, msg, count, data:[{ index, name, singer, id }] }（参数为 name）
      *  旧版: { code:0, data:{ data:{ songs:[{ id,name,artists,album,... }] } } } */
+    /* ---------------- Sanwith 辅助源（搜索 / 图片 / 解灰直链） ---------------- */
+    /** 辅助搜索：返回与镜像同结构的歌曲数组（含封面，可补图片）；失败返回空数组不抛错 */
+    async sanwithSearch(keyword, limit) {
+      const base = CFG.SANWITH_ENDPOINT;
+      if (!base || !keyword) return [];
+      let j;
+      try {
+        j = await request(base, "/search", { keywords: keyword, limit: limit || 20, type: 1 }, 15000);
+      } catch (e) { return []; }
+      const d = (j && j.data) || j || {};
+      const list = (d.songs || (d.result && d.result.songs) || (d.data && (d.data.songs || (d.data.result && d.data.result.songs))) || []);
+      return (Array.isArray(list) ? list : []).map((x) => {
+        const al = x.al || x.album || {};
+        const ar = x.ar || x.artists || [];
+        const cover = al.picUrl || x.coverImgUrl || x.picUrl || "";
+        return {
+          id: Number(x.id),
+          name: x.name || "",
+          artists: (Array.isArray(ar) ? ar : []).map((a) => ({ id: a.id || 0, name: a.name || "" })).filter((a) => a.name),
+          album: { id: al.id || 0, name: al.name || "", cover: cover },
+          cover: cover,
+          duration: x.dt || x.duration || 0,
+          fee: x.fee || 0,
+          vip: !!(x.fee === 1 || x.vip),
+        };
+      }).filter((x) => x.id && x.name);
+    },
+    /** 解灰直链：/song/url/match → { url } */
+    async sanwithUrl(id) {
+      const base = CFG.SANWITH_ENDPOINT;
+      if (!base) throw new Error("Sanwith 未启用");
+      const j = await request(base, "/song/url/match", { id: id }, 20000);
+      const url = j && (j.data || j.url);
+      const u = typeof url === "string" ? url : (url && url.url) || "";
+      if (!u) throw new Error("Sanwith 无地址");
+      const type = /\.flac/i.test(u) ? "flac" : (/\.mp3/i.test(u) ? "mp3" : (/\.m4a/i.test(u) ? "m4a" : ""));
+      return { url: u, br: 0, type: type, level: "lossless", lrc: "" };
+    },
+
     async hongyunSearch(keyword, limit) {
       const j = await request(CFG.HONGYUN_ENDPOINT, '', { action: 'search', name: keyword, limit: limit || 20 }, 20000);
       let list = null;
@@ -564,6 +604,7 @@
           API.nt18Url(song.id, lv).then(r => { r.source = '落七七'; return r; }),
           API.oiapiUrl(song.id, lv).then(r => { r.source = 'oiapi'; return r; }),
           API.bugpkUrl(song.id, lv).then(r => { r.source = 'bugpk'; return r; }),
+          API.sanwithUrl(song.id, lv).then(r => { r.source = 'Sanwith'; return r; }),
         ];
         let settled = 0;
         const delayFor = (src) => src === '会员源' || src === '镜像接口' ? 0 : (src === 'bugpk' ? 600 : (src === 'oiapi' ? 450 : 300));

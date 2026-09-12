@@ -32,6 +32,12 @@ window.APP_CONFIG = {
   /* 客户端不保存密钥：代理注入（nt=1，见上方说明） */
   NT18_KEY: '',
 
+  /* Sanwith 网易云 API（辅助源：补充搜索、封面图片与解灰播放地址）
+   * 说明：所有请求需带 SKey；密钥由服务端注入（代理 sw=1），浏览器 URL 不携带密钥。
+   * 服务端密钥来源：Vercel 环境变量 SANWITH_SKEY；本地 ./skey.local 或同名环境变量。 */
+  SANWITH_ENDPOINT: 'https://www.sanwith.cc.cd',
+  SANWITH_SKEY: '',
+
   /* bugpk 网易云直链源（兜底播放源，无损及以下；无需密钥，经同源代理转发） */
   BUGPK_ENDPOINT: 'https://api.bugpk.com',
 

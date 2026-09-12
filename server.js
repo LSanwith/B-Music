@@ -396,6 +396,7 @@ const PROXY_ALLOWED = [
   'https://api.18years.ink',
   'https://api.bugpk.com',
   'https://oiapi.net',
+  'https://www.sanwith.cc.cd',
 ];
 
 /** /proxy?u=<完整URL>[&hk=1][&nt=1] —— 同源转发上游 API，规避上游 CORS 响应头不稳定问题。
@@ -413,6 +414,15 @@ const HONGYUN_KEY = (function () {
   } catch (e) { /* 无 key.local */ }
   return '';
 })();
+const SANWITH_SKEY = (function () {
+  if (process.env.SANWITH_SKEY) return process.env.SANWITH_SKEY;
+  try {
+    const p = require('path').join(__dirname, 'skey.local');
+    const v = require('fs').readFileSync(p, 'utf8').trim();
+    if (v) return v;
+  } catch (e) { /* no skey.local */ }
+  return '';
+})();
 const NT18_KEY = (function () {
   if (process.env.NT18_KEY) return process.env.NT18_KEY;
   try {
@@ -428,7 +438,8 @@ async function handleProxy(req, res, urlPath) {
   const u = new URL(req.url, 'http://localhost');
   const target = u.searchParams.get('u');
   const hk = u.searchParams.get('hk') === '1'; // 红云点歌
-  const nt = u.searchParams.get('nt') === '1'; // 落七七（18years）
+  const nt = u.searchParams.get('nt') === '1';
+  const sw = u.searchParams.get('sw') === '1'; // 落七七（18years）
   if (!target) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end('{"code":-1,"msg":"missing u"}');
@@ -445,21 +456,22 @@ async function handleProxy(req, res, urlPath) {
     res.end('{"code":-1,"msg":"forbidden"}');
     return true;
   }
-  if (hk || nt) {
+  if (hk || nt || sw) {
     const isHkDest = dest.origin === 'https://api.xunjinlu.fun';
     const isNtDest = dest.origin === 'https://api.18years.ink';
-    if ((hk && !isHkDest) || (nt && !isNtDest)) {
+    const isSwDest = dest.origin === 'https://www.sanwith.cc.cd';
+    if ((hk && !isHkDest) || (nt && !isNtDest) || (sw && !isSwDest)) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       res.end('{"code":-1,"msg":"key not allowed for this origin"}');
       return true;
     }
-    const key = hk ? HONGYUN_KEY : NT18_KEY; // 注入密钥，浏览器 URL 中不出现
+    const key = hk ? HONGYUN_KEY : (nt ? NT18_KEY : SANWITH_SKEY);
     if (!key) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end('{"code":-1,"msg":"' + (hk ? 'HONGYUN_KEY' : 'NT18_KEY') + ' not set"}');
+      res.end('{"code":-1,"msg":"' + (hk ? 'HONGYUN_KEY' : (nt ? 'NT18_KEY' : 'SANWITH_SKEY')) + ' not set"}');
       return true;
     }
-    dest.searchParams.set('key', key);
+    if (sw) dest.searchParams.set('SKey', key); else dest.searchParams.set('key', key);
   }
   try {
     const ctrl = AbortSignal.timeout(45000);

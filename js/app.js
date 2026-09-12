@@ -2101,7 +2101,18 @@
         wrap.innerHTML = '<div class="view-loading small"><div class="spinner"></div></div>';
       }
       try {
-        const data = await API.search(kw, type, 20, offset);
+        let data;
+        try {
+          data = await API.search(kw, type, 20, offset);
+        } catch (e) {
+          data = null; // 镜像异常：交给下面的辅助源兜一次
+        }
+        // 辅助源：镜像 0 结果 / 异常时，用 Sanwith 源补一次（歌曲搜索首页）
+        if (type === 1 && offset === 0 && !((data && data.songs) || []).length && API.sanwithSearch) {
+          const alt = await API.sanwithSearch(kw, 20).catch(() => []);
+          if (alt && alt.length) data = { songs: alt, total: alt.length };
+        }
+        if (!data) throw new Error('搜索服务暂时不可用');
         if (seq !== this._searchSeq) return; // 已切换 tab/关键词，丢弃过期结果
         if (offset === 0) this._searchAll = data.songs || [];
         else this._searchAll = this._searchAll.concat(data.songs || []);
