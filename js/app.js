@@ -3232,6 +3232,8 @@
         const sb = $('#sidebar');
         const mk = $('#side-mask');
         sb.classList.toggle('open', open);
+        // 手机端：抽屉打开时让顶栏淡出（否则胶囊标题/返回键会压在侧栏品牌行上）
+        document.body.classList.toggle('drawer-open', open);
         if (!mk) return;
         clearTimeout(mk._t);
         if (open) {
@@ -3247,6 +3249,8 @@
         setSide(!sb.classList.contains('open'));
       });
       $('#side-mask').addEventListener('click', () => setSide(false));
+      const sideClose = $('#side-close');
+      if (sideClose) sideClose.addEventListener('click', (e) => { e.stopPropagation(); setSide(false); });
       $('#sidebar').addEventListener('click', (e) => {
         if (e.target.closest('a') || e.target.closest('[data-spl]')) setSide(false);
       });
