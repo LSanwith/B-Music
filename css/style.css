@@ -2075,3 +2075,11 @@ body:has(#playerbar:not(.hidden)) .hb-wrap { padding-bottom: 0; }
 @media (max-width: 720px) {
   .hb-cards.hb-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+/* ???????????????????? */
+.hb-icard, .hb-icard *, .hb-card, .hb-card *, .hb-cards, .hb-cards * {
+  cursor: pointer !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+/* ???????????? I ??? */
+.hb-icard-name, .hb-icard-sub { cursor: pointer !important; }
