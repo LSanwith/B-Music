@@ -477,11 +477,13 @@
       if (wrap) wrap.style.paddingBottom = '0px';
       // 用“页面内绝对位置”计算可用高度（与当前滚动位置无关，杜绝越滚越多）
       const docTop = chat.getBoundingClientRect().top + (window.scrollY || 0); // 页面内绝对位置（与滚动无关）
-      const avail = Math.max(200, Math.round(window.innerHeight - docTop - barH - bottomPx - 12));
+      const playing = document.body.matches(':has(#playerbar:not(.hidden))');
+      const extra = playing ? 26 : 14; // 有播放栏时内容更靠上；无播放栏时更宽松
+      const avail = Math.max(200, Math.round(window.innerHeight - docTop - barH - bottomPx - extra));
       chat.style.height = avail + 'px';
       chat.style.maxHeight = avail + 'px';
       chat.style.minHeight = '0';
-      chat.style.paddingBottom = (barH + 14) + 'px';  // 内容底部让开输入栏（复制按钮不被遮挡）
+      chat.style.paddingBottom = (barH + 26) + 'px';  // 内容底部让开输入栏（含“复制”按钮的完整可见空间）
       chat.style.display = 'flex';
       chat.style.flexDirection = 'column';
       chat.style.justifyContent = 'flex-end'; // 双保险：内联也设一次
