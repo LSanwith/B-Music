@@ -467,7 +467,7 @@
       const barH = bar.offsetHeight || 60;
       // 内容底部只留“输入栏高度 + 间隙”，不再出现大片空白
       const wrap = $('.hb-wrap');
-      if (wrap) wrap.style.paddingBottom = (bottomPx + barH + 8) + 'px';
+      if (wrap) wrap.style.paddingBottom = (bottomPx + 14) + 'px';
       // 自然流式：对话区不设高度上限，内容多时整页滚动（彻底消除底部大片留白）
       chat.style.height = 'auto';
       chat.style.maxHeight = 'none';
