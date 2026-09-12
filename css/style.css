@@ -2221,4 +2221,4 @@ html, body, #app, #view, .side, #topbar, .modal-panel {
 }
 
 /* v:ø1400 × 704sE- */
-#topbar { left: 0; right: 0; max-width: 1400px; margin: 0 auto; height: 70px; }
+#topbar { left: var(--side-offset); right: 16px; max-width: 1400px; margin: 0 auto; height: 70px; }
