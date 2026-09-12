@@ -376,8 +376,8 @@
         '【身份】你是「HiBetter」，B·Music 网页版内置的中文 AI 音乐助手（Beta·AI）。',
         '',
         '【铁律·最高优先】',
-        '1. 每次回复都必须先调用工具（get_my_library / search_music / search_playlists / control 等），禁止只回一句说明文字、禁止英文；拿到工具结果后再用简体中文回答。允许一句极短问候（如“晚上好”），但严禁长篇大论。',
-        '2. 推荐歌曲时，正文【只能】是正好 4 行，每行格式：歌名 —— 歌手 —— 不超过 20 字的推荐语（不要空行、不要序号、不要 Markdown 符号、不要开场白/总结/客套话；问候语只能出现在 4 行之前，且最多一句）。',
+        '1. 每次回复都必须先调用工具（get_my_library / search_music / search_playlists / control 等），禁止只回一句说明文字、禁止英文；拿到工具结果后再用简体中文回答。允许一句极短问候，但必须与系统给出的【当前时间】一致（早上写“早上好”、中午写“中午好”、下午写“下午好”、晚上写“晚上好”，严禁说错时段），且严禁长篇大论。',
+        '2. 推荐歌曲时，正文【只能】是正好 4 行，每行格式：歌名 —— 歌手 —— 不超过 20 字的推荐语；系统会在每行文字下方自动渲染该歌曲的卡片，所以【不要】把歌名罗列在一起、也不要额外重复歌名（不要空行、不要序号、不要 Markdown 符号、不要开场白/总结/客套话；问候语只能出现在 4 行之前，且最多一句）。',
         '3. 歌名与歌手必须与 search_music 返回的 songs 字段【逐字一致】，绝不编造、不得替换成你记忆里的其它歌、不得翻译或改写；4 首互不相同（不要 Live/Remix/翻唱/伴奏等版本重复）。',
         '',
         '【输出格式·照抄这个模板】',
@@ -684,49 +684,42 @@
     },
     /** 把卡片穿插进文字：文案里提到哪首，卡片就出现在那一行下面 */
     _hbInlineCards(html, cards) {
-      const norm = (s) => String(s || '').toLowerCase().replace(/[\s\-—_·・,，.。:：;；()（）\[\]【】"'“”‘’!！?？]/g, '');
-      const isSongLine = (plain) => /——|—|--|-\s|－/.test(plain) && plain.trim().length > 3;
+      const norm = (s) => String(s || '').toLowerCase().replace(/[\s\-—_·・,，.。:：;；()（）\[\]【】"'“”‘’!！?？&/]/g, '');
+      const isSongLine = (plain) => /——|—|--|－/.test(plain) && plain.trim().length > 3;
       const used = cards.map(() => false);
       const lines = String(html).split('<br>');
-      const out = [];
-      // 第一轮：把卡片插到对应行下面（歌名或歌手命中）
-      lines.forEach((line) => {
+      const out = lines.map((line) => {
         const plain = line.replace(/<[^>]+>/g, '');
         const np = norm(plain);
         let card = '';
-        // 只按“歌名”匹配（歌手名匹配容易张冠李戴，例如同歌手的不同歌）
+        // 第一优先：歌名逐字命中（忽略大小写/空格/标点）
         for (let i = 0; i < cards.length; i++) {
           if (used[i]) continue;
-          const s = cards[i];
-          const nm = norm(s.name);
-          if (!nm || nm.length < 2) continue;
-          // 行内出现歌名，或歌名包含行内歌名片段（如“西湖漫步（纯音乐）”↔“西湖漫步”）
-          if (np.indexOf(nm) >= 0) {
-            used[i] = true;
-            card = this._hbCardOne(s, i);
-            break;
-          }
+          const nm = norm(cards[i].name);
+          if (nm && nm.length >= 2 && np.indexOf(nm) >= 0) { used[i] = true; card = this._hbCardOne(cards[i], i); break; }
         }
-        out.push({ line: line, card: card, isSong: isSongLine(plain) });
+        return { line: line, card: card, isSong: isSongLine(plain) };
       });
-      // 第二轮：清理——没有卡片支撑的“歌曲行”一律隐藏（AI 幻觉防护）
-      let kept = [];
-      let hiddenSongs = 0;
-      out.forEach((r) => {
-        if (!r.card && r.isSong) { hiddenSongs++; return; }
-        kept.push(r.line + r.card);
-      });
-      // 未使用的卡片：若还有空位就顺次贴到“无卡的非歌曲行”之后，否则统一列在末尾
-      const rest = [];
-      cards.forEach((s, i) => { if (!used[i]) rest.push(i); });
-      let tail = '';
-      if (rest.length === cards.length) {
-        // 一张都没匹配上：只展示真实结果（避免全部图文不符）
-        rest.forEach((i) => { tail += this._hbCardOne(cards[i], i); });
-        if (hiddenSongs) console.log('[hibetter] 隐藏了', hiddenSongs, '行与真实结果不符的歌曲描述');
-        return (tail ? '<div class="hb-cards-title">🎵 为你找到以下歌曲</div><div class="hb-cards">' + tail + '</div>' : '');
+      // 第二优先：若“歌曲行数”与“卡片数”一致 → 按顺序 1:1 配对（保证一行介绍一行卡片）
+      const songIdx = out.map((r, i) => r.isSong ? i : -1).filter(i => i >= 0);
+      const soloIdx = songIdx.filter(i => !out[i].card);
+      const restCards = cards.map((c, i) => used[i] ? -1 : i).filter(i => i >= 0);
+      if (soloIdx.length && soloIdx.length === restCards.length) {
+        soloIdx.forEach((li, k) => {
+          const ci = restCards[k];
+          used[ci] = true;
+          out[li].card = this._hbCardOne(cards[ci], ci);
+        });
       }
-      rest.forEach((i) => { tail += this._hbCardOne(cards[i], i); });
+      // 清理：没有卡片支撑的歌曲行不显示（防幻觉）；卡片全部未用则统一列末尾
+      const kept = [];
+      out.forEach((r) => { if (!r.card && r.isSong) return; kept.push(r.line + r.card); });
+      let tail = '';
+      cards.forEach((c, i) => { if (!used[i]) tail += this._hbCardOne(c, i); });
+      const usedCount = used.filter(Boolean).length;
+      if (usedCount === 0 && cards.length) {
+        return '<div class="hb-cards-title">🎵 为你找到以下歌曲</div><div class="hb-cards">' + tail + '</div>';
+      }
       return kept.join('<br>') + (tail ? '<div class="hb-cards">' + tail + '</div>' : '');
     },
     /** 单张内嵌卡片（点击即播；索引与所属消息的歌曲数组对齐） */
@@ -847,8 +840,17 @@
     async _hbApi(messages, tools) {
       const base = (location.protocol === 'file:' && window.APP_LOCAL_SERVER) ? window.APP_LOCAL_SERVER : '';
       const clean = this._hbSanitize(messages).slice(-12); // 上下文只保留最近 12 条（约 3~4 轮），刷新/换号会清空
+      const now = new Date();
+      const hh = now.getHours();
+      const part = hh < 5 ? '凌晨' : hh < 11 ? '早上' : hh < 13 ? '中午' : hh < 18 ? '下午' : '晚上';
+      const pad = (x) => String(x).padStart(2, '0');
+      const timeStr = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate()) + ' ' +
+        part + ' ' + pad(hh) + ':' + pad(now.getMinutes()) + '（' + ['周日','周一','周二','周三','周四','周五','周六'][now.getDay()] + '）';
       const body = {
-        messages: [{ role: 'system', content: this.HB_SYS() }].concat(clean.map(m => {
+        messages: [
+          { role: 'system', content: this.HB_SYS() },
+          { role: 'system', content: '【当前时间】' + timeStr + '。问候语必须与此时间一致（例如现在是早上就说“早上好”，不要写错时段）。' },
+        ].concat(clean.map(m => {
           const o = { role: m.role, content: m.content || '' };
           if (m.tool_calls) o.tool_calls = m.tool_calls;
           if (m.tool_call_id) o.tool_call_id = m.tool_call_id;
