@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>debug</title>
+<style>body{font:14px/1.7 monospace;background:#111;color:#eee;padding:20px}pre{white-space:pre-wrap}</style>
+</head>
+<body>
+<pre id="out">loading…</pre>
+<script>
+// 用同域 iframe 加载线上页面，读取真实计算样式（临时排查用，用完即删）
+const url = location.pathname.indexOf('debug') >= 0 ? '/?dbg=1' : '/';
+const f = document.createElement('iframe');
+f.style.cssText = 'width:1280px;height:720px;border:0;position:absolute;left:-9999px';
+f.src = url;
+document.body.appendChild(f);
+f.onload = () => {
+  const d = f.contentDocument, w = f.contentWindow;
+  const lines = [];
+  const pick = (sel) => {
+    const el = d.querySelector(sel);
+    if (!el) return sel + ' → 未找到';
+    const cs = w.getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    return sel + ' → top=' + cs.top + ' left=' + cs.left + ' pos=' + cs.position +
+      ' z=' + cs.zIndex + ' rect={x:' + Math.round(r.x) + ',y:' + Math.round(r.y) + ',w:' + Math.round(r.width) + ',h:' + Math.round(r.height) + '}';
+  };
+  lines.push('innerWidth = ' + w.innerWidth);
+  lines.push(pick('#topbar'));
+  lines.push(pick('#sidebar'));
+  lines.push(pick('#page-title'));
+  lines.push('');
+  lines.push('--topbar-h = ' + w.getComputedStyle(d.documentElement).getPropertyValue('--topbar-h'));
+  lines.push('--side-offset = ' + w.getComputedStyle(d.documentElement).getPropertyValue('--side-offset'));
+  lines.push('--side-w = ' + w.getComputedStyle(d.documentElement).getPropertyValue('--side-w'));
+  lines.push('');
+  const sheets = d.querySelectorAll('link[rel=stylesheet]');
+  lines.push('样式表: ' + Array.from(sheets).map(s => s.getAttribute('href')).join(', '));
+  document.getElementById('out').textContent = lines.join('\n');
+};
+f.onerror = () => { document.getElementById('out').textContent = 'iframe 加载失败'; };
+</script>
+</body>
+</html>
