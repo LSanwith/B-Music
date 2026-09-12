@@ -2684,3 +2684,26 @@ html.theme-switching .modal-panel {
   .auth-code-row .auth-input { padding-right: 96px; }
   .auth-code-btn { padding: 0 9px; font-size: 11.5px; }
 }
+
+/* ===== v101: auth code button centering (fix sticky-hover on touch) =====
+ * ( .btn:hover Š transform 9 translateY(-1px)CÍ 0,2,0	
+ * †Ö‰,	®„ translateY(-50%)K:¹ Y˜Þ hover 	®1‰»
+ * ÙÌ(CÍFô`„ÄŠƒ‰OveP hover/active/focus 
+ */
+.auth-code-row .auth-code-btn,
+.auth-code-row .auth-code-btn:hover,
+.auth-code-row .auth-code-btn:focus,
+.auth-code-row .auth-code-btn:focus-visible,
+.auth-code-row .auth-code-btn:disabled {
+  transform: translateY(-50%);
+}
+.auth-code-row .auth-code-btn:active:not(:disabled) {
+  transform: translateY(-50%) scale(.96);
+}
+@media (hover: none) {
+  .auth-code-row .auth-code-btn:hover:not(:disabled) {
+    background: rgba(var(--accent-rgb), .16);
+    color: var(--accent);
+    box-shadow: none;
+  }
+}
