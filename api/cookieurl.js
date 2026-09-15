@@ -6,7 +6,8 @@
  *  其余 cookie 字段永不离开服务器；不写入任何日志/客户端。
  */
 /* 多镜像：原 silence-music-api.cc.cd 域名已失效，按顺序尝试 */
-const MIRRORS = ['https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
+/* 优先官方 silence 域名（原 cc.cd 已迁移到 de5.net），其余镜像兜底 */
+const MIRRORS = ['https://silence-music-api.de5.net', 'https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
 
 /** 从完整 cookie 串裁剪为最小会话（仅 MUSIC_U + __csrf） */
 function minimizeCookie(full) {
