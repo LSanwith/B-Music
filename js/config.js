@@ -13,16 +13,17 @@
  * ============================================================ */
 window.APP_CONFIG = {
   /* 网易云音乐 API 接口（多镜像：按顺序尝试，失败自动切下一个并记住可用的那个）
-   * 说明：原主镜像 silence-music-api.cc.cd 域名 SSL 不稳（另有备份域名 https://sience-music-api-backup.de5.net），
+   * 说明：原主镜像 silence-music-api.cc.cd 域名 SSL 不稳（现已迁移到 https://silence-music-api.de5.net，另有备份域名 https://sience-music-api-backup.de5.net），
    *       因此改为多镜像容灾；三个镜像都是标准 NeteaseCloudMusicApi 部署；Sanwith 需带 SKey（由代理注入）。 */
   API_MIRRORS: [
-    'https://sience-music-api-backup.de5.net',
+    'https://silence-music-api.de5.net',   // silence API 新地址（官方文档：/docs/）
+    'https://www.sanwith.cc.cd',                 // 同内核，与主源轮流分担压力（SKey 由代理注入）
+    'https://sience-music-api-backup.de5.net',   // 旧备份地址，仍可用时留作冗余
     'https://zm.wwoyun.cn',
-    'https://www.sanwith.cc.cd',
     'https://music.mcseekeri.com',
   ],
   /* 兼容旧引用（= 镜像列表第一个） */
-  API_PRIMARY: 'https://sience-music-api-backup.de5.net',
+  API_PRIMARY: 'https://silence-music-api.de5.net',
 
   /* 红云点歌v4（备用下载源） */
   HONGYUN_ENDPOINT: 'https://api.xunjinlu.fun/apis/wymusicv4',

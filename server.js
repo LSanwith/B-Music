@@ -471,6 +471,7 @@ const MIME = {
 const MIRRORS = ['https://sience-music-api-backup.de5.net', 'https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
 const PROXY_ALLOWED = [
   'https://silence-music-api.cc.cd',
+  'https://silence-music-api.de5.net',
   'https://sience-music-api-backup.de5.net',
   'https://zm.wwoyun.cn',
   'https://music.mcseekeri.com',

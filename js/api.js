@@ -13,6 +13,10 @@
   /* 镜像列表：默认用第一个，失败自动切下一个并记住可用的那个 */
   const MIRRORS = (CFG.API_MIRRORS && CFG.API_MIRRORS.length ? CFG.API_MIRRORS.slice() : [CFG.API_PRIMARY]);
   let _mirrorIdx = 0;
+  /* 两个同内核 API（silence / Sanwith）轮流打头，分摊服务器压力；
+   * 一旦某个源需要回退（说明它不健康），就粘住可用源若干次，避免每次白等。 */
+  let _rrToggle = 0;
+  let _sticky = 0;
   const PRIMARY = MIRRORS[0];
   /** 当前可用镜像（供播放地址等直接拼 URL 的地方使用） */
   const mirrorNow = () => MIRRORS[_mirrorIdx] || PRIMARY;
@@ -164,13 +168,21 @@
     const ok = (j) => !!(j && (j.code === undefined || j.code === 200 || j.code === 0 ||
       (j.result || j.playlist || j.banners || j.list)));
     let lastErr = null;
+    // 轮询起点：两个同内核源健康时 0/1 交替；处于粘滞期则沿用上次成功的源
+    let startIdx = _mirrorIdx;
+    if (MIRRORS.length > 1 && _sticky <= 0) { _rrToggle ^= 1; startIdx = _rrToggle; }
+    if (_sticky > 0) _sticky--;
     for (let i = 0; i < MIRRORS.length; i++) {
-      const idx = (_mirrorIdx + i) % MIRRORS.length;
+      const idx = (startIdx + i) % MIRRORS.length;
       const tries = i === 0 ? 2 : 1; // 当前镜像重试一次，其余镜像各试一次
       for (let t = 0; t < tries; t++) {
         try {
           const j = await request(MIRRORS[idx], path, params, tmo);
-          if (ok(j)) { _mirrorIdx = idx; return j; }
+          if (ok(j)) {
+            _mirrorIdx = idx;
+            if (i > 0) _sticky = 8; // 回退过：接下来 8 次沿用这个可用源
+            return j;
+          }
           lastErr = new Error('bad response');
         } catch (e) {
           lastErr = e;
@@ -724,6 +736,9 @@
       } catch (e) { return ''; }
     },
   };
+
+  /* 当前使用的镜像（仅供本地排查） */
+  API.currentMirror = () => mirrorNow();
 
   window.API = API;
 })();
