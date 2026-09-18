@@ -150,6 +150,16 @@ function shareSongs(pl) {
   }).slice(0, 1500);
 }
 
+/* 数据写入限速：同一账号 5 秒内最多 30 次写入（防前端异常或脚本刷写），
+ * 超限返回 429，客户端据此进入 5 秒暂停；内存计数，实例级即可。 */
+const DATA_RL = new Map();
+function dataWriteAllowed(uid) {
+  const now = Date.now();
+  const rec = DATA_RL.get(uid);
+  if (!rec || now - rec.t > 5000) { DATA_RL.set(uid, { t: now, n: 1 }); return true; }
+  rec.n += 1;
+  return rec.n <= 30;
+}
 export default async function handler(req, res) {
   const r = String((req.query && req.query.r) || '');
   const method = req.method;
@@ -393,6 +403,9 @@ export default async function handler(req, res) {
         return res.status(200).json(d);
       }
       if (method === 'POST') {
+        if (!dataWriteAllowed(user.id)) {
+          return res.status(429).json({ msg: '操作过于频繁，请 5 秒后再试' });
+        }
         const b = await readBody(req);
         const d = db.data[user.id] || {};
         if (b.settings && typeof b.settings === 'object') d.settings = b.settings;

@@ -351,7 +351,11 @@
           e401.status = 401;
           throw e401;
         }
-        if (!r.ok) throw new Error(j.msg || ('HTTP ' + r.status));
+        if (!r.ok) {
+          const err = new Error(j.msg || ('HTTP ' + r.status));
+          err.status = r.status;
+          throw err;
+        }
         return j;
       });
     },
@@ -564,14 +568,99 @@
     },
 
     _syncT: 0,
-    /** 数据变化后防抖同步到云端 */
+    /** 数据变化后防抖同步到云端（交互驱动的即时上传见 _onActivity） */
     sync() {
       if (!Session.loggedIn) return;
+      Session._dirty = true; // 有未上传的本地改动
       clearTimeout(Session._syncT);
       Session._syncT = setTimeout(() => {
         Session._syncT = 0;
-        Session.push().catch((e) => { console.warn('[bmusic-sync] push failed:', e && e.message); });
+        Session._flush('debounce');
       }, 800);
+    },
+
+    /* ---------- 交互驱动的即时上传 + 频繁活动保护 ----------
+     * 规则：
+     *  1) 只统计「真实用户交互」：event.isTrusted !== false（脚本/程序触发不计入）
+     *     计入 pointerdown / keydown / input / change / click / wheel / scroll
+     *     （滚动与滚轮每 250ms 合并计一次，避免连续滚动被误判为刷屏）
+     *  2) 每次交互若本地有未上传改动（_dirty），立即上传一次（跳过 800ms 防抖）
+     *  3) 1 秒滑动窗口内交互超过 MAX_PER_SEC(15) 次 → 判定频繁活动：
+     *     提示一次 → 暂停上传 PAUSE_MS(5s) → 期间只累积改动 → 到点自动补传并恢复
+     *  4) 服务端返回 429（写入过快）时同样进入暂停，避免持续冲击服务器
+     */
+    _dirty: false,
+    _interactAt: [],
+    _pauseUntil: 0,
+    _pauseNotified: false,
+    _resumeT: 0,
+    _lastScrollAt: 0,
+    MAX_PER_SEC: 15,
+    PAUSE_MS: 5000,
+
+    /** 上传一次（若有脏数据且不在暂停期） */
+    _flush(reason) {
+      if (!Session.loggedIn || !Session._dirty) return;
+      if (Date.now() < Session._pauseUntil) return; // 暂停期只攒着，到点由 _resume 补传
+      Session._dirty = false;
+      Session.push().catch((e) => {
+        Session._dirty = true; // 失败恢复脏标记，下次交互或防抖再传
+        if (e && e.status === 429) Session._pause();
+        console.warn('[bmusic-sync] push failed:', (e && e.message) || e);
+      });
+    },
+
+    /** 暂停上传（默认 5 秒），到点自动补传一次 */
+    _pause(ms) {
+      const wait = ms || Session.PAUSE_MS;
+      const until = Date.now() + wait;
+      if (until <= Session._pauseUntil) return; // 已在更长的暂停里
+      Session._pauseUntil = until;
+      Session._interactAt.length = 0;
+      if (!Session._pauseNotified) {
+        Session._pauseNotified = true;
+        try { UI.toast('操作过于频繁，已暂停云端同步 ' + Math.round(wait / 1000) + ' 秒', 'warn'); } catch (e) {}
+      }
+      clearTimeout(Session._resumeT);
+      Session._resumeT = setTimeout(() => {
+        Session._pauseNotified = false;
+        Session._flush('resume');
+      }, wait + 80);
+    },
+
+    /** 记录一次真实用户交互：判定频繁活动 + 有改动就立即上传 */
+    _onActivity(kind) {
+      if (!Session.loggedIn) return;
+      const now = Date.now();
+      const a = Session._interactAt;
+      a.push(now);
+      while (a.length && now - a[0] > 1000) a.shift(); // 只保留最近 1 秒
+      if (a.length > Session.MAX_PER_SEC) { Session._pause(); return; }
+      if (now < Session._pauseUntil) return;
+      if (!Session._dirty) return;
+      clearTimeout(Session._syncT);
+      Session._syncT = 0;
+      Session._flush('interact');
+    },
+
+    /** 绑定用户活动监听（只绑一次；untrusted 事件被忽略） */
+    _bindActivityOnce() {
+      if (Session._actBound) return;
+      Session._actBound = true;
+      const bind = (type, target, capture) => {
+        target.addEventListener(type, (e) => {
+          if (!e || e.isTrusted === false) return; // 只统计真实用户活动
+          if (type === 'scroll' || type === 'wheel') {
+            const now = Date.now();
+            if (now - Session._lastScrollAt < 250) return; // 连续滚动合并计数
+            Session._lastScrollAt = now;
+          }
+          Session._onActivity(type);
+        }, { passive: true, capture: !!capture });
+      };
+      ['pointerdown', 'keydown', 'input', 'change', 'click'].forEach((t) => bind(t, document, true));
+      bind('wheel', window, true);
+      bind('scroll', window, true);
     },
 
     /* ---------- 自动双向同步（跨设备实时） ----------
@@ -614,6 +703,7 @@
     },
   };
 
+  Session._bindActivityOnce();
   Session._startPollOnce();
   window.Store = { Settings, FavSongs, FavPlaylists, Recent, MyPlaylists, SearchHistory, Session, clearAll };
 })();

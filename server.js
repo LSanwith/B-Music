@@ -434,6 +434,9 @@ async function handleApi(req, res, urlPath) {
         return sendJson(res, 200, d);
       }
       if (method === 'POST') {
+        if (!dataWriteAllowed(user.id)) {
+          return sendJson(res, 429, { msg: '\u64cd\u4f5c\u8fc7\u4e8e\u9891\u7e41\uff0c\u8bf7 5 \u79d2\u540e\u518d\u8bd5' });
+        }
         const b = await readBody(req);
         const d = DB.data[user.id] || {};
         if (b.settings && typeof b.settings === 'object') d.settings = b.settings;
@@ -450,6 +453,16 @@ async function handleApi(req, res, urlPath) {
     return sendJson(res, 400, { msg: e.message || 'bad request' });
   }
   return sendJson(res, 405, { msg: 'method not allowed' });
+}
+
+/* Data write rate limit (in-memory): max 30 writes per 5s per account (same as api/account.js) */
+const DATA_RL = new Map();
+function dataWriteAllowed(uid) {
+  const now = Date.now();
+  const rec = DATA_RL.get(uid);
+  if (!rec || now - rec.t > 5000) { DATA_RL.set(uid, { t: now, n: 1 }); return true; }
+  rec.n += 1;
+  return rec.n <= 30;
 }
 
 const MIME = {
