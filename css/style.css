@@ -3002,9 +3002,11 @@ body::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: no
 .share-act.primary { background: var(--accent); border-color: transparent; color: var(--fg-strong); }
 .share-act.primary:hover { color: var(--fg-strong); opacity: .9; }
 @media (max-width: 460px) {
-  .share-acts { flex-wrap: wrap; }
-  .share-act { flex: 1 1 100%; }
-  .share-act.primary { order: -1; }
+  /* ≈´9ó;	Æb0 
+πvtL˙· w,b◊qÕ	 */
+  .share-panel .share-acts { flex-wrap: wrap; }
+  .share-panel .share-acts .share-act { flex: 1 1 100%; }
+  .share-panel .share-acts .share-act.primary { order: -1; }
 }
 
 /* ===== v121: share panel insets =====
@@ -3053,3 +3055,242 @@ body::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: no
     background: var(--accent-soft); color: var(--accent);
   }
 }
+
+/* ===== v128: listen together + developer welcome ===== */
+#listen .lt-panel { width: min(460px, 94vw); }
+#listen .modal-body { padding: 0; }
+.lt-tip { margin: 0 0 14px; font-size: 13px; color: var(--sub); line-height: 1.6; }
+.lt-btn { width: 100%; }
+.lt-or {
+  display: flex; align-items: center; gap: 10px; margin: 16px 0 12px;
+  color: var(--sub); font-size: 12px;
+}
+.lt-or::before, .lt-or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.lt-join-row { display: flex; gap: 10px; align-items: center; }
+.lt-code-input {
+  flex: 1; text-align: center; letter-spacing: 6px; font-weight: 700;
+  font-size: 18px; text-transform: uppercase;
+}
+.lt-invite {
+  padding: 16px; border-radius: 16px; text-align: center;
+  background: var(--panel2); border: 1px solid var(--border);
+}
+.lt-invite-label { font-size: 12px; color: var(--sub); margin-bottom: 8px; }
+.lt-code {
+  font-size: 30px; font-weight: 800; letter-spacing: 8px;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
+.lt-link {
+  margin-top: 8px; font-size: 12px; color: var(--sub);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text;
+}
+.lt-acts { display: flex; gap: 10px; margin-top: 14px; }
+.lt-acts .share-act { flex: 1; }
+.lt-status { margin-top: 16px; }
+.lt-song { font-size: 14.5px; font-weight: 700; color: var(--fg-strong); line-height: 1.45; }
+.lt-meta { margin-top: 5px; font-size: 12px; color: var(--sub); }
+.lt-members { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.lt-member {
+  padding: 5px 11px; border-radius: 999px; font-size: 12px;
+  background: var(--panel2); border: 1px solid var(--border); color: var(--sub);
+}
+.lt-member.host { color: var(--accent); border-color: rgba(var(--accent-rgb), .45); }
+.lt-chat {
+  margin-top: 16px; padding: 12px; height: 190px; overflow-y: auto;
+  border-radius: 14px; background: var(--panel2); border: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.lt-chat-empty { color: var(--sub); font-size: 12.5px; text-align: center; margin: auto; }
+.lt-msg { max-width: 86%; }
+.lt-msg.mine { align-self: flex-end; text-align: right; }
+.lt-msg-head { display: flex; gap: 8px; align-items: baseline; font-size: 11.5px; color: var(--sub); }
+.lt-msg.mine .lt-msg-head { justify-content: flex-end; }
+.lt-msg-name { font-weight: 600; }
+.lt-msg-text {
+  margin-top: 3px; padding: 8px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.5;
+  background: var(--panel); color: var(--text); word-break: break-word; text-align: left;
+}
+.lt-msg.mine .lt-msg-text { background: var(--accent-soft); color: var(--fg-strong); }
+.lt-input { display: flex; gap: 10px; margin-top: 12px; align-items: center; }
+.lt-input .auth-input { flex: 1; }
+.lt-input .share-act { flex: none; padding: 11px 18px; }
+.lt-leave { margin-top: 12px; width: 100%; color: var(--accent); }
+.share-act.lt-entry { width: 100%; margin-top: 10px; }
+
+#devwelcome .dev-panel { width: min(400px, 92vw); text-align: center; }
+.dev-hi { margin: 6px 0 4px; font-size: 17px; font-weight: 700; color: var(--fg-strong); }
+.dev-uid { margin: 10px 0 6px; font-size: 13.5px; color: var(--sub); }
+.dev-uid b { color: var(--accent); font-size: 16px; letter-spacing: .5px; }
+.dev-tip { margin: 10px 0 16px; font-size: 12.5px; color: var(--sub); line-height: 1.6; }
+
+@media (max-width: 560px) {
+  .lt-code { font-size: 26px; letter-spacing: 6px; }
+  .lt-chat { height: 160px; }
+}
+
+/* ===== v129: listen panel fits its contents =====
+ * The chat box was a fixed 190px and the body did not scroll, so the "leave"
+ * button was pushed ~41px below the panel. The panel is now a flex column
+ * with a scrolling body and a height-aware chat box.
+ */
+#listen .lt-panel {
+  width: min(460px, 94vw);
+  max-height: min(88vh, 700px);
+  display: flex; flex-direction: column;
+}
+#listen .modal-head { flex: none; }
+#listen .modal-body { padding: 0; overflow-y: auto; min-height: 0; }
+.lt-chat { height: 150px; flex: none; }
+.lt-leave { margin-bottom: 2px; }
+@media (max-height: 760px) { .lt-chat { height: 118px; } }
+@media (max-height: 680px) { .lt-chat { height: 92px; } }
+
+/* ===== v130: scope share-act mobile rules to the share panel =====
+ * The v120 narrow-screen block applied "order:-1" to every .share-act.primary,
+ * which also reordered the listen-together chat send button to the left of its
+ * input. Those rules are only meant for the share sheet, so scope them there.
+ */
+@media (max-width: 460px) {
+  #listen .share-acts { flex-wrap: nowrap; }
+  #listen .share-act,
+  #listen .share-act.primary { order: 0; flex: 1 1 0; }
+  #listen .lt-input .share-act { flex: none; }
+}
+
+/* ===== v131: local account button (local deployment only) ===== */
+.auth-local { margin-top: 10px; width: 100%; }
+.auth-local-tip {
+  margin: 8px 0 0; font-size: 12px; line-height: 1.6; color: var(--sub);
+  text-align: center;
+}
+
+/* ===== v132: listen panel tidy + player entry =====
+ * 1) every control in the sheet is one height (44px) and one rhythm
+ * 2) chat / input / leave only exist inside a room
+ * 3) listen-together entry in the full-screen player top bar
+ */
+#listen .lt-panel { padding: 24px 24px 24px; }
+#listen .modal-head { margin: 0 -24px 14px; padding: 0 24px; }
+#listen .modal-body { padding: 0; }
+#listen .lt-panel { --lt-h: 44px; }
+
+/* ﬂ Ñßˆÿ¶“ */
+#listen .auth-input,
+#listen .lt-btn,
+#listen .lt-input .share-act,
+#listen .lt-join-row .share-act,
+#listen .lt-leave {
+  height: var(--lt-h); border-radius: 12px; font-size: 13.5px;
+  box-sizing: border-box; margin: 0;
+}
+#listen .auth-input { padding: 0 14px; line-height: 1; }
+#listen .lt-code-input { letter-spacing: 5px; font-size: 16px; font-weight: 700; }
+#listen .lt-btn { width: 100%; display: flex; align-items: center; justify-content: center; }
+#listen .lt-join-row { display: flex; gap: 10px; align-items: center; }
+#listen .lt-join-row .auth-input { flex: 1; min-width: 0; }
+#listen .lt-join-row .share-act { flex: none; width: 96px; padding: 0; display: flex; align-items: center; justify-content: center; }
+
+/* ÇO@	WKÙﬂ  12px */
+#listen .lt-tip { margin: 0 0 12px; font-size: 12.5px; line-height: 1.65; }
+#listen .lt-or { margin: 12px 0; }
+#listen .lt-invite { padding: 16px; }
+#listen .lt-invite-label { margin-bottom: 6px; }
+#listen .lt-code { font-size: 28px; letter-spacing: 7px; line-height: 1.25; }
+#listen .lt-link { margin-top: 6px; }
+#listen .lt-acts { margin-top: 12px; gap: 10px; }
+#listen .lt-acts .share-act { height: var(--lt-h); border-radius: 12px; padding: 0; display: flex; align-items: center; justify-content: center; }
+#listen .lt-status { margin-top: 12px; }
+#listen .lt-song { font-size: 14px; }
+#listen .lt-meta { margin-top: 4px; }
+#listen .lt-members { margin-top: 10px; gap: 6px; }
+
+/* J):	ÆΩÖπ›6' */
+#listen .lt-room-only { margin-top: 12px; }
+#listen .lt-chat {
+  margin-top: 0; padding: 10px 12px; height: 148px; border-radius: 12px; gap: 8px;
+}
+#listen .lt-msg-text { padding: 7px 11px; border-radius: 10px; font-size: 13px; }
+#listen .lt-input { margin-top: 10px; gap: 10px; }
+#listen .lt-input .auth-input { flex: 1; min-width: 0; }
+#listen .lt-input .share-act { flex: none; width: 72px; padding: 0; display: flex; align-items: center; justify-content: center; }
+#listen .lt-leave {
+  margin-top: 10px; width: 100%; background: transparent; border: 1px solid var(--border);
+  color: var(--accent); font-weight: 600; display: flex; align-items: center; justify-content: center;
+}
+#listen .lt-leave:hover { background: var(--accent-soft); border-color: rgba(var(--accent-rgb), .45); }
+
+/* ≠>uv w,e„sÌ. í`Ûví	 */
+.ov-top { justify-content: flex-end; gap: 12px; }
+.ov-listen { position: relative; }
+.ov-listen svg { width: 20px; height: 20px; }
+.ov-listen-badge {
+  position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px; padding: 0 4px;
+  border-radius: 999px; background: var(--accent); color: var(--fg-strong);
+  font-size: 10.5px; font-weight: 700; line-height: 17px; text-align: center;
+}
+
+/* ===== v133: player top bar alignment + badge inside =====
+ * The count badge stuck 4px outside the round button and could be clipped on
+ * short viewports; both top-bar buttons now share one icon size and baseline.
+ */
+.ov-top { align-items: center; }
+.ov-top .icon-btn,
+.ov-listen,
+.ov-close { width: 34px; height: 34px; flex: none; }
+.ov-top .icon-btn svg,
+.ov-listen svg,
+.ov-close svg { width: 20px; height: 20px; }
+.ov-listen-badge {
+  top: 0; right: 0; min-width: 15px; height: 15px; padding: 0 3px;
+  font-size: 10px; line-height: 15px; border: 1.5px solid var(--bg);
+}
+
+/* ===== v134: listen sheet - head band, avatars, bubbles, collapsible invite =====
+ * 1) drop the sticky head band (it cut through the capsule / close-button shadows)
+ * 2) avatars in the member chips and chat
+ * 3) own messages right, others left
+ * 4) invite block collapses from its header
+ */
+#listen .modal-panel { overflow: visible; }
+#listen .modal-head {
+  position: static; top: auto; z-index: auto;
+  background: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-bottom: 0;
+}
+#listen .modal-head::after { display: none; }
+
+/* „‰Wò‡4 */
+.lt-invite { padding: 0; overflow: hidden; }
+.lt-invite-head {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 12px 16px; background: none; border: 0; cursor: pointer;
+  color: var(--sub); font-size: 12.5px; font-weight: 600;
+}
+.lt-invite-head:hover { color: var(--text); }
+.lt-chev { width: 15px; height: 15px; fill: currentColor; transition: transform .22s var(--ease); }
+.lt-invite.collapsed .lt-chev { transform: rotate(-90deg); }
+.lt-invite-body { padding: 0 16px 16px; }
+.lt-invite.collapsed .lt-invite-body { display: none; }
+.lt-invite-label { display: none; }
+
+/* X~&4œ */
+.lt-member { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px; }
+.lt-m-av,
+.lt-av {
+  width: 22px; height: 22px; flex: none; border-radius: 50%;
+  background: var(--bg3) center/cover no-repeat; color: var(--sub);
+  font-size: 11px; font-style: normal; font-weight: 700; line-height: 22px; text-align: center;
+  overflow: hidden;
+}
+.lt-member.host .lt-m-av { box-shadow: 0 0 0 1.5px rgba(var(--accent-rgb), .55); }
+
+/* J)·+∫Ê(ÛG&4œ */
+.lt-msg { display: flex; align-items: flex-start; gap: 8px; max-width: 100%; }
+.lt-msg .lt-av { width: 26px; height: 26px; line-height: 26px; font-size: 12px; margin-top: 2px; }
+.lt-msg-body { min-width: 0; max-width: 82%; }
+.lt-msg.other { align-self: flex-start; }
+.lt-msg.mine { align-self: flex-end; flex-direction: row-reverse; }
+.lt-msg.mine .lt-msg-body { text-align: right; }
+.lt-msg.mine .lt-msg-head { justify-content: flex-end; }
+.lt-msg-text { display: inline-block; max-width: 100%; }

@@ -18,6 +18,21 @@
   let _rrToggle = 0;
   let _sticky = 0;
   const PRIMARY = MIRRORS[0];
+/* 本地部署（127.0.0.1 / localhost / file://）：本机网络往往连不上部分镜像
+ * （例如 Sanwith 的 TLS 在本机被拦），直接从候选里剔除，避免每次刷新都白试两次、
+ * 控制台刷满 502/503。线上不受影响，仍按轮询分摊压力。 */
+(function () {
+  try {
+    const isLocal = location.protocol === 'file:' ||
+      /^(127\.0\.0\.1|localhost|\[::1\]|0\.0\.0\.0)$/.test(location.hostname);
+    if (!isLocal) return;
+    const SKIP_LOCAL = ['https://www.sanwith.cc.cd'];
+    for (let i = MIRRORS.length - 1; i >= 0; i--) {
+      if (SKIP_LOCAL.indexOf(MIRRORS[i]) >= 0) MIRRORS.splice(i, 1);
+    }
+    if (!MIRRORS.length) MIRRORS.push(CFG.API_PRIMARY);
+  } catch (e) { /* 忽略 */ }
+})();
   /** 当前可用镜像（供播放地址等直接拼 URL 的地方使用） */
   const mirrorNow = () => MIRRORS[_mirrorIdx] || PRIMARY;
 

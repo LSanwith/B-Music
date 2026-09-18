@@ -48,6 +48,9 @@ function altchaVerify(payload) {
 
 const QQ_MAIL_RE = /^[A-Za-z0-9._%+-]+@(qq\.com|foxmail\.com)$/i; // 仅允许 QQ 邮箱（含 foxmail 别名）
 const QQ_MAIL_MSG = '仅支持 QQ 邮箱注册（@qq.com / @foxmail.com）';
+/* 内部（开发者）账号：登录后前端会弹出「欢迎开发者」并显示 uid */
+const INTERNAL_EMAILS = ['1689292034@qq.com'];
+function isInternal(email) { return INTERNAL_EMAILS.indexOf(String(email || '').toLowerCase()) >= 0; }
 let MEM = null; // 内存兜底
 
 function readBody(req) {
@@ -279,7 +282,7 @@ export default async function handler(req, res) {
       const token = crypto.randomBytes(24).toString('hex');
       db.sessions[token] = id;
       await saveDb(db);
-      return res.status(200).json({ token, email, avatar: '', name: '', uid: id });
+      return res.status(200).json({ token, email, avatar: '', name: '', uid: id, internal: isInternal(email) });
     }
     if (r === 'login' && method === 'POST') {
       const b = await readBody(req);
@@ -297,7 +300,7 @@ export default async function handler(req, res) {
       const token = crypto.randomBytes(24).toString('hex');
       db.sessions[token] = user.id;
       await saveDb(db);
-      return res.status(200).json({ token, email: user.email, avatar: user.avatar || '', name: user.nickname || '', uid: user.id });
+      return res.status(200).json({ token, email: user.email, avatar: user.avatar || '', name: user.nickname || '', uid: user.id, internal: isInternal(user.email) });
     }
     /* 分享读取：公开接口（任何人可查看），无需登录；鉴权在下方 */
     if (r === 'share' && method === 'GET') {

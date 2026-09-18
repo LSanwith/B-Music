@@ -316,12 +316,20 @@
     get avatar() { return session && session.avatar ? session.avatar : ''; },
     get name() { return session && session.name ? session.name : ''; },
     get uid() { return session && session.uid ? session.uid : ''; },
+    /** 内部（开发者）账号标记：由服务端在登录/注册响应里给出 */
+    get internal() { return !!(session && session.internal); },
+    /** 本地默认账号（local1…）：功能齐全，但不提供无损及以上音源 */
+    get localAccount() { return !!(session && session.local); },
+    /** 本地账号：数据只保存在本机（localStorage），不推送云端、不轮询云端 */
+    get noCloud() { return !!(session && session.local); },
+    get noLossless() { return !!(session && session.noLossless); },
     get loggedIn() { return !!session; },
 
     _setSession(data) {
       session = data ? {
         token: data.token, email: data.email, avatar: data.avatar || '',
-        name: data.name || '', uid: data.uid || '',
+        name: data.name || '', uid: data.uid || '', internal: !!data.internal,
+        local: !!data.local, noLossless: !!data.noLossless,
       } : null;
       write('session', session);
     },
@@ -362,7 +370,7 @@
 
     async login(email, password) {
       const j = await Session._api('/login', { method: 'POST', body: JSON.stringify({ email, password }) });
-      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '', name: j.name || '', uid: j.uid || '' });
+      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '', name: j.name || '', uid: j.uid || '', internal: !!j.internal, local: !!j.local, noLossless: !!j.noLossless });
       document.dispatchEvent(new CustomEvent('ym:session'));
       // 未登录期间本机产生的收藏/自建歌单：先备份，登录拉取云端后再合并上传，
       // 避免「云端覆盖本地 → 本地数据丢失且云端也没有」的漏同步问题
@@ -390,7 +398,7 @@
         method: 'POST',
         body: JSON.stringify({ email, password, altcha: altcha || '', code: code || '' }),
       });
-      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '', name: j.name || '', uid: j.uid || '' });
+      Session._setSession({ token: j.token, email: j.email, avatar: j.avatar || '', name: j.name || '', uid: j.uid || '', internal: !!j.internal, local: !!j.local, noLossless: !!j.noLossless });
       document.dispatchEvent(new CustomEvent('ym:session'));
       // 新账号云端从空开始，不导入本机残留数据（避免多人共用电脑时数据混淆）
       return j;
@@ -416,6 +424,7 @@
       return await Session._api('/qq/check?qq=' + encodeURIComponent(qq), { method: 'GET' });
     },
     async logout() {
+      try { if (Session.markNoAutoLocal) Session.markNoAutoLocal(); } catch (e) {}
       try { await Session._api('/logout', { method: 'POST' }); } catch (e) { /* 忽略 */ }
       session = null;
       write('session', null);
@@ -506,6 +515,7 @@
      *  mergeCloud=true（1s 轮询）：本地为准（保护用户刚做的修改不被上传失败
      *  的云端旧值回滚），只补充本地缺失的新键。 */
     async pull(mergeCloud) {
+      if (Session.noCloud) return; // 本地账号：不拉取云端
       const j = await Session._api('/data');
       const arr = (local, key) => {
         if (!Array.isArray(j[key]) || JSON.stringify(j[key]) === JSON.stringify(local)) return local;
@@ -551,6 +561,7 @@
 
     /** 上传当前本机数据（设置 + 收藏 + 自建歌单，不含最近播放/搜索历史） */
     async push() {
+      if (Session.noCloud) return; // 本地账号：不上传
       Session._pushT = Date.now(); // 标记上传进行中（轮询据此暂停拉取，防旧数据回滚） 
       try {
         await Session._api('/data', {
@@ -570,7 +581,7 @@
     _syncT: 0,
     /** 数据变化后防抖同步到云端（交互驱动的即时上传见 _onActivity） */
     sync() {
-      if (!Session.loggedIn) return;
+      if (!Session.loggedIn || Session.noCloud) return;
       Session._dirty = true; // 有未上传的本地改动
       clearTimeout(Session._syncT);
       Session._syncT = setTimeout(() => {
@@ -685,7 +696,7 @@
       }
     },
     _pollSafe() {
-      if (!Session.loggedIn || Session._polling) return;
+      if (!Session.loggedIn || Session._polling || Session.noCloud) return;
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden' &&
           Date.now() - Session._lastPollAt < 5 * 60 * 1000) return;
       if (Session._syncT) { // 本地改动尚未上传完成：推迟 1.5s 再拉取，避免覆盖
@@ -701,6 +712,65 @@
         .catch(() => {}) // 拉取失败下轮重试
         .finally(() => { Session._polling = false; });
     },
+  };
+
+  /* ---------- 本地部署：自动登录本地账号（无需点登录/注册） ----------
+   * 判定：页面来自 127.0.0.1 / localhost / file://
+   * 账号：local1（可用 ?local=2 指定第 2 个本地账号）
+   * 退出登录后不再自动登录（写入 bmusic:no-auto-local），避免退不掉 */
+  /* 是否本地部署：只看访问域名是否为本机回环地址（http://127.0.0.1/ 等）。
+   * 线上域名（如 www.bmusic.de5.net）一律为 false —— 本地账号只在本地部署可用。
+   * 同时兼容 file:// 直接打开（APP_LOCAL_SERVER 指向本机服务）。 */
+  let LOCAL_HOST = (function () {
+    try {
+      if (location.protocol === 'file:') return true;
+      const h = String(location.hostname || '').toLowerCase();
+      return h === '127.0.0.1' || h === 'localhost' || h === '::1' || h === '[::1]' || h === '0.0.0.0';
+    } catch (e) { return false; }
+  })();
+  const NO_AUTO_KEY = 'bmusic:no-auto-local';
+  Session.isLocalHost = function () { return LOCAL_HOST; };
+  /* 判定入口：与主机名规则一致（保留异步签名，调用方无需改动） */
+  Session.detectLocal = async function () {
+    // 只按域名判断：127.0.0.1 / localhost / [::1] / 0.0.0.0 / file:// 视为本地部署
+    try { sessionStorage.setItem('bmusic:is-local', LOCAL_HOST ? '1' : '0'); } catch (e) {}
+    return LOCAL_HOST;
+  };
+
+  Session.autoLocalLogin = async function (force) {
+    if (!LOCAL_HOST) return null;
+    if (session) {
+      // 已有会话：本地账号但缺少 uid/name（旧版本写入的会话）→ 重新登录补全，
+      // 否则一起听里判定不出「自己是房主」，邀请区不会出现
+      const broken = !session.uid || !session.name; // 旧版本写入的会话缺 uid/name → 补全，否则房主判定会失败
+      if (!broken) return null;
+    } else if (!force) {
+      try { if (localStorage.getItem(NO_AUTO_KEY) === '1') return null; } catch (e) {}
+    }
+    let n = 1;
+    try {
+      const q = new URLSearchParams(location.search).get('local');
+      if (q && /^\d+$/.test(q)) n = Math.max(1, Math.min(50, Number(q)));
+    } catch (e) {}
+    try {
+      const j = await Session._api('/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'local' + n + '@qq.com', password: 'local' + n }),
+      });
+      Session._setSession({
+        token: j.token, email: j.email, avatar: j.avatar || '', name: j.name || '',
+        uid: j.uid || '', internal: !!j.internal, local: !!j.local, noLossless: !!j.noLossless,
+      });
+      document.dispatchEvent(new CustomEvent('ym:session'));
+      try { UI.toast('已自动登录' + (j.name || '本地账号') + '：数据仅保存在本机'); } catch (e) {}
+      return j;
+    } catch (e) {
+      console.warn('[bmusic] 本地账号自动登录失败：', (e && e.message) || e);
+      return null;
+    }
+  };
+  Session.markNoAutoLocal = function () {
+    try { localStorage.setItem(NO_AUTO_KEY, '1'); } catch (e) {}
   };
 
   Session._bindActivityOnce();

@@ -64,6 +64,22 @@
       this.render();
       this._applySettingsToUI();
       this._syncAuthUI();
+      if (window.ListenTogether) ListenTogether.bindOnce();
+      this._afterSessionReady();
+      // 本地部署才启用本地账号：先向 /api/local 探测（线上没有该接口 → 不可用本地登录）
+      if (Store.Session.detectLocal) {
+        Store.Session.detectLocal().then((isLocal) => {
+          if (!isLocal) return;
+          const lb = $('#auth-local');
+          const lt = $('#auth-local-tip');
+          if (lb) lb.classList.remove('hidden');
+          if (lt) lt.classList.remove('hidden');
+          Store.Session.autoLocalLogin().then(() => {
+            this._applySettingsToUI();
+            this._afterSessionReady();
+          });
+        });
+      }
       // 启动即拉取云端最新资料（头像）：此前已登录的旧会话（localStorage 里存着旧 avatar）
       // 打开应用也能立即同步为其他设备设置的头像（失败静默，无碍本地）
       this._refreshProfile();
@@ -278,6 +294,20 @@
       if (root === 'recognize') return this.vRecognize();
       if (root === 'myplaylist' && seg[1]) return this.vMyPlaylist(seg[1]);
       if (root === 'share' && seg[1] === 'mp' && seg[2]) return this.vShareMp(seg[2]);
+      // 一起听邀请链接：#/listen/<口令> → 登录后自动进房
+      if (root === 'listen' && seg[1]) {
+        const ltCode = String(seg[1]).toUpperCase();
+        if (/^[A-Z0-9]{6}$/.test(ltCode)) {
+          if (window.Store && Store.Session.loggedIn) ListenTogether.join(ltCode);
+          else {
+            sessionStorage.setItem('bmusic:lt-pending', ltCode);
+            UI.toast('登录后自动加入一起听房间', 'warn');
+            this.openAuth('login');
+          }
+        }
+        this._highlightNav('discover');
+        return this.vDiscover();
+      }
       if (root === 'song' && seg[1]) return this.vSong(seg[1]);
       if (root === 'playlist' && (seg[1] || params.get('id'))) return this.vPlaylist(seg[1] || params.get('id'));
       if (root === 'album' && (seg[1] || params.get('id'))) return this.vAlbum(seg[1] || params.get('id'));
@@ -3244,20 +3274,42 @@
      * ============================================================ */
     _bindStatic() {
       /* 侧边栏 */
+      /* 一起听入口在播放页顶栏（#ov-listen）与分享弹窗（#share-listen） */
+      const ovListen = $('#ov-listen');
+      if (ovListen) ovListen.addEventListener('click', () => ListenTogether.open());
+      const shareListen = $('#share-listen');
+      if (shareListen) shareListen.addEventListener('click', () => {
+        this.closeShare();
+        ListenTogether.open();
+      });
       $('#btn-settings').addEventListener('click', () => this.openSettings());
       $('#btn-topback').addEventListener('click', () => this._goBack());
       $('#btn-login').addEventListener('click', () => this.openAuth('login'));
       $('#btn-register').addEventListener('click', () => this.openAuth('register'));
       $('#btn-logout').addEventListener('click', async () => {
         await Store.Session.logout();
-        toast('已退出登录');
+        toast(Store.Session.isLocalHost && Store.Session.isLocalHost()
+          ? '已退出登录；本机部署不会再自动登录，可用「登录」里的「使用本地账号」回来'
+          : '已退出登录');
       });
+      /* 本地部署：登录弹窗里的「使用本地账号」按钮（显示与否由 /api/local 探测决定） */
+      const lbLocal = $('#auth-local');
+      if (lbLocal) {
+        lbLocal.addEventListener('click', async () => {
+          const isLocal = await (Store.Session.detectLocal ? Store.Session.detectLocal() : false);
+          if (!isLocal) { toast('本地账号仅在本地部署可用', 'warn'); return; }
+          const j = await Store.Session.autoLocalLogin(true);
+          if (j) { this.closeAuth(); this._applySettingsToUI(); this._afterSessionReady(); }
+          else toast('本地账号登录失败：请确认本机服务已启动', 'error');
+        });
+      }
       /* 侧栏头像：点击更换（未登录时随 #side-user 隐藏） */
       const sideAvatar = $('#side-user-avatar');
       if (sideAvatar) sideAvatar.addEventListener('click', () => this._changeAvatar());
       document.addEventListener('ym:session', () => {
         this._syncAuthUI();
         this._onSessionChanged();
+        this._afterSessionReady();
       });
       /* 侧栏抽屉开合：手机端伴随灰色遮罩，点遮罩/点导航/点收藏歌单均可收起 */
       const setSide = (open) => {
@@ -4587,6 +4639,26 @@
       const logged = !!(Store.Session && Store.Session.loggedIn);
       item.classList.toggle('hidden', !logged);
     },
+    /** 登录后（或启动时已登录）：内部账号弹「欢迎开发者」；有待处理的一起听口令则自动进房 */
+    _afterSessionReady() {
+      if (!window.Store || !Store.Session.loggedIn) return;
+      const uid = String(Store.Session.uid || '');
+      if (Store.Session.internal && sessionStorage.getItem('bmusic:dev-welcomed') !== uid) {
+        sessionStorage.setItem('bmusic:dev-welcomed', uid);
+        const n = $('#dev-name');
+        const u = $('#dev-uid');
+        if (n) n.textContent = Store.Session.name || Store.Session.email || '开发者';
+        if (u) u.textContent = uid || '-';
+        this._openModal('#devwelcome');
+      }
+      this._applySettingsToUI();
+      const pending = sessionStorage.getItem('bmusic:lt-pending');
+      if (pending) {
+        sessionStorage.removeItem('bmusic:lt-pending');
+        ListenTogether.join(pending);
+      }
+    },
+
     _syncAuthUI() {
       const logged = Store.Session.loggedIn;
       const btns = $('#side-auth-btns');
@@ -5134,6 +5206,7 @@
         if (ci) ci.value = '';
         this.closeAuth();
         this._refreshProfile(); // 登录成功后再拉一次云端资料（头像），与启动拉取互补
+        this._afterSessionReady();
       } catch (e) {
         showErr(e.message || '操作失败');
         if (this._authMode === 'register') this._loadCaptcha(); // 验证题一次一题
@@ -5141,6 +5214,18 @@
         if (btn) { btn.disabled = false; btn.style.opacity = ''; }
       }
     },
+    /** 本地默认账号：把音质压到极高（320K）以下，并重绘音质菜单 */
+    _enforceQualityLimit() {
+      const box = $('#set-quality');
+      if (box) box.dataset.bound = ''; // 重新渲染（登录状态或账号类型变化后）
+      if (!(Store.Session.loggedIn && Store.Session.noLossless)) return;
+      const RANK = { standard: 0, higher: 1, exhigh: 2, lossless: 3, hires: 4, jyeffect: 5, sky: 6, dolby: 7, jymaster: 8 };
+      if ((RANK[Player.quality] || 0) >= 3) {
+        Player.setQuality('exhigh');
+        toast('本地账号已自动切到「极高」音质（不提供无损及以上）', 'warn');
+      }
+    },
+
     _applySettingsToUI() {
       /* 音质选项（无损及以上 = 登录专属：未登录显示🔒，点击提示登录） */
       const box = $('#set-quality');
@@ -5148,16 +5233,18 @@
         box.dataset.bound = '1';
         const LV_RANK = { standard: 0, higher: 1, exhigh: 2, lossless: 3, hires: 4, jyeffect: 5, sky: 6, dolby: 7, jymaster: 8 };
         const locked = !Store.Session.loggedIn;
+        const noLossless = !!(Store.Session.loggedIn && Store.Session.noLossless);
         box.innerHTML = window.APP_CONFIG.QUALITY_LEVELS.map(q => {
-          const isLock = locked && (LV_RANK[q.key] || 0) >= 3;
+          // 未登录：无损及以上需登录；本地默认账号：无损及以上不提供（其余功能正常）
+          const isLock = (locked || noLossless) && (LV_RANK[q.key] || 0) >= 3;
           return '<button class="q-item' + (isLock ? ' q-locked' : '') + '" data-q="' + q.key + '">' +
-            '<span class="q-name">' + q.label + (isLock ? ' <em class="q-lock">🔒 登录</em>' : '') + '</span>' +
+            '<span class="q-name">' + q.label + (isLock ? ' <em class="q-lock">' + (noLossless ? '🔒 本地账号不提供' : '🔒 登录') + '</em>' : '') + '</span>' +
             '<span class="q-check">✓</span></button>';
         }).join('');
         box.querySelectorAll('.q-item').forEach(el => el.addEventListener('click', () => {
           const isLock = el.classList.contains('q-locked');
           if (isLock) {
-            toast('无损及以上音质仅登录后可用', 'warn');
+            toast(noLossless ? '本地账号不提供无损及以上音源' : '无损及以上音质仅登录后可用', 'warn');
             this.openAuth('login');
             return;
           }
@@ -5165,6 +5252,7 @@
           toast('默认音质：' + Player.qualityLabel(el.dataset.q));
         }));
       }
+      this._enforceQualityLimit();
       this._onQuality({ quality: Player.quality });
       this._renderThemeMenu();
       this.applyTheme(Store.Settings.theme);

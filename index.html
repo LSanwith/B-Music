@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0b0b0e">
 <title>B·Music · 网页版</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1024 1024'%3E%3Cpath fill='%23fa2d3c' d='M728.6 96.4c-9.4 1.8-236 48.2-244.4 49.8-8.4 1.6-16.2 7.2-16.2 16v510.2c0 3.2-0.2 14.4-4.8 23.4-6.2 11.8-17 20.4-32.2 25.4-6.6 2.2-15.6 4.2-26.2 6.6-48.2 10.8-128.8 29.2-128.8 103.6 0 60.2 43.4 89 70 94.2 10 2 22 2 27.6 2 16.4 0 72-6.6 102.4-26.4 22-14.4 48.2-42.8 48.2-95.6V346.2c0-7.6 5.4-14.2 12.8-15.6l185.6-38c14.8-3 25.6-16.2 25.6-31.4V111.6c-0.2-8.6-7.6-17.6-19.6-15.2z'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="css/style.css?v=114">
+<link rel="stylesheet" href="css/style.css?v=124">
 <script>
 /* 主题引导：在样式应用前从本地设置读取主题（避免首帧闪色） */
 (function () {
@@ -65,7 +65,7 @@
         <svg viewBox="0 0 1024 1024"><path d="M832.6 512c0-42 26.2-77.8 63.4-92.2-9.8-41-26-79.4-47.4-114.2-12.8 5.6-26.4 8.6-40.2 8.6-25.2 0-50.4-9.6-69.8-28.8-29.8-29.8-36.4-73.6-20.4-110-34.6-21.4-73.2-37.6-114-47.4C590 165 554 191.4 512 191.4S434 165 419.8 128c-41 9.8-79.4 26-114.2 47.4 16.2 36.2 9.4 80.2-20.4 110-19.2 19.2-44.6 28.8-69.8 28.8-13.8 0-27.4-2.8-40.2-8.6C154 340.6 137.8 379 128 420c37 14.2 63.4 50 63.4 92.2 0 42-26.2 77.8-63.2 92.2 9.8 41 26 79.4 47.4 114.2 12.8-5.6 26.4-8.4 40-8.4 25.2 0 50.4 9.6 69.8 28.8 29.6 29.6 36.4 73.6 20.4 109.8 34.8 21.4 73.4 37.6 114.2 47.4 14.2-37 50-63.2 92-63.2s77.8 26.2 92 63.2c41-9.8 79.4-26 114.2-47.4-16-36.2-9.2-80 20.4-109.8 19.2-19.2 44.4-28.8 69.8-28.8 13.6 0 27.4 2.8 40 8.4 21.4-34.8 37.6-73.4 47.4-114.2-36.8-14.4-63.2-50.2-63.2-92.4z m-318.8 159.8c-88.6 0-160-71.8-160-160s71.4-160 160-160 160 71.8 160 160-71.4 160-160 160z"/></svg>
         <span>设置</span>
       </button>
-      <div class="side-ver">B·Music 网页版 · v1.3.2</div>
+      <div class="side-ver">B·Music 网页版 · v1.4</div>
     </div>
   </aside>
 
@@ -137,6 +137,10 @@
     <div id="ov-bg"></div>
     <div id="ov-glow"></div>
     <div class="ov-top">
+      <button class="icon-btn ov-listen" id="ov-listen" aria-label="一起听">
+        <svg viewBox="0 0 1024 1024"><path d="M512 128c-106 0-192 86-192 192v128c0 106 86 192 192 192s192-86 192-192V320c0-106-86-192-192-192z m-112 192c0-61.9 50.1-112 112-112s112 50.1 112 112v128c0 61.9-50.1 112-112 112s-112-50.1-112-112V320z"/><path d="M768 448v64c0 141.4-114.6 256-256 256S256 653.4 256 512v-64h-64v64c0 165.3 125.3 301.5 286 318.6V928H352v64h320v-64H544v-97.4C704.7 813.5 830 677.3 830 512v-64h-62z"/></svg>
+        <span class="ov-listen-badge hidden" id="ov-listen-badge"></span>
+      </button>
       <button class="icon-btn ov-close" id="ov-close" aria-label="关闭全屏"><svg viewBox="0 0 1024 1024"><path d="M557.2 512l136.4-136.4c12.4-12.4 12.4-32.8 0-45.2-12.4-12.4-32.8-12.4-45.2 0L512 466.8l-136.4-136.4c-12.4-12.4-32.8-12.4-45.2 0-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6l136.4 136.4-136.4 136.4c-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6 12.4 12.4 32.8 12.4 45.2 0l136.4-136.4 136.4 136.4c12.4 12.4 32.8 12.4 45.2 0 12.4-12.4 12.4-32.8 0-45.2L557.2 512z"/></svg></button>
     </div>
     <div class="ov-body" id="ov-body">
@@ -345,6 +349,9 @@
           </div>
           <div class="auth-err hidden" id="auth-err"></div>
           <button class="btn primary auth-submit" id="auth-submit">登 录</button>
+          <!-- 本地部署专用：一键使用本地默认账号（其它环境自动隐藏） -->
+          <button class="btn auth-local hidden" id="auth-local">使用本地账号（免登录）</button>
+          <p class="auth-local-tip hidden" id="auth-local-tip">本地默认账号：local1@qq.com / local1（以此类推 local2…）。数据只保存在本机，不上传云端，音质上限 320K。</p>
           <div class="auth-switch" id="auth-switch">没有账号？<a id="auth-toggle">立即注册</a></div>
         </div>
       </div>
@@ -372,6 +379,81 @@
           <button class="share-act" id="share-copy-text">复制文案</button>
           <button class="share-act primary" id="share-system">跨应用分享</button>
         </div>
+        <button class="share-act lt-entry" id="share-listen">🎧 邀请好友一起听</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 一起听弹窗（房主：口令/链接邀请 + 聊天；访客：跟随 + 聊天） ===== -->
+  <div id="listen" class="modal hidden">
+    <div class="modal-mask" data-close="listen"></div>
+    <div class="modal-panel lt-panel">
+      <div class="modal-head">
+        <span>一起听</span>
+        <button class="icon-btn" data-close="listen"><svg viewBox="0 0 1024 1024"><path d="M557.2 512l136.4-136.4c12.4-12.4 12.4-32.8 0-45.2-12.4-12.4-32.8-12.4-45.2 0L512 466.8l-136.4-136.4c-12.4-12.4-32.8-12.4-45.2 0-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6l136.4 136.4-136.4 136.4c-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6 12.4 12.4 32.8 12.4 45.2 0l136.4-136.4 136.4 136.4c12.4 12.4 32.8 12.4 45.2 0 12.4-12.4 12.4-32.8 0-45.2L557.2 512z"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <!-- 未进房间：创建 / 输口令加入 -->
+        <div class="lt-idle" id="lt-idle">
+          <p class="lt-tip">和好友听同一首歌：创建房间后把口令或链接发给他，他会自动跟上你的进度。</p>
+          <button class="btn primary lt-btn" id="lt-create">创建一起听房间</button>
+          <div class="lt-or"><span>或输入好友的口令</span></div>
+          <div class="lt-join-row">
+            <input class="auth-input lt-code-input" id="lt-code-input" placeholder="6 位口令" maxlength="6" spellcheck="false" autocomplete="off">
+            <button class="share-act" id="lt-join">加入</button>
+          </div>
+        </div>
+
+        <!-- 房主可见：邀请信息 -->
+        <div class="lt-invite hidden" id="lt-invite">
+          <button class="lt-invite-head" id="lt-invite-toggle" type="button">
+            <span>把口令或链接发给好友</span>
+            <svg class="lt-chev" viewBox="0 0 1024 1024"><path d="M512 714.6c-8.2 0-16.4-3.2-22.6-9.4L201.4 417.2c-12.4-12.4-12.4-32.8 0-45.2 12.4-12.4 32.8-12.4 45.2 0L512 637.4l265.4-265.4c12.4-12.4 32.8-12.4 45.2 0 12.4 12.4 12.4 32.8 0 45.2L534.6 705.2c-6.2 6.2-14.4 9.4-22.6 9.4z"/></svg>
+          </button>
+          <div class="lt-invite-body" id="lt-invite-body">
+          <div class="lt-code" id="lt-code">------</div>
+          <div class="lt-link" id="lt-link"></div>
+          <div class="lt-acts">
+            <button class="share-act" id="lt-copy-code">复制作口令</button>
+            <button class="share-act" id="lt-copy-link">复制邀请链接</button>
+          </div>
+          </div>
+        </div>
+
+        <!-- 房间状态 -->
+        <div class="lt-status hidden" id="lt-status">
+          <div class="lt-song" id="lt-song">等待播放…</div>
+          <div class="lt-meta" id="lt-meta"></div>
+          <div class="lt-members" id="lt-members"></div>
+        </div>
+
+        <!-- 聊天 / 输入 / 退出（仅房间内显示） -->
+        <div class="lt-room-only hidden" id="lt-room-only">
+          <!-- 聊天 -->
+          <div class="lt-chat" id="lt-chat"></div>
+          <div class="lt-input">
+            <input class="auth-input" id="lt-text" placeholder="说点什么…" maxlength="300" autocomplete="off">
+            <button class="share-act primary" id="lt-send">发送</button>
+          </div>
+          <button class="btn lt-leave" id="lt-leave">退出房间</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 开发者（内部账号）欢迎弹窗 ===== -->
+  <div id="devwelcome" class="modal hidden">
+    <div class="modal-mask" data-close="devwelcome"></div>
+    <div class="modal-panel dev-panel">
+      <div class="modal-head">
+        <span>欢迎开发者</span>
+        <button class="icon-btn" data-close="devwelcome"><svg viewBox="0 0 1024 1024"><path d="M557.2 512l136.4-136.4c12.4-12.4 12.4-32.8 0-45.2-12.4-12.4-32.8-12.4-45.2 0L512 466.8l-136.4-136.4c-12.4-12.4-32.8-12.4-45.2 0-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6l136.4 136.4-136.4 136.4c-6.2 6.2-9.4 14.4-9.4 22.6 0 8.2 3.2 16.4 9.4 22.6 12.4 12.4 32.8 12.4 45.2 0l136.4-136.4 136.4 136.4c12.4 12.4 32.8 12.4 45.2 0 12.4-12.4 12.4-32.8 0-45.2L557.2 512z"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <p class="dev-hi">当前账号：<span id="dev-name">-</span></p>
+        <div class="dev-uid">用户 uid：<b id="dev-uid">-</b></div>
+        <p class="dev-tip">已识别为内部账号，欢迎开发者。后续测试功能将逐步开放。</p>
+        <button class="btn primary auth-submit" data-close="devwelcome">开始使用</button>
       </div>
     </div>
   </div>
@@ -400,20 +482,21 @@
   <div id="toast"></div>
 </div>
 
-<script src="js/config.js?v=114"></script>
+<script src="js/config.js?v=124"></script>
 <!-- 听歌识曲：音频指纹（Shazam v2）运行时 + WASM 数据（须在 app.js 之前加载） -->
-<script src="js/afp.wasm.js?v=114"></script>
-<script src="js/afp.js?v=114"></script>
-<script src="js/icons.js?v=114"></script>
-<script src="js/notice.js?v=114"></script>
-<script src="js/lrc.js?v=114"></script>
-<script src="js/store.js?v=114"></script>
-<script src="js/cache.js?v=114"></script>
-<script src="js/ui.js?v=114"></script>
-<script src="js/api.js?v=114"></script>
-<script src="js/altcha.min.js?v=114"></script>
-<script src="js/metadata.js?v=114"></script>
-<script src="js/player.js?v=114"></script>
-<script src="js/app.js?v=114"></script>
+<script src="js/afp.wasm.js?v=124"></script>
+<script src="js/afp.js?v=124"></script>
+<script src="js/icons.js?v=124"></script>
+<script src="js/notice.js?v=124"></script>
+<script src="js/lrc.js?v=124"></script>
+<script src="js/store.js?v=124"></script>
+<script src="js/cache.js?v=124"></script>
+<script src="js/ui.js?v=124"></script>
+<script src="js/api.js?v=124"></script>
+<script src="js/altcha.min.js?v=124"></script>
+<script src="js/metadata.js?v=124"></script>
+<script src="js/player.js?v=124"></script>
+<script src="js/listen.js?v=124"></script>
+<script src="js/app.js?v=124"></script>
 </body>
 </html>

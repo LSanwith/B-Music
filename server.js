@@ -24,6 +24,34 @@ function saveDb(db) {
   fs.renameSync(tmp, DB_FILE);
 }
 const DB = loadDb();
+
+/* ===== Local default accounts (dev only) =====
+ * local1@qq.com / local1 ... localN@qq.com / localN  (env LOCAL_ACCOUNTS, default 5)
+ * They may use every feature, but are NEVER served lossless-or-better audio. */
+const LOCAL_ACCOUNT_COUNT = Math.max(0, Number(process.env.LOCAL_ACCOUNTS || 5));
+function ensureLocalAccounts(db) {
+  const created = [];
+  for (let i = 1; i <= LOCAL_ACCOUNT_COUNT; i++) {
+    const email = 'local' + i + '@qq.com';
+    let user = Object.values(db.users).find(function (u) { return u.email === email; });
+    if (!user) {
+      const id = String(Object.keys(db.users).reduce(function (m, k) { return Math.max(m, parseInt(k, 10) || 0); }, 0) + 1);
+      const salt = crypto.randomBytes(16).toString('hex');
+      user = { id: id, email: email, salt: salt, passHash: hashPass('local' + i, salt), createdAt: Date.now(),
+        nickname: '\u672c\u5730\u8d26\u53f7' + i, localAccount: true, noLossless: true };
+      db.users[id] = user;
+      db.data[id] = db.data[id] || { settings: {}, favSongs: [], favPlaylists: [], myPlaylists: [] };
+      created.push(email);
+    } else {
+      user.localAccount = true;
+      user.noLossless = true;
+      if (!user.nickname) user.nickname = '\u672c\u5730\u8d26\u53f7' + i;
+    }
+  }
+  return created;
+}
+const LOCAL_ACCOUNTS_CREATED = ensureLocalAccounts(DB);
+if (LOCAL_ACCOUNTS_CREATED.length) saveDb(DB);
 let _uid = Object.keys(DB.users).reduce((m, k) => Math.max(m, parseInt(k, 10) || 0), 0);
 
 function hashPass(password, salt) {
@@ -159,7 +187,7 @@ async function handleApi(req, res, urlPath) {
   const API_PATHS = ['/api/register', '/api/sendcode', '/api/captcha', '/api/login',
     '/api/logout', '/api/account/delete', '/api/data',
     '/api/account/avatar', '/api/account/password', '/api/account/profile',
-    '/api/cookieurl', '/api/ai', '/api/qq/check'];
+    '/api/cookieurl', '/api/ai', '/api/qq/check', '/api/room', '/api/local'];
   if (API_PATHS.indexOf(urlPath) < 0) return false;
   const method = req.method;
   try {
@@ -244,6 +272,14 @@ async function handleApi(req, res, urlPath) {
       if (!cookie) return sendJson(503, { msg: 'cookie 未配置' });
       const id = String((req.url.match(/[?&]id=(\d+)/) || [])[1] || '');
       const lvl = String(((req.url.match(/[?&]level=([a-z]+)/) || [])[1]) || 'lossless');
+      /* local accounts: allow up to exhigh (320K); no lossless or above */
+      const cuUser = authUser(req);
+      const LV_OK = { standard: 1, higher: 1, exhigh: 1 };
+      if (!cuUser || (cuUser.noLossless && !LV_OK[lvl])) {
+        res.writeHead(403, { 'Content-Type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify({ msg: '\u672c\u5730\u8d26\u53f7\u4e0d\u63d0\u4f9b\u65e0\u635f\u53ca\u4ee5\u4e0a\u97f3\u6e90' }));
+        return true;
+      }
       if (!id) return sendJson(400, { msg: 'bad id' });
       try {
         const u2 = new URL(MIRRORS[0] + '/song/url/v1');
@@ -373,8 +409,13 @@ async function handleApi(req, res, urlPath) {
       const token = newToken();
       DB.sessions[token] = user.id;
       saveDb(DB);
-      return sendJson(res, 200, { token, email: user.email, avatar: user.avatar || '' });
+      return sendJson(res, 200, { token, email: user.email, avatar: user.avatar || '', name: user.nickname || '', uid: user.id, internal: isInternal(user.email), local: !!user.localAccount, noLossless: !!user.noLossless });
     }
+    /* ===== /api/local : marker for local deployments (enables local accounts) ===== */
+    if (urlPath === '/api/local' && method === 'GET') {
+      return sendJson(res, 200, { local: true, accounts: LOCAL_ACCOUNT_COUNT });
+    }
+
     const user = authUser(req);
     if (!user) return sendJson(res, 401, { msg: '未登录或登录已过期' });
     // 当前账号公开资料（仅 email/avatar，绝不返回 salt/passHash），
@@ -428,6 +469,85 @@ async function handleApi(req, res, urlPath) {
       saveDb(DB);
       return sendJson(res, 200, { ok: true });
     }
+
+    /* ===== /api/room : listen together ===== */
+    if (urlPath === '/api/room') {
+      const sendJson2 = (code, obj) => { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); return true; };
+      const q = new URL(req.url, 'http://x').searchParams;
+      const action = String(q.get('a') || '');
+      const now = Date.now();
+      const b = method === 'POST' ? await readBody(req) : {};
+      const codeOf = (c) => String(c || '').toUpperCase();
+      ROOMS.forEach((r, k) => { if (now - (r.updatedAt || 0) > ROOM_TTL_MS) ROOMS.delete(k); });
+      if (action === 'create') {
+        const mine = codeOf(b.mine || '');
+        const old = ROOMS.get(mine);
+        if (old && old.host && String(old.host.uid) === String(user.id) && now - (old.updatedAt || 0) < ROOM_TTL_MS) {
+          old.updatedAt = now;
+          old.members[String(user.id)] = Object.assign(roomMe(user), { at: now, role: 'host' });
+          return sendJson2(200, { ok: true, room: roomPublic(old, now) });
+        }
+        let code = '';
+        for (let i = 0; i < 8 && !code; i++) { const c = roomCode(); if (!ROOMS.has(c)) code = c; }
+        const room = { code: code, host: roomMe(user), createdAt: now, updatedAt: now, state: null, members: {}, chat: [], seq: 0 };
+        room.members[String(user.id)] = Object.assign(roomMe(user), { at: now, role: 'host' });
+        ROOMS.set(code, room);
+        return sendJson2(200, { ok: true, room: roomPublic(room, now) });
+      }
+      const code = codeOf(b.code || q.get('code') || '');
+      if (!/^[A-Z0-9]{6}$/.test(code)) return sendJson2(400, { msg: '\u53e3\u4ee4\u683c\u5f0f\u4e0d\u6b63\u786e' });
+      const room = ROOMS.get(code);
+      if (!room) return sendJson2(404, { msg: '\u623f\u95f4\u4e0d\u5b58\u5728\u6216\u5df2\u7ed3\u675f' });
+      const uid = String(user.id);
+      if (action === 'join') {
+        const isHost = String(room.host.uid) === uid;
+        const already = isHost || !!room.members[uid];
+        if (!already && roomLive(room, now).length >= ROOM_MAX) {
+          return sendJson2(409, { msg: '\u623f\u95f4\u4eba\u6570\u5df2\u6ee1\uff08\u6700\u591a 4 \u4eba\uff09' });
+        }
+        room.members[uid] = Object.assign(roomMe(user), { at: now, role: isHost ? 'host' : 'guest' });
+        room.updatedAt = now;
+        return sendJson2(200, { ok: true, room: roomPublic(room, now), chat: room.chat || [] });
+      }
+      if (action === 'poll') {
+        const isHost = String(room.host.uid) === uid;
+        if (!room.members[uid] && !isHost) return sendJson2(409, { msg: '\u4f60\u5df2\u4e0d\u5728\u623f\u95f4\u4e2d' });
+        room.members[uid] = Object.assign(roomMe(user), { at: now, role: isHost ? 'host' : 'guest' });
+        if (isHost && b.state && typeof b.state === 'object') {
+          const st = b.state;
+          room.state = { songId: String(st.songId || ''), name: String(st.name || '').slice(0, 80),
+            artists: String(st.artists || '').slice(0, 80), cover: String(st.cover || '').slice(0, 300),
+            duration: Number(st.duration) || 0, position: Math.max(0, Number(st.position) || 0),
+            playing: !!st.playing, at: now };
+        }
+        room.updatedAt = now;
+        const since = Number(b.since) || 0;
+        const chat = (room.chat || []).filter((m) => (m.seq || 0) > since);
+        return sendJson2(200, { ok: true, room: roomPublic(room, now), chat: chat, isHost: isHost });
+      }
+      if (action === 'chat') {
+        if (!room.members[uid] && String(room.host.uid) !== uid) return sendJson2(409, { msg: '\u4f60\u5df2\u4e0d\u5728\u623f\u95f4\u4e2d' });
+        const text = String(b.text || '').replace(/\s+$/, '').slice(0, 300);
+        if (!text.trim()) return sendJson2(400, { msg: '\u6d88\u606f\u4e0d\u80fd\u4e3a\u7a7a' });
+        const last = (room.chat || []).filter((m) => String(m.uid) === uid).pop();
+        if (last && now - (last.at || 0) < 600) return sendJson2(429, { msg: '\u53d1\u5f97\u592a\u5feb\u5566' });
+        const m = Object.assign(roomMe(user), { text: text, at: now, seq: (room.seq || 0) + 1 });
+        room.seq = m.seq;
+        room.chat = (room.chat || []).concat([m]).slice(-ROOM_CHAT_KEEP);
+        room.members[uid] = Object.assign(roomMe(user), { at: now, role: String(room.host.uid) === uid ? 'host' : 'guest' });
+        room.updatedAt = now;
+        return sendJson2(200, { ok: true, msg: m });
+      }
+      if (action === 'leave' || action === 'close') {
+        const isHost = String(room.host.uid) === uid;
+        if (isHost || action === 'close') { ROOMS.delete(code); return sendJson2(200, { ok: true, closed: true }); }
+        delete room.members[uid];
+        room.updatedAt = now;
+        return sendJson2(200, { ok: true, closed: false });
+      }
+      return sendJson2(400, { msg: '\u672a\u77e5\u64cd\u4f5c' });
+    }
+
     if (urlPath === '/api/data') {
       if (method === 'GET') {
         const d = DB.data[user.id] || { settings: {}, favSongs: [], favPlaylists: [] };
@@ -465,6 +585,32 @@ function dataWriteAllowed(uid) {
   return rec.n <= 30;
 }
 
+/* ===== Listen together (local parity with api/room.js) ===== */
+const ROOMS = new Map();
+const ROOM_TTL_MS = 2 * 60 * 60 * 1000;
+const ROOM_MEMBER_TTL = 45 * 1000;
+const ROOM_CHAT_KEEP = 60;
+const ROOM_MAX = 4; // max 4 people per room
+const ROOM_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function roomCode() {
+  let s = '';
+  for (let i = 0; i < 6; i++) s += ROOM_ALPHABET[Math.floor(Math.random() * ROOM_ALPHABET.length)];
+  return s;
+}
+function roomMe(u) { return { uid: String(u.id), name: u.nickname || ('\u7528\u6237' + u.id), avatar: u.avatar || '' }; }
+function roomLive(room, now) {
+  return Object.keys(room.members || {}).map(function (k) { return room.members[k]; })
+    .filter(function (m) { return m && now - (m.at || 0) <= ROOM_MEMBER_TTL; })
+    .sort(function (a, b) { return (a.role === 'host' ? -1 : b.role === 'host' ? 1 : (a.at || 0) - (b.at || 0)); });
+}
+function roomPublic(room, now) {
+  return { code: room.code, host: room.host, createdAt: room.createdAt, updatedAt: room.updatedAt,
+    state: room.state || null, members: roomLive(room, now), seq: room.seq || 0 };
+}
+/* Internal (developer) accounts: login response carries internal:true */
+const INTERNAL_EMAILS = ['1689292034@qq.com'];
+function isInternal(email) { return INTERNAL_EMAILS.indexOf(String(email || '').toLowerCase()) >= 0; }
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
@@ -482,6 +628,22 @@ const MIME = {
 /* 仅允许代理以下上游（防止开放代理滥用） */
 /* Q� API \�� silence-music-api.cc.cd ��1H	 */
 const MIRRORS = ['https://sience-music-api-backup.de5.net', 'https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
+/* Upstream circuit breaker: after 2 consecutive failures skip a host for 30s,
+ * so a mirror that is unreachable from this machine (e.g. TLS-blocked) does not
+ * cost two attempts on every page load. */
+const UPSTREAM_FAIL = new Map();
+function upstreamBlocked(host) {
+  const rec = UPSTREAM_FAIL.get(host);
+  return !!(rec && rec.n >= 2 && Date.now() - rec.at < 30000);
+}
+function upstreamResult(host, okFlag) {
+  if (okFlag) { UPSTREAM_FAIL.delete(host); return; }
+  const rec = UPSTREAM_FAIL.get(host) || { n: 0, at: 0 };
+  if (Date.now() - rec.at > 30000) rec.n = 0;
+  rec.n += 1; rec.at = Date.now();
+  UPSTREAM_FAIL.set(host, rec);
+}
+
 const PROXY_ALLOWED = [
   'https://silence-music-api.cc.cd',
   'https://silence-music-api.de5.net',
@@ -552,6 +714,11 @@ async function handleProxy(req, res, urlPath) {
     res.end('{"code":-1,"msg":"forbidden"}');
     return true;
   }
+  if (upstreamBlocked(dest.host)) {
+    res.writeHead(503, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ code: -1, msg: 'upstream temporarily skipped' }));
+    return true;
+  }
   if (hk || nt || sw) {
     const isHkDest = dest.origin === 'https://api.xunjinlu.fun';
     const isNtDest = dest.origin === 'https://api.18years.ink';
@@ -591,6 +758,7 @@ async function handleProxy(req, res, urlPath) {
       if (chunks.length) opts.body = Buffer.concat(chunks);
     }
     const upstream = await fetch(dest, opts);
+    upstreamResult(dest.host, !!(upstream && upstream.ok));
     const ctype = upstream.headers.get('content-type') || 'application/json';
     res.writeHead(upstream.status, {
       'Content-Type': ctype,
@@ -602,6 +770,7 @@ async function handleProxy(req, res, urlPath) {
     }
     res.end();
   } catch (e) {
+    upstreamResult(dest.host, false);
     res.writeHead(502, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end('{"code":-1,"msg":"proxy upstream error"}');
   }
@@ -785,6 +954,10 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
+  if (LOCAL_ACCOUNT_COUNT > 0) {
+    console.log('[local] \u9ed8\u8ba4\u8d26\u53f7\uff1a' + Array.from({ length: LOCAL_ACCOUNT_COUNT }, function (_, i) { return 'local' + (i + 1) + '@qq.com / local' + (i + 1); }).join('   '));
+    console.log('[local] \u4ee5\u4e0a\u8d26\u53f7\u53ef\u7528\u5168\u90e8\u529f\u80fd\uff0c\u4f46\u4e0d\u63d0\u4f9b\u65e0\u635f\u53ca\u4ee5\u4e0a\u97f3\u6e90');
+  }
   if (!HONGYUN_KEY) {
     console.log('⚠️ 未找到红云密钥：请创建 key.local（与 server.js 同目录，内容为你的 sk- 开头密钥）');
     console.log('   或设置环境变量 HONGYUN_KEY，否则红云兜底源不可用（其余功能正常）');
