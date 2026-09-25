@@ -169,6 +169,15 @@ window.APP_NOTICE = {
         '修复：镜像域名被网络重置（ERR_CONNECTION_RESET）时，自动改走同源代理，不再一直撞直连',
       ],
     },
+    {
+      version: '1.5.4',
+      date: '2026-09-25',
+      title: '更新公告',
+      items: [
+        '修复：单曲循环时点「下一首」会重播当前这首歌（进度条回到 0:00，看着像切歌失败）——现在手动切歌一定会换下一首，只有「这首播完自动续播」才重播',
+        '修复：队列里只有一首歌时点「下一首」不再把进度归零，改为提示「队列里只有这一首」',
+      ],
+    },
   ],
   get version() { return window.APP_NOTICE.history[window.APP_NOTICE.history.length - 1].version; },
   get date() { return window.APP_NOTICE.history[window.APP_NOTICE.history.length - 1].date; },

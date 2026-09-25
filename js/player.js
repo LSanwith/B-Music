@@ -147,12 +147,15 @@
 
     next(auto) {
       if (!this.queue.length) return;
-      // 队列只有一首歌时「下一首」其实无处可去（会重播同一首）：
-      // 一起听里成员的队列就是这种单曲队列，点 ⏭ 看着像没反应，所以给个提示
+      // 队列只有一首歌时「下一首」无处可去：给个提示并保持原样
+      // （以前会把进度条归零重播，看起来就像“切歌失败”）
       if (!auto && this.queue.length <= 1) {
         try { UI.toast('队列里只有这一首', 'warn'); } catch (e) {}
+        return;
       }
-      if (this.mode === 'loop') {
+      // 单曲循环只在「这首播完自动续播」时重播；手动点 ⏭ 仍然切到下一首
+      // （旧写法不看 auto，手动点也会重播当前这首、进度归零 —— 就是用户看到的“回到进度条开始”）
+      if (this.mode === 'loop' && auto) {
         this._loadCurrent();
         return;
       }
