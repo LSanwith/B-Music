@@ -3837,3 +3837,49 @@ html.bm-tint-page body {
     var(--bg) 78%,
     var(--bg) 100%) fixed no-repeat;
 }
+
+/* ===== v176: iOS viewport / safe area + GPU compositing hints =====
+ * iOS Safari reports 100vh as the LARGE viewport (the part hidden behind its bottom bar),
+ * so the player page bottom controls (volume row, lyric toolbar) ended up underneath the
+ * Safari toolbar. dvh follows the visible viewport, and the safe-area insets keep the
+ * controls clear of the home indicator. Browsers without dvh keep the 100vh fallback.
+ */
+#ov-fill {
+  height: 100vh;
+  height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (max-width: 700px) {
+  /* same values as the 118px / 380px rules above, dvh unit only (the later one still wins) */
+  #ov-body:not(.lyrics-hidden) .ov-right {
+    height: calc(100dvh - 118px);
+    height: calc(100dvh - 380px);
+    min-height: 300px;
+  }
+  #ov-body:not(.lyrics-hidden) .ov-btns { bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
+  #ov-body:not(.lyrics-hidden) .ov-vol { bottom: calc(56px + env(safe-area-inset-bottom, 0px)); }
+}
+.ly-toolbar { bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+@media (max-width: 900px) {
+  .ly-toolbar { bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ---- GPU: keep animated things on their own composited layer ----
+ * The morph animates the plate box (top/left/width/height), which cannot be composited,
+ * but hinting it while .ov-morphing is present lets the browser prepare the layer and
+ * keeps the shadow / radius repaint from walking up the tree. The hints are transient:
+ * the classes are removed on settle, so no element keeps a permanent layer. */
+#overlay.ov-morphing {
+  will-change: top, left, width, height, border-radius, background-color, box-shadow;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+#playerbar.morph-out,
+#playerbar.morph-top { will-change: opacity, background-color, box-shadow, filter; }
+#view.view-anim > * {
+  will-change: opacity, transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+#playerbar, #tabbar { backface-visibility: hidden; -webkit-backface-visibility: hidden; }

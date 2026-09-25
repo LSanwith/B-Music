@@ -137,6 +137,17 @@ window.APP_NOTICE = {
         '修复：歌单封面与歌曲封面四角的白色描边、拖动播放页时阴影盖住导航栏、窄屏歌单封面没有左对齐等问题',
       ],
     },
+    {
+      version: '1.5.1',
+      date: '2026-09-25',
+      title: '更新公告',
+      items: [
+        '修复：一起听房间里成员进房后不播放（界面显示暂停、进度条却跟着房主走，点播放也没反应）——同步换歌时不再被「加载中」状态挡住，点 ▶ 一定能播；被浏览器拦截自动播放时会提示一次',
+        '修复：iOS 下播放页底部控件被 Safari 工具栏挡住——改用动态视口高度并适配安全区（刘海屏底部横条），音量条、播放按钮、歌词工具条都不会再被压住',
+        '修复：iOS 锁屏 / 桌面小组件的媒体卡片封面是空白、明明在播却显示暂停——补齐多档封面尺寸并同步播放状态',
+        '性能：播放页转场、切页与列表入场动画加上合成层提示，交给 GPU 渲染，滚动与进出播放页更顺',
+      ],
+    },
   ],
   get version() { return window.APP_NOTICE.history[window.APP_NOTICE.history.length - 1].version; },
   get date() { return window.APP_NOTICE.history[window.APP_NOTICE.history.length - 1].date; },

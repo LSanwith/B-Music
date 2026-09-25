@@ -124,13 +124,25 @@
     /* ---------------- 播放控制 ---------------- */
     toggle() {
       const a = this.audio;
-      if (this.state === 'loading') return;
-      if (this.state === 'playing') { a.pause(); return; }
       if (!this.current()) return;
+      // 以前 state === 'loading' 时直接 return，导致「一起听」里成员刚同步到新歌
+      // （还在解析直链/缓冲）时点播放按钮完全没反应。现在只要媒体能播就发 play()，
+      // 浏览器会在可播时自动开始，暂停则用音频元素自身的状态判断。
+      if (!a.paused) { a.pause(); return; }
       a.play().catch(() => {
         this.state = 'paused';
         this._emit('state');
       });
+    },
+
+    /** 一起听等场景：不看内部 state，只要能播就播；返回是否真的开始播放
+     *  （false = 被浏览器自动播放策略拦截，调用方可提示用户点一下播放按钮） */
+    resume() {
+      const a = this.audio;
+      if (!this.current()) return Promise.resolve(false);
+      const p = a.play();
+      if (!p || !p.then) return Promise.resolve(true);
+      return p.then(() => true).catch(() => false);
     },
 
     next(auto) {

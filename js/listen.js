@@ -78,6 +78,26 @@ window.ListenTogether = (function () {
     };
   }
 
+  /** 让本机播放/暂停对齐房间：走 Player.resume()，即使还在 loading 也能开播；
+   *  被浏览器自动播放策略拦截时提示一次（点一下播放按钮即可跟上） */
+  function wantPlay(on) {
+    const P = window.Player;
+    if (!P || !P.audio) return;
+    const a = P.audio;
+    if (on) {
+      if (!a.paused) return;
+      const pr = P.resume ? P.resume() : Promise.resolve((P.toggle(), true));
+      Promise.resolve(pr).then((ok) => {
+        if (ok === false && !S._autoplayWarned) {
+          S._autoplayWarned = true;
+          if (window.UI && UI.toast) UI.toast('浏览器拦截了自动播放，点一下 ▶ 就能跟上房间', 'warn');
+        }
+      }).catch(() => {});
+    } else if (!a.paused) {
+      try { a.pause(); } catch (e) {}
+    }
+  }
+
   /** 跟随者把本机播放对齐到房主（返回动作描述，便于调试/提示） */
   function followState(state) {
     const P = window.Player;
@@ -104,8 +124,7 @@ window.ListenTogether = (function () {
         if (ready || Date.now() - t0 > 6000) {
           clearInterval(timer);
           try { P.seek(target); } catch (e) {}
-          if (state.playing && a && a.paused) { try { P.toggle(); } catch (e) {} }
-          if (!state.playing && a && !a.paused) { try { P.toggle(); } catch (e) {} }
+          wantPlay(!!state.playing);
         }
       }, 300);
       return 'switch-song';
@@ -115,8 +134,10 @@ window.ListenTogether = (function () {
     if (Math.abs((a.currentTime || 0) - target) > SEEK_TOLERANCE) {
       try { P.seek(target); acted = 'seek'; } catch (e) {}
     }
-    if (state.playing && a.paused) { try { P.toggle(); acted = acted === 'keep' ? 'play' : acted + '+play'; } catch (e) {} }
-    if (!state.playing && !a.paused) { try { P.toggle(); acted = acted === 'keep' ? 'pause' : acted + '+pause'; } catch (e) {} }
+    if (state.playing !== !a.paused) {
+      wantPlay(!!state.playing);
+      acted = acted === 'keep' ? (state.playing ? 'play' : 'pause') : acted + (state.playing ? '+play' : '+pause');
+    }
     return acted;
   }
 

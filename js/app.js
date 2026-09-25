@@ -6357,6 +6357,12 @@
         ms.setActionHandler('nexttrack', () => Player.next(false));
         ms.setActionHandler('seekto', (d) => { if (d.seekTime != null) Player.seek(d.seekTime); });
       } catch (e) { /* 忽略 */ }
+      // 系统媒体卡片（iOS 锁屏 / 小组件、安卓通知栏）的播放状态：不设置的话，
+      // 明明在播却显示成暂停（按钮是 ▶），点它还会打断播放
+      const syncState = () => {
+        try { ms.playbackState = (Player.audio && !Player.audio.paused) ? 'playing' : 'paused'; } catch (e) {}
+      };
+      Player.on('state', syncState);
       Player.on('change', (e) => {
         const s = e.detail.song;
         if (!s) return;
@@ -6364,9 +6370,23 @@
           title: s.name,
           artist: artistList(s.artists).map(a => a.name).join(' / '),
           album: Player.albumName(s.album),
-          artwork: s.cover ? [{ src: coverUrl(s.cover), sizes: '512x512', type: 'image/jpeg' }] : [],
+          artwork: this._mediaArtwork(s.cover ? coverUrl(s.cover) : ''),
         });
+        syncState();
       });
+      syncState();
+    },
+
+    /** 系统媒体卡片的封面：网易云 CDN 支持 ?param=NyN 缩放，多给几档尺寸，
+     *  iOS 锁屏 / 小组件选到合适尺寸才不会显示空白方块 */
+    _mediaArtwork(url) {
+      if (!url || url.indexOf('data:') === 0) return [];
+      const sep = url.indexOf('?') >= 0 ? '&' : '?';
+      return [128, 256, 512].map((n) => ({
+        src: url + sep + 'param=' + n + 'y' + n,
+        sizes: n + 'x' + n,
+        type: 'image/jpeg',
+      }));
     },
 
     /* ---------------- 快捷键 ---------------- */
