@@ -312,7 +312,9 @@
       if (root === 'listen' && seg[1]) {
         const ltCode = String(seg[1]).toUpperCase();
         if (/^[A-Z0-9]{6}$/.test(ltCode)) {
-          if (window.Store && Store.Session.loggedIn) ListenTogether.join(ltCode);
+          if (window.ListenTogether && ListenTogether.enabled === false) {
+            UI.toast('一起听正在维护中，暂时关闭', 'warn');
+          } else if (window.Store && Store.Session.loggedIn) ListenTogether.join(ltCode);
           else {
             sessionStorage.setItem('bmusic:lt-pending', ltCode);
             UI.toast('登录后自动加入一起听房间', 'warn');
@@ -3515,7 +3517,16 @@
       };
       document.addEventListener('ym:listen', () => { try { this._syncListenChrome(); } catch (e) {} });
       const ovListen = $('#ov-listen');
-      if (ovListen) ovListen.addEventListener('click', () => ListenTogether.open());
+      if (ovListen) {
+        // 一起听暂停使用：直接隐藏入口（逻辑层也已经拦截）
+        if (window.ListenTogether && ListenTogether.enabled === false) {
+          ovListen.classList.add('hidden');
+          const lb = $('#ov-listen-badge');
+          if (lb) lb.classList.add('hidden');
+        } else {
+          ovListen.addEventListener('click', () => ListenTogether.open());
+        }
+      }
       /* 分享弹窗不再放置一起听入口（入口在播放页顶栏） */
       $('#btn-settings').addEventListener('click', () => this.openSettings());
       $('#btn-topback').addEventListener('click', () => this._goBack());
@@ -3624,7 +3635,7 @@
       /* 播放栏 */
       $('#pb-play').addEventListener('click', () => Player.toggle());
       $('#pb-prev').addEventListener('click', () => Player.prev());
-      $('#pb-next').addEventListener('click', () => Player.next(false));
+      $('#pb-next').addEventListener('click', () => this._skip('next'));
       $('#pb-mode').addEventListener('click', () => Player.cycleMode());
       $('#pb-queue').addEventListener('click', () => this.toggleQueue());
       /* 整条播放栏都能点开播放页（按钮/滑块等交互控件除外） */
@@ -3723,7 +3734,7 @@
       this._bindGrab();
       $('#ov-play').addEventListener('click', () => Player.toggle());
       $('#ov-prev').addEventListener('click', () => Player.prev());
-      $('#ov-next').addEventListener('click', () => Player.next(false));
+      $('#ov-next').addEventListener('click', () => this._skip('next'));
       $('#ov-mode').addEventListener('click', () => Player.cycleMode());
       $('#ov-fav').addEventListener('click', () => {
         const on = Player.fav();
@@ -3928,6 +3939,18 @@
       }).catch(() => {});
     },
 
+    /** 切歌按钮：一起听房间里由房主切歌（成员本机队列只有当前这一首，
+     *  点了会像“没反应”），所以先给成员一句提示，其余情况照常切歌 */
+    _skip(dir) {
+      if (window.ListenTogether && ListenTogether.inRoom && ListenTogether.inRoom() &&
+          ListenTogether.isHost && !ListenTogether.isHost()) {
+        toast('房间里由房主切歌，你的进度会自动跟上', 'warn');
+        return;
+      }
+      if (dir === 'prev') Player.prev();
+      else Player.next(false);
+    },
+
     _onState(d) {
       const playing = d.state === 'playing';
       $('#pb-play').classList.toggle('playing', playing);
@@ -4046,18 +4069,7 @@
             off = diffs[Math.floor(diffs.length / 2)];
           }
           off = Math.max(-2, Math.min(2, off)); // 防御错配偏移
-          let matched = 0;
-          for (const r of yrows) {
-            let best = null, bd = 0.5;
-            for (const o of merged) {
-              const d = Math.abs((r.t + off) - o.t);
-              if (d < bd) { bd = d; best = o; }
-            }
-            if (best) {
-              matched++;
-              if (!best.words) best.words = r.words;
-            }
-          }
+          const matched = Lrc.attachYrcWords(merged, yrows, off);
           const ok = matched / yrows.length >= 0.85;
           for (const o of merged) if (!ok || !o.words) delete o.words;
         }
@@ -5490,7 +5502,8 @@
       const pending = sessionStorage.getItem('bmusic:lt-pending');
       if (pending) {
         sessionStorage.removeItem('bmusic:lt-pending');
-        ListenTogether.join(pending);
+        // 一起听暂停使用期间不再自动进房（join 内部也会拦，这里避免多一条提示）
+        if (!(window.ListenTogether && ListenTogether.enabled === false)) ListenTogether.join(pending);
       }
     },
 

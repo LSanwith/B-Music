@@ -15,6 +15,11 @@
 window.ListenTogether = (function () {
   'use strict';
 
+  /* 一起听总开关：置 false 即整体暂停使用（入口隐藏、链接提示维护中、逻辑直接返回）。
+   * 恢复时把它改回 true 即可，其余代码不用动。 */
+  const LISTEN_ENABLED = false;
+  const OFF_MSG = '一起听正在维护中，暂时关闭';
+
   const POLL_MS = 2000;          // 轮询间隔
   const SEEK_TOLERANCE = 2.5;    // 播放位置偏差超过这个秒数才纠偏（避免频繁抖动）
   const STALE_MS = 15000;        // 房主状态超过这个时间没更新视为暂停同步
@@ -191,6 +196,7 @@ window.ListenTogether = (function () {
 
   /* ---------------- 对外动作 ---------------- */
   async function create() {
+    if (!LISTEN_ENABLED) { try { UI.toast(OFF_MSG, 'warn'); } catch (e) {} return; }
     if (!loggedIn()) return gate();
     if (S._joining) return;
     S._joining = true;
@@ -217,6 +223,7 @@ window.ListenTogether = (function () {
   }
 
   async function join(code) {
+    if (!LISTEN_ENABLED) { try { UI.toast(OFF_MSG, 'warn'); } catch (e) {} return; }
     if (!loggedIn()) return gate(code);
     const c = String(code || '').trim().toUpperCase();
     if (!/^[A-Z0-9]{6}$/.test(c)) { toast('口令应为 6 位字母或数字', 'warn'); return; }
@@ -534,6 +541,7 @@ window.ListenTogether = (function () {
 
   /** 顶栏/侧栏入口：打开面板（已在房间则直接显示） */
   function open() {
+    if (!LISTEN_ENABLED) { try { UI.toast(OFF_MSG, 'warn'); } catch (e) {} return; }
     if (!loggedIn()) return gate();
     bindOnce();
     if (inRoom()) { renderAll(); openModal(); startTimer(); return; }
@@ -542,6 +550,7 @@ window.ListenTogether = (function () {
   }
 
   return {
+    enabled: LISTEN_ENABLED,
     open, create, join, leave, send, poll, bindOnce, renderBadge, seekTo, syncSeek, dragStart,
     isHost, inRoom, inviteLink,
     get room() { return S.room; },

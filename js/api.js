@@ -185,12 +185,37 @@
       throw err;
     }
     // 直连模式（file:// 或代理不可用），失败重试一次
+    let directErr = null;
     try {
       return await fetchJson(target, timeoutMs);
     } catch (e) {
-      await new Promise(r => setTimeout(r, 500));
-      return await fetchJson(target, timeoutMs);
+      directErr = e;
+      await new Promise(r => setTimeout(r, 400));
+      try {
+        return await fetchJson(target, timeoutMs);
+      } catch (e2) { directErr = e2; }
     }
+    /* 直连被网络层打断（ERR_CONNECTION_RESET / Failed to fetch：镜像域名被墙或被重置）时，
+     * 再试一次同源代理 —— 代理是服务端去取，本机连不上镜像也能拿到数据；
+     * 成功后把代理状态改回 on，后续请求直接走代理，不再每次先撞直连。 */
+    if ((viaHttp || viaLocal) && !keyed) {
+      try {
+        const base0 = viaLocal ? _localServer : '';
+        const u = base0 + proxyPath + '?u=' + encodeURIComponent(target);
+        await _acquireProxySlot();
+        let res;
+        try {
+          res = await fetch(u, { signal: AbortSignal.timeout(timeoutMs || 30000) });
+        } finally {
+          _releaseProxySlot();
+        }
+        if (res.ok) {
+          _proxyState = 'on';
+          return await res.json();
+        }
+      } catch (e) { /* 代理也不可用：保持原错误 */ }
+    }
+    throw directErr || new Error('request failed');
   }
 
   /* 单一镜像源请求：多镜像按顺序尝试，当前镜像重试一次；成功即记住该镜像。

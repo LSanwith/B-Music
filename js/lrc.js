@@ -150,5 +150,66 @@
     return ans;
   }
 
-  window.Lrc = { parseLrc, mergeLyrics, findIndex, parseYrc, findWordIndex };
+  /** 归一化：忽略空白、标点与大小写，只留字/词，用于逐字行与歌词行的文本比对 */
+  function normText(s) {
+    return String(s == null ? '' : s)
+      .replace(/[\s\u3000]/g, '')
+      .replace(/["'“”‘’`´(),.!?;:~\-—_/\\[\]{}<>|+*&#@%^$]/g, '')
+      .replace(/[，。！？；：、·…（）《》【】「」『』—～]/g, '')
+      .toLowerCase();
+  }
+
+  /**
+   * 把逐字（YRC）行挂到已合并的歌词行上。
+   * 之前是「按时间先到先得」：一行歌词只能被第一个落进 0.5s 窗口的逐字行占用，
+   * 而 YRC 和 LRC 的时间轴常有 1s 以上的偏差（例：Blank Space 的 "Ayy" 在 LRC 是
+   * 24.27s、在 YRC 是 25.83s），于是 "Ayy" 的逐字行被挂到了
+   * "New money, suit and tie" 那行上 —— 界面上就出现「Ayy」配「新贵公子 西装革履」。
+   * 现在分两步，且每行独立挑最近的一行（不再先到先得）：
+   *   ① 文本完全相同的先配对（时间漂移再大也能对上）
+   *   ② 剩下的按 (逐字行时间 + off) 就近配对，每个歌词行挑最近的、且没被用过的行
+   * @returns {number} 成功挂上的逐字行数
+   */
+  function attachYrcWords(lines, yrows, off) {
+    if (!lines || !lines.length || !yrows || !yrows.length) return 0;
+    const used = new Array(yrows.length).fill(false);
+    const textOf = (row) => normText(row.words.map((w) => w.w).join(''));
+    const byText = new Map();
+    lines.forEach((o) => {
+      const k = normText(o.l);
+      if (!k) return;
+      if (!byText.has(k)) byText.set(k, []);
+      byText.get(k).push(o);
+    });
+    let n = 0;
+    // ① 文本配对
+    for (let i = 0; i < yrows.length; i++) {
+      const cands = byText.get(textOf(yrows[i]));
+      if (!cands || !cands.length) continue;
+      const target = cands.find((o) => !o.words) || (cands.length === 1 ? cands[0] : null);
+      if (target && !target.words) {
+        target.words = yrows[i].words;
+        used[i] = true;
+        n++;
+      }
+    }
+    // ② 时间就近（每个歌词行挑最近的未用行）
+    for (const o of lines) {
+      if (o.words) continue;
+      let best = -1, bd = 0.5;
+      for (let i = 0; i < yrows.length; i++) {
+        if (used[i]) continue;
+        const d = Math.abs((yrows[i].t + (off || 0)) - o.t);
+        if (d < bd) { bd = d; best = i; }
+      }
+      if (best >= 0) {
+        used[best] = true;
+        o.words = yrows[best].words;
+        n++;
+      }
+    }
+    return n;
+  }
+
+  window.Lrc = { parseLrc, mergeLyrics, findIndex, parseYrc, findWordIndex, attachYrcWords, normText };
 })();

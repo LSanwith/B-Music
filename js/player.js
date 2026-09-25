@@ -147,6 +147,11 @@
 
     next(auto) {
       if (!this.queue.length) return;
+      // 队列只有一首歌时「下一首」其实无处可去（会重播同一首）：
+      // 一起听里成员的队列就是这种单曲队列，点 ⏭ 看着像没反应，所以给个提示
+      if (!auto && this.queue.length <= 1) {
+        try { UI.toast('队列里只有这一首', 'warn'); } catch (e) {}
+      }
       if (this.mode === 'loop') {
         this._loadCurrent();
         return;

@@ -158,6 +158,17 @@ window.APP_NOTICE = {
         '动态封面只在当前播放的歌曲上加载（列表里仍是静态图），并且带 30 分钟缓存，不会反复请求',
       ],
     },
+    {
+      version: '1.5.3',
+      date: '2026-09-25',
+      title: '更新公告',
+      items: [
+        '一起听暂时关闭维护中：播放页入口与邀请链接均已下线，期间点击会提示「一起听正在维护中，暂时关闭」，修复完成后恢复',
+        '修复：逐字歌词偶尔配错行（例如 Blank Space 里的「Ayy」下面显示成「新贵公子 西装革履」）——逐字时间轴与歌词时间轴偏差较大时，改为先按文本配对、再按时间就近，且每行独立挑选，不再“先到先得”',
+        '修复：队列里只有一首歌时点「下一首」看着没反应（一起听成员就是这种单曲队列）——现在会提示「队列里只有这一首」；在房间里点切歌会提示由房主切歌',
+        '修复：镜像域名被网络重置（ERR_CONNECTION_RESET）时，自动改走同源代理，不再一直撞直连',
+      ],
+    },
   ],
   get version() { return window.APP_NOTICE.history[window.APP_NOTICE.history.length - 1].version; },
   get date() { return window.APP_NOTICE.history[window.APP_NOTICE.history.length - 1].date; },
