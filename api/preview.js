@@ -6,11 +6,11 @@
  * 路由由 vercel.json rewrite 映射：
  *   /s/:type/:id  →  /api/preview?type=:type&id=:id
  *
- * 元数据来源：镜像 https://silence-music-api.cc.cd （与 js/config.js
+ * 元数据来源：镜像 https://silence-music-api.de5.net （与 js/config.js
  * API_PRIMARY 一致），一律带 realIP（同 js/api.js REAL_IP），超时 10s。
  * 图片链接 http:// 一律转 https://；取不到图则省略 og:image（仍可预览标题）。
  */
-/* 多镜像：原 silence-music-api.cc.cd 域名已失效，按顺序尝试 */
+/* 多镜像：原 cc.cd 域名已废弃，按顺序尝试下列镜像 */
 const MIRRORS = ['https://silence-music-api.de5.net', 'https://sience-music-api-backup.de5.net', 'https://zm.wwoyun.cn', 'https://music.mcseekeri.com'];
 let _mirror = 0;
 const REAL_IP = '116.25.146.177';

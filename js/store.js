@@ -573,6 +573,14 @@
             myPlaylists: myPlaylists,
           }),
         });
+        console.log('[bmusic-sync] 已上传云端：设置 ' + Object.keys(SETTINGS).length + ' 项，收藏歌曲 ' +
+          favSongs.length + ' 首，收藏歌单 ' + favPlaylists.length + ' 个，自建歌单 ' + myPlaylists.length + ' 个');
+        // 上传成功后立即把云端结果读回并保存到本地（不再每秒轮询检查）
+        Session.pull(true).then(() => {
+          console.log('[bmusic-sync] 已从云端下载并保存到本地');
+        }).catch((e) => {
+          console.warn('[bmusic-sync] 下载云端数据失败：', (e && e.message) || e);
+        });
       } finally {
         Session._pushT = Date.now(); // 上传完成时间（完成后短暂保护窗口）
       }
@@ -685,7 +693,8 @@
     _pushT: 0, // 最近一次上传开始/完成时间：保护窗口内不拉取（本地为权威）
     _startPollOnce() {
       if (Session._pollTimer) return;
-      Session._pollTimer = setInterval(Session._pollSafe, 1000);
+      // 不再每秒轮询云端（上传成功后已实时回读保存）；只保留回到前台/窗口聚焦时的一次拉取
+      Session._pollTimer = null;
       if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) Session._pollSafe();

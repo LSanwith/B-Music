@@ -13,6 +13,24 @@
   /* 镜像列表：默认用第一个，失败自动切下一个并记住可用的那个 */
   const MIRRORS = (CFG.API_MIRRORS && CFG.API_MIRRORS.length ? CFG.API_MIRRORS.slice() : [CFG.API_PRIMARY]);
   let _mirrorIdx = 0;
+/* 记住上次成功的镜像与探测排序（sessionStorage）：刷新后直接命中可用镜像，
+ * 不再每个页面都去撞那些在本机连不上的域名（TLS 被拦时会刷 502/503）。 */
+(function restoreMirrorMemory() {
+  try {
+    const at = Number(localStorage.getItem('bmusic:mirror-at') || 0);
+    const fresh = at && (Date.now() - at < 6 * 60 * 60 * 1000);
+    const last = fresh ? localStorage.getItem('bmusic:mirror-last') : localStorage.getItem('bmusic:mirror-last');
+    if (last) { const i = MIRRORS.indexOf(last); if (i > 0) _mirrorIdx = i; }
+    const order = JSON.parse((fresh ? localStorage.getItem('bmusic:mirror-order') : null) || 'null');
+    if (Array.isArray(order) && order.length === MIRRORS.length) {
+      const sorted = order.map((u) => MIRRORS.indexOf(u)).filter((i) => i >= 0);
+      if (sorted.length === MIRRORS.length) {
+        const copy = MIRRORS.slice();
+        sorted.forEach((idx, k) => { MIRRORS[k] = copy[idx]; });
+      }
+    }
+  } catch (e) {}
+})();
   /* 两个同内核 API（silence / Sanwith）轮流打头，分摊服务器压力；
    * 一旦某个源需要回退（说明它不健康），就粘住可用源若干次，避免每次白等。 */
   let _rrToggle = 0;
@@ -115,7 +133,7 @@
   const KEYED_SOURCES = {};
   KEYED_SOURCES[CFG.HONGYUN_ENDPOINT] = { flag: 'hk', name: '红云点歌' };
   if (CFG.NT18_ENDPOINT) KEYED_SOURCES[CFG.NT18_ENDPOINT] = { flag: 'nt', name: '落七七' };
-  if (CFG.SANWITH_ENDPOINT) KEYED_SOURCES[CFG.SANWITH_ENDPOINT] = { flag: 'sw', name: 'Sanwith' };
+  // Sanwith 已取消密钥校验：作为普通镜像请求
 
   async function request(base, path, params, timeoutMs) {
     const keyed = KEYED_SOURCES[base] || null;
@@ -196,6 +214,7 @@
           if (ok(j)) {
             _mirrorIdx = idx;
             if (i > 0) _sticky = 8; // 回退过：接下来 8 次沿用这个可用源
+            try { localStorage.setItem('bmusic:mirror-last', MIRRORS[idx]); localStorage.setItem('bmusic:mirror-at', String(Date.now())); } catch (e) {}
             return j;
           }
           lastErr = new Error('bad response');
@@ -207,6 +226,40 @@
     }
     throw lastErr || new Error('all mirrors failed');
   }
+
+  /* 后台探测（仅本地部署）：并发试一遍各镜像，把可达的排到前面并记住，
+   * 这样刷新后第一次请求就能命中可用镜像，不会先撞 502。 */
+  (function probeMirrors() {
+    try {
+      const isLocal = location.protocol === 'file:' ||
+        /^(127\.0\.0\.1|localhost|\[::1\]|0\.0\.0\.0)$/.test(location.hostname);
+      if (!isLocal || MIRRORS.length < 2) return;
+      const at = Number(localStorage.getItem('bmusic:mirror-at') || 0);
+      if (at && Date.now() - at < 6 * 60 * 60 * 1000 && localStorage.getItem('bmusic:mirror-order')) return; // 6 小时内不再重复探测
+      const t0 = Date.now();
+      const jobs = MIRRORS.map((base) => new Promise((resolve) => {
+        const started = Date.now();
+        fetch('/proxy?u=' + encodeURIComponent(base + '/search/hot/detail') + (KEYED_SOURCES[base] ? '&' + KEYED_SOURCES[base].flag + '=1' : ''),
+          { signal: AbortSignal.timeout(4000) })
+          .then((r) => resolve({ base: base, ok: r.ok, ms: Date.now() - started }))
+          .catch(() => resolve({ base: base, ok: false, ms: Date.now() - started }));
+      }));
+      Promise.all(jobs).then((res) => {
+        res.sort((a, b) => (a.ok === b.ok ? a.ms - b.ms : (a.ok ? -1 : 1)));
+        const order = res.map((x) => x.base);
+        const copy = MIRRORS.slice();
+        order.forEach((base, k) => { MIRRORS[k] = base; });
+        const good = res.filter((x) => x.ok).map((x) => x.base);
+        if (good.length) _mirrorIdx = 0;
+        try {
+          localStorage.setItem('bmusic:mirror-order', JSON.stringify(order));
+          localStorage.setItem('bmusic:mirror-at', String(Date.now()));
+        } catch (e) {}
+        console.log('[bmusic-api] 镜像探测完成（' + (Date.now() - t0) + 'ms）：' +
+          res.map((x) => x.base.replace('https://', '') + (x.ok ? '✓' : '✗')).join('  '));
+      }).catch(() => {});
+    } catch (e) {}
+  })();
 
   /* ---------- 数据归一化 ---------- */
   /** 是否试听片段：响应带 freeTrialInfo（被截取歌曲的开始/结束时间）即为试听。

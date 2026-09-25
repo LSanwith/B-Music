@@ -145,12 +145,25 @@
       else location.hash = h;
     },
 
-    /** 返回上一页（顶栏返回按钮 / 空历史则回发现页） */
+    /** 返回上一页：优先用内存里记录的来路；刷新后内存历史为空时，按路由的上级页面回退
+     *  （以前这种情况一律回发现页——在精选歌单页刷新后点返回就会跳出精选，而不是回精选列表） */
     _goBack() {
       const s = this._stack || [];
       const prev = s.pop();
-      if (prev) location.hash = prev;
-      else location.hash = '#/discover';
+      if (prev) { location.hash = prev; return; }
+      const seg = location.hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean);
+      const root = seg[0] || 'discover';
+      if (root === 'curated' && seg[1]) { location.hash = '#/curated'; return; }
+      const PARENT = {
+        curated: 'curated',
+        playlist: 'playlists',
+        myplaylist: 'favorites',
+        album: 'discover',
+        artist: 'discover',
+        song: 'discover',
+        share: 'discover',
+      };
+      location.hash = '#/' + (PARENT[root] || 'discover');
     },
 
     /* ============ 分享 ============ */
@@ -263,7 +276,7 @@
       this._highlightNav(root);
       // 顶栏返回按钮：仅在 歌单/专辑/歌手/单曲/自建歌单 等详情页显示（位于顶部标题文本左侧）
       const topBack = $('#btn-topback');
-      const wantBack = !!(root === 'playlist' || root === 'album' || root === 'artist' || root === 'song' || root === 'myplaylist' || root === 'share');
+      const wantBack = !!(root === 'playlist' || root === 'album' || root === 'artist' || root === 'song' || root === 'myplaylist' || root === 'share' || (root === 'curated' && !!seg[1]));
       const backWasHidden = topBack ? topBack.classList.contains('hidden') : true;
       const backIn = backWasHidden && wantBack;    // 返回按钮出现
       const backOut = !backWasHidden && !wantBack; // 返回按钮退出：标题滑过去把它吸收掉
@@ -293,6 +306,7 @@
       if (root === 'favorites') return this.vFavorites();
       if (root === 'recognize') return this.vRecognize();
       if (root === 'myplaylist' && seg[1]) return this.vMyPlaylist(seg[1]);
+      if (root === 'curated') return seg[1] ? this.vCurated(seg[1]) : this.vCuratedList();
       if (root === 'share' && seg[1] === 'mp' && seg[2]) return this.vShareMp(seg[2]);
       // 一起听邀请链接：#/listen/<口令> → 登录后自动进房
       if (root === 'listen' && seg[1]) {
@@ -316,10 +330,23 @@
     },
 
     _highlightNav(root) {
-      $$('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.nav === root));
-      $$('.tab-item').forEach(a => a.classList.toggle('active', a.dataset.tab === root));
-      this._moveTabInd(root);
-      const titles = { hibetter: 'HiBetter', discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', recognize: '听歌识曲', hibetter: 'HiBetter', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单' };
+      // 侧栏与手机端底部导航都按当前页高亮。
+      // 详情页（歌单/专辑/歌手/单曲/自建歌单/分享）本身不是导航项：
+      // 能归到某个标签的按标签高亮（歌单→歌单广场、自建歌单→我的收藏），
+      // 归不了的（专辑/歌手/单曲/分享）就什么都不动，保持上一次的高亮 ——
+      // 绝不能回退到第一个标签，否则进歌单页会错误地把「精选」点亮。
+      const NAV_ALIAS = { playlist: 'playlists', myplaylist: 'favorites', share: 'playlists' };
+      const key = NAV_ALIAS[root] || root;
+      const navEl = $('.nav-item[data-nav="' + key + '"]');
+      const tabEl = $('.tab-item[data-tab="' + key + '"]');
+      if (navEl || tabEl) {
+        $$('.nav-item').forEach(a => a.classList.toggle('active', a === navEl));
+        $$('.tab-item').forEach(a => a.classList.toggle('active', a === tabEl));
+        this._moveTabInd(key);
+      }
+      // 精选页顶栏：宽屏写全称，窄屏用缩写
+      const curatedTitle = window.innerWidth > 900 ? 'BetterMusic精选' : '精选';
+      const titles = { hibetter: 'HiBetter', discover: '发现', leaderboard: '排行榜', playlists: '歌单', search: '搜索', favorites: '我的收藏', recognize: '听歌识曲', hibetter: 'HiBetter', myplaylist: '自建歌单', playlist: '歌单', album: '专辑', artist: '歌手', song: '歌曲', share: '分享的歌单', curated: curatedTitle };
       this._setTopTitle(titles[root] || '发现');
     },
 
@@ -544,6 +571,8 @@
       v.innerHTML = html;
       $('#main').scrollTop = 0;
       window.scrollTo(0, 0);
+      // 整屏封面主题色只在精选歌单页生效，切走就撤掉（vCurated 渲染完会再加回来）
+      document.documentElement.classList.remove('bm-tint-page');
       // 页面切换动画：内容高斯模糊淡入 + 子块自上而下缓动就位
       v.classList.remove('view-anim');
       void v.offsetWidth; // 强制重排以重启动画
@@ -853,7 +882,10 @@
         const out = {
           id: sid, name: this._textOf(song.name) || '未知歌曲',
           artists: (Array.isArray(song.artists || song.ar) ? (song.artists || song.ar) : []).map(x => ({ name: this._textOf(x && x.name) })).filter(x => x.name),
-          album: (function (al) { al = al || {}; return { name: (al.name || ''), id: al.id || '', picUrl: al.picUrl || '' }; })(song.album || song.al),
+          album: (function (al) {
+          const src = (al && typeof al === 'object') ? al : {};
+          return { name: Player.albumName(al), id: src.id || '', picUrl: src.picUrl || '' };
+        })(song.album || song.al),
           duration: song.duration || song.dt || 0,
         };
         out.cover = out.album.picUrl || '';
@@ -1262,7 +1294,10 @@
           const f = byId[String(s.id)];
           if (f && (f.cover || (f.album && f.album.picUrl))) {
             s.cover = f.cover || s.cover;
-            s.album = Object.assign({}, s.album, { name: (s.album && s.album.name) || (f.album && f.album.name) || '', picUrl: (f.album && f.album.picUrl) || (s.album && s.album.picUrl) || '' });
+            s.album = Object.assign({}, (s.album && typeof s.album === 'object') ? s.album : {}, {
+          name: Player.albumName(s.album) || Player.albumName(f.album) || '',
+          picUrl: (f.album && f.album.picUrl) || (s.album && s.album.picUrl) || '',
+        });
           }
         });
       } catch (e) { /* 静默：无封面不影响播放 */ }
@@ -2688,9 +2723,11 @@
 
     _snapToSong(s) {
       const artists = artistList(s.artistsArr && s.artistsArr.length ? s.artistsArr : s.artists); // 兼容对象数组/字符串/旧 artistsArr
+      const al = (s.album && typeof s.album === 'object') ? s.album : (s.albumObj || {});
       return {
         id: s.id, name: s.name, artists: artists,
-        album: s.albumObj || (s.album ? { id: 0, name: s.album, cover: '' } : null),
+        // album.name 必须是字符串：以前这里会把对象塞进 name，界面上就成了 [object Object]
+        album: { id: al.id || 0, name: Player.albumName(s.albumObj || s.album), cover: al.cover || '' },
         cover: s.cover || '', duration: s.duration || 0,
         fee: s.fee || 0, vip: !!s.vip,
       };
@@ -2712,7 +2749,7 @@
           '<div class="dt-cover"><img src="' + esc(coverUrl(s.cover || (s.album && s.album.cover))) + '" alt=""></div>' +
           '<div class="dt-info"><div class="dt-type">歌曲</div>' +
           '<h1 class="dt-name">' + esc(s.name) + '</h1>' +
-          '<div class="dt-meta">' + esc(this._artistText(s)) + (s.album && s.album.name ? ' · ' + esc(s.album.name) : '') +
+          '<div class="dt-meta">' + esc(this._artistText(s)) + (Player.albumName(s.album) ? ' · ' + esc(Player.albumName(s.album)) : '') +
           (s.duration ? ' · ' + fmtDuration(s.duration) : '') + '</div>' +
           '<div class="dt-actions">' +
           '<button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放</button>' +
@@ -2880,8 +2917,8 @@
         // 列表显示则使用原始快照（字符串 artists/album）
         const playable = songs.map(s => ({
           id: s.id, name: s.name,
-          artists: (s.artists || '').split(' / ').filter(Boolean).map(a => ({ name: a })),
-          album: { name: s.album || '' },
+          artists: (artistList(s.artists) || []).map(a => ({ name: a.name || a })),
+          album: { name: Player.albumName(s.album) },
           cover: s.cover || '', duration: s.duration || 0, vip: !!s.vip,
         }));
         this._ctx.songs = playable;
@@ -2927,6 +2964,169 @@
     /* ============================================================
      * 通用渲染：卡片 / 歌曲列表
      * ============================================================ */
+    /* ============================================================
+     * BetterMusic 精选：列表页（#/curated）+ 卡片 + 精选歌单页
+     * ============================================================ */
+    /** 卡片：小封面 + 歌单名（封面右侧）+ 简单歌曲列表，整卡可点进精选歌单页 */
+    _curatedCard(p) {
+      const rows = p.songs.map((s, i) =>
+        '<div class="bm-song" data-bmsong="' + p.key + ':' + i + '">' +
+        '<span class="bm-song-name">' + esc(s.name) + '</span>' +
+        '<span class="bm-song-artist">' + esc(s.artist) + '</span></div>').join('');
+      return '<div class="bm-card" data-curated="' + p.key + '" data-bm-key="' + p.key + '">' +
+        '<div class="bm-top"><div class="bm-cover"><img src="' + esc(p.cover) + '" alt="" loading="lazy"></div>' +
+        '<div class="bm-info"><span class="bm-name">' + esc(p.name) + '</span>' +
+        '<span class="bm-count">' + p.songs.length + ' 首</span></div>' +
+        '<span class="bm-tri">' + Icons.icon('playTri') + '</span></div>' +
+        '<div class="bm-songs">' + rows + '</div></div>';
+    },
+
+    /** 从封面里取一个主题色（按饱和度加权平均），写到所有 [data-bm-key] 元素的 --bm-rgb 上。
+     *  fullPage=true 时同时写到 <html> 上并打开 bm-tint-page，让整屏背景都吃这个颜色。
+     *  深浅交给 CSS：用 color-mix 把主题色和页面底色按比例混合，
+     *  深色页面得到暗色调、浅色页面得到淡色调，永远不会出现刺眼的亮色/暗色。 */
+    _applyCoverTint(p, fullPage) {
+      const key = p.key;
+      this._tints = this._tints || {};
+      const root = document.documentElement;
+      if (fullPage) root.classList.add('bm-tint-page');
+      const paint = (rgb) => {
+        if (fullPage) root.style.setProperty('--bm-rgb', rgb);
+        Array.prototype.forEach.call(document.querySelectorAll('[data-bm-key="' + key + '"]'), (el) => {
+          el.style.setProperty('--bm-rgb', rgb);
+        });
+      };
+      if (this._tints[key]) { paint(this._tints[key]); return; }
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        let rgb = '37, 99, 235';
+        try {
+          const n = 18;
+          const cv = document.createElement('canvas');
+          cv.width = n; cv.height = n;
+          const ctx = cv.getContext('2d');
+          ctx.drawImage(img, 0, 0, n, n);
+          const d = ctx.getImageData(0, 0, n, n).data;
+          let r = 0, g = 0, b = 0, wsum = 0;
+          for (let i = 0; i < d.length; i += 4) {
+            if (d[i + 3] < 8) continue;                      // 透明像素跳过
+            const mx = Math.max(d[i], d[i + 1], d[i + 2]);
+            const mn = Math.min(d[i], d[i + 1], d[i + 2]);
+            const lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+            if (lum < 20 || lum > 238) continue;             // 纯黑/纯白的描边不参与
+            const sat = mx ? (mx - mn) / mx : 0;
+            const w = 0.15 + sat * sat * 2.2;                // 越鲜艳权重越高
+            r += d[i] * w; g += d[i + 1] * w; b += d[i + 2] * w; wsum += w;
+          }
+          if (wsum > 0) {
+            let c = [r / wsum, g / wsum, b / wsum];
+            // 规则 1：采样结果太灰（饱和度 < 0.18，例如浅色人像封面）就不要灰扑扑的主题色，
+            //         直接用默认主题蓝，而不是把灰色调亮或调暗。
+            const mx0 = Math.max(c[0], c[1], c[2]);
+            const mn0 = Math.min(c[0], c[1], c[2]);
+            const sat0 = mx0 ? (mx0 - mn0) / mx0 : 0;
+            if (sat0 < 0.18) {
+              c = [37, 99, 235];
+            } else if (sat0 < 0.45) {
+              // 规则 2：饱和度偏低但还有色相时，把三个通道围绕亮度拉开（色相不变），
+              //         至少提到 0.45，免得卡片背景发土。
+              const lum = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+              const k = Math.min(2.4, 0.45 / sat0);
+              c = c.map((v) => Math.max(0, Math.min(255, lum + (v - lum) * k)));
+            }
+            // 规则 3：整体亮度收在 70~200，纯黑/纯白封面也不会给出极端色
+            const lum2 = 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+            if (lum2 < 70 || lum2 > 200) {
+              const k2 = lum2 > 0 ? (lum2 < 70 ? 70 / lum2 : 200 / lum2) : 1;
+              c = c.map((v) => Math.max(0, Math.min(255, v * k2)));
+            }
+            rgb = c.map((v) => Math.round(v)).join(', ');
+          }
+        } catch (e) { /* 取不到颜色就用默认主题蓝 */ }
+        this._tints[key] = rgb;
+        paint(rgb);
+      };
+      img.src = p.cover;
+    },
+
+    /** 精选列表页：每行两个卡片 */
+    vCuratedList() {
+      const list = (window.Curated && Curated.list) || [];
+      if (!list.length) {
+        this._setView(UI.empty('暂无精选歌单', '在 js/curated.js 里添加'));
+        return;
+      }
+      this._ctx = { songs: [] };
+      this._setView(
+        '<section class="view-section bm-section">' +
+        '<div class="bm-grid">' + list.map(p => this._curatedCard(p)).join('') + '</div></section>');
+      list.forEach(p => this._applyCoverTint(p));
+    },
+
+    /** 精选歌单的真实歌曲对象（补封面/时长/专辑），按 key 缓存 */
+    async _curatedSongs(p) {
+      this._curSongs = this._curSongs || {};
+      if (this._curSongs[p.key]) return this._curSongs[p.key];
+      const ids = p.songs.map(s => s.id);
+      let full = [];
+      try {
+        for (let i = 0; i < ids.length; i += 100) {
+          const part = await API.songDetails(ids.slice(i, i + 100));
+          full = full.concat(part || []);
+        }
+      } catch (e) { full = []; }
+      const byId = {};
+      full.forEach(s => { byId[String(s.id)] = s; });
+      // 详情里查不到的（下架/地区限制）用本地写死的歌名+歌手兜底，至少能点能播
+      const songs = p.songs.map(s => byId[String(s.id)] || Curated.minSong(s));
+      this._curSongs[p.key] = songs;
+      return songs;
+    },
+
+    async vCurated(key) {
+      const p = (window.Curated && Curated.get(key)) || null;
+      if (!p) { this.nav('discover'); return; }
+      const seq = this._viewSeq;
+      this._viewLoading();
+      try {
+        const songs = await this._curatedSongs(p);
+        if (seq !== this._viewSeq) return;
+        this._ctx = { songs };
+        const html =
+          '<div class="bm-detail" data-bm-key="' + p.key + '">' +
+          '<section class="detail-head">' +
+          '<div class="dt-cover bm-dt-cover"><img src="' + esc(p.cover) + '" alt=""></div>' +
+          '<div class="dt-info">' +
+          '<div class="dt-type">BetterMusic精选</div>' +
+          '<h1 class="dt-name">' + esc(p.name) + '</h1>' +
+          '<div class="dt-meta">' + songs.length + ' 首' + (songs.length ? ' · 人工挑选' : '') + '</div>' +
+          '<div class="dt-actions">' +
+          '<button class="btn primary" id="dt-playall">' + Icons.icon('playTri') + '播放全部</button>' +
+          '<button class="btn" id="dt-shuffle">随机播放</button>' +
+          '</div></div></section>' +
+          '<section class="view-section"><div class="sec-head"><h2>歌曲列表</h2></div>' +
+          this._songListHtml(songs, { album: true }) + '</section></div>';
+        this._setView(html);
+        this._applyCoverTint(p, true);
+        const playAll = $('#dt-playall');
+        if (playAll) playAll.addEventListener('click', () => {
+          if (this._ctx.songs.length) { Player.playQueue(this._ctx.songs, 0); toast('开始播放《' + p.name + '》'); }
+          else toast('歌单暂无歌曲', 'warn');
+        });
+        const shuffle = $('#dt-shuffle');
+        if (shuffle) shuffle.addEventListener('click', () => {
+          const list = this._ctx.songs;
+          if (!list.length) { toast('歌单暂无歌曲', 'warn'); return; }
+          Player.setMode('shuffle');
+          Player.playQueue(list, Math.floor(Math.random() * list.length));
+          toast('随机播放《' + p.name + '》');
+        });
+      } catch (e) {
+        this._viewError('精选歌单加载失败：' + e.message, 'App.vCurated(\'' + key + '\')');
+      }
+    },
+
     _plCard(p) {
       this._plCache = this._plCache || {};
       this._plCache[p.id] = p;
@@ -2955,7 +3155,7 @@
           '<div class="sr-main"><div class="sr-name">' + esc(s.name) +
           (s.vip ? '<em class="vip-tag">VIP</em>' : '') + '</div>' +
           '<div class="sr-artists">' + esc(artists) + '</div></div>' +
-          (showAlbum ? '<div class="sr-album">' + esc(s.album ? s.album.name : '') + '</div>' : '') +
+          (showAlbum ? '<div class="sr-album">' + esc(Player.albumName(s.album)) + '</div>' : '') +
           '<div class="sr-dur">' + fmtDuration(s.duration) + '</div>' +
           '<button class="sr-fav' + (Store.FavSongs.has(s.id) ? ' on' : '') + '" data-fav="' + n + '">' +
           Icons.heartIcon(Store.FavSongs.has(s.id)) + '</button>' +
@@ -3092,6 +3292,26 @@
         }
         const mpEl = e.target.closest('[data-mp]');
         if (mpEl) { this.nav('myplaylist/' + mpEl.dataset.mp); return; }
+        /* BetterMusic 精选：卡片里的歌先判断（点歌直接播，不触发整卡的跳转） */
+        const bmSongEl = e.target.closest('[data-bmsong]');
+        if (bmSongEl) {
+          const parts = String(bmSongEl.dataset.bmsong).split(':');
+          const pl = (window.Curated && Curated.get(parts[0])) || null;
+          const idx = Math.max(0, parseInt(parts[1], 10) || 0);
+          if (pl && pl.songs.length) {
+            // 先用本地写死的数据开播（立刻响应），详情回来后再补进队列
+            const quick = pl.songs.map(Curated.minSong);
+            Player.playQueue(quick, Math.min(idx, quick.length - 1));
+            const clickedId = quick[Math.min(idx, quick.length - 1)].id;
+            this._curatedSongs(pl).then(songs => {
+              const at = songs.findIndex(s => String(s.id) === String(clickedId));
+              if (at >= 0 && Player.queue && Player.queue.length === songs.length) Player.playQueue(songs, at);
+            }).catch(() => {});
+          }
+          return;
+        }
+        const bmCardEl = e.target.closest('[data-curated]');
+        if (bmCardEl) { this.nav('curated/' + bmCardEl.dataset.curated); return; }
         const playEl = e.target.closest('[data-play]');
         if (playEl) {
           const i = +playEl.dataset.play;
@@ -3237,7 +3457,7 @@
       const meta = {
         title: song.name || '',
         artist: artistList(song.artists).map(x => x.name).join(' / '),
-        album: (song.album && song.album.name) || '',
+        album: Player.albumName(song.album),
         lyrics: '',
         cover: null,
         coverMime: 'image/jpeg',
@@ -3275,13 +3495,28 @@
     _bindStatic() {
       /* 侧边栏 */
       /* 一起听入口在播放页顶栏（#ov-listen）与分享弹窗（#share-listen） */
+      /* 房间内：成员不允许返回主页面（避免与房主进度互相打架），
+       * 只提供「退出一起听房间」；房主保留 ✕ 以便回主页切歌。 */
+      const ovLeaveRoom = $('#ov-leave-room');
+      if (ovLeaveRoom) {
+        ovLeaveRoom.addEventListener('click', async () => {
+          await ListenTogether.leave();
+          this.closeOverlay();
+        });
+      }
+      this._syncListenChrome = () => {
+        const inRoom = window.ListenTogether && ListenTogether.inRoom();
+        const isHost = inRoom && ListenTogether.isHost();
+        const showLeave = inRoom && !isHost;
+        if (ovLeaveRoom) ovLeaveRoom.classList.toggle('hidden', !showLeave);
+        // 房间里非房主只能走「退出一起听房间」，所以把小横条也藏起来
+        const cl = $('#ov-grab');
+        if (cl) cl.classList.toggle('hidden', showLeave);
+      };
+      document.addEventListener('ym:listen', () => { try { this._syncListenChrome(); } catch (e) {} });
       const ovListen = $('#ov-listen');
       if (ovListen) ovListen.addEventListener('click', () => ListenTogether.open());
-      const shareListen = $('#share-listen');
-      if (shareListen) shareListen.addEventListener('click', () => {
-        this.closeShare();
-        ListenTogether.open();
-      });
+      /* 分享弹窗不再放置一起听入口（入口在播放页顶栏） */
       $('#btn-settings').addEventListener('click', () => this.openSettings());
       $('#btn-topback').addEventListener('click', () => this._goBack());
       $('#btn-login').addEventListener('click', () => this.openAuth('login'));
@@ -3334,9 +3569,9 @@
       });
       $('#side-mask').addEventListener('click', () => setSide(false));
       /* 手机端底部菜单栏：由侧栏导航生成（图标在上、文字在下，文案精简） */
-      /* 标签顺序：搜索放最右；图标在上、文字在下（文案精简） */
-      const TAB_ORDER = ['discover', 'leaderboard', 'playlists', 'favorites', 'recognize', 'search'];
-      const TAB_LABELS = { discover: '发现', leaderboard: '排行', playlists: '歌单', search: '搜索', recognize: '识曲', favorites: '我的' };
+      /* 标签顺序：精选跟侧栏一样放最前，搜索放最右；图标在上、文字在下（文案精简） */
+      const TAB_ORDER = ['curated', 'discover', 'leaderboard', 'playlists', 'favorites', 'recognize', 'search'];
+      const TAB_LABELS = { curated: '精选', discover: '发现', leaderboard: '排行', playlists: '歌单', search: '搜索', recognize: '识曲', favorites: '我的' };
       const tabbar = $('#tabbar');
       if (tabbar) {
         const navMap = {};
@@ -3352,7 +3587,15 @@
         const root0 = (location.hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean)[0]) || 'discover';
         $$('.tab-item').forEach(a => a.classList.toggle('active', a.dataset.tab === root0));
         App._moveTabInd(root0, true);
-        window.addEventListener('resize', () => App._moveTabInd(null, true));
+        window.addEventListener('resize', () => {
+          App._moveTabInd(null, true);
+          // 精选页标题跟着宽窄切换（宽屏全称 / 窄屏缩写）
+          const rootNow = (location.hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean)[0]) || 'discover';
+          if (rootNow === 'curated') {
+            const t = $('#page-title');
+            if (t) { t.style.width = ''; t.textContent = window.innerWidth > 900 ? 'BetterMusic精选' : '精选'; }
+          }
+        });
       }
       // Esc 关闭（浮层形态下更顺手；宽屏侧栏常驻时无影响）
       document.addEventListener('keydown', (e) => {
@@ -3384,7 +3627,14 @@
       $('#pb-next').addEventListener('click', () => Player.next(false));
       $('#pb-mode').addEventListener('click', () => Player.cycleMode());
       $('#pb-queue').addEventListener('click', () => this.toggleQueue());
-      $('#pb-left').addEventListener('click', () => this.openOverlay());
+      /* 整条播放栏都能点开播放页（按钮/滑块等交互控件除外） */
+      const openFromBar = (e) => {
+        const t = e && e.target;
+        if (t && t.closest && t.closest('button, a, input, select, textarea, [role="button"]')) return;
+        this.openOverlay();
+      };
+      const pbEl = $('#playerbar');
+      if (pbEl) pbEl.addEventListener('click', openFromBar);
       $('#pb-fav').addEventListener('click', (e) => {
         e.stopPropagation();
         const on = Player.fav();
@@ -3414,6 +3664,8 @@
           const dur = Player.duration || 0;
           if (dur > 0) seekFn(bar.value / 1000 * dur);
           sync();
+          // 一起听：拖动期间暂停跟随
+          if (window.ListenTogether && ListenTogether.inRoom()) ListenTogether.dragStart();
         });
         bar.addEventListener('change', () => {
           if (barId === '#pb-bar') this._barDragging = false; else this._ovDragging = false;
@@ -3421,6 +3673,8 @@
             dragResume = false;
             Player.audio.play().catch(() => {});
           }
+          // 一起听：松手后把进度同步给房间所有人
+          if (window.ListenTogether && ListenTogether.inRoom()) ListenTogether.syncSeek(Player.curTime);
         });
         bar.sync = sync;
       };
@@ -3465,7 +3719,8 @@
       bindVol('#ov-volume', '#ov-mute');
 
       /* 全屏播放页 */
-      $('#ov-close').addEventListener('click', () => this.closeOverlay());
+      /* 全屏播放页：顶部小横条（#ov-grab）点按关闭 / 按住下滑拖动关闭 */
+      this._bindGrab();
       $('#ov-play').addEventListener('click', () => Player.toggle());
       $('#ov-prev').addEventListener('click', () => Player.prev());
       $('#ov-next').addEventListener('click', () => Player.next(false));
@@ -3608,15 +3863,18 @@
         $('#pb-artist').textContent = '';
         return;
       }
-      $('#pb-title').textContent = d.song.name;
-      $('#pb-artist').textContent = artistList(d.song.artists).map(a => a.name).join(' / ');
+      // 统一走 Player.snapshot 取展示字段：artists / album 都规范成字符串，
+      // 避免某些来源（一起听同步、外部曲目）album 是对象时拼出 [object Object]
+      const snap = Player.snapshot(d.song);
+      $('#pb-title').textContent = snap.name;
+      $('#pb-artist').textContent = snap.artists;
       $('#pb-cover').src = d.song.cover ? coverUrl(d.song.cover) : PLACEHOLDER;
       const faved = Store.FavSongs.has(d.song.id);
       $('#pb-fav').classList.toggle('on', faved);
       $('#pb-fav').innerHTML = Icons.heartIcon(faved);
-      $('#ov-title').textContent = d.song.name;
-      $('#ov-artist').textContent = artistList(d.song.artists).map(a => a.name).join(' / ') +
-        (d.song.album && d.song.album.name ? ' — ' + d.song.album.name : '');
+      $('#ov-title').textContent = snap.name;
+      // 歌手小字只显示歌手：专辑名常常和歌名相同（"歌名 — 同名专辑"），加在这里又长又重复
+      $('#ov-artist').textContent = snap.artists;
       $('#ov-cover').src = d.song.cover ? coverUrl(d.song.cover) : PLACEHOLDER;
       $('#ov-bg').style.backgroundImage = d.song.cover ? 'url("' + coverUrl(d.song.cover) + '")' : '';
       this._analyzeCover(d.song.cover);
@@ -3787,8 +4045,15 @@
         const dur = Math.max(0.5, ((lines[i + 1] ? lines[i + 1].t : l.t + 5) - l.t));
         let textHtml = l.l ? esc(l.l) : '&nbsp;';
         if (l.words && l.words.length) {
-          const ascii = /[\u4e00-\u9fa5]/.test(l.l) ? false : true;
-          textHtml = l.words.map(w => '<span class="ly-w" data-t="' + w.t + '" data-d="' + Math.max(0.05, w.d) + '">' + esc(w.w) + '</span>').join(ascii ? ' ' : '');
+          // 逐字歌词：按"是否需要空格"逐词拼接。
+          // 之前只看整行是否含中文，含中文就一律用 '' 连接 —— 于是行内英文单词
+          // 之间的空格、以及 YRC 里单独成词的空白都会丢掉（播放到该行时最明显）。
+          const needSpace = (a, b) => /[A-Za-z0-9)\]]$/.test(a) && /^[A-Za-z0-9(\[]/.test(b);
+          textHtml = l.words.map((w, k) => {
+            const prev = k ? String(l.words[k - 1].w) : '';
+            const sep = k && needSpace(prev, String(w.w)) ? ' ' : '';
+            return sep + '<span class="ly-w" data-t="' + w.t + '" data-d="' + Math.max(0.05, w.d) + '">' + esc(w.w) + '</span>';
+          }).join('');
         }
         return '<div class="ly-line" data-li="' + i + '" data-t="' + l.t + '" data-d="' + dur + '">' +
           '<div class="ly-text">' + textHtml + '</div>' +
@@ -3831,6 +4096,18 @@
      * 行高/位置只在渲染后、字体加载、窗口变化时重测。
      */
     _measureLyrics() {
+      // 尺寸/布局还没到位时不能量：
+      // ① morph 期间内容整棵子树被 content-visibility 跳过布局，量出来全是 0；
+      // ② morph 中途播放页还没长到满屏，歌词框高度也不是最终值（量到 682 而不是 728）。
+      // 两种情况都会把滚动位置算坏（就是"歌词位置不对"的根因），所以直接跳过这次测量。
+      const ovEl = $('#overlay');
+      if (ovEl) {
+        if (ovEl.classList.contains('ov-morph-hidden')) return;
+        const r = ovEl.getBoundingClientRect();
+        // 容差 24px：窗口出现/隐藏滚动条时 innerWidth 与播放页宽度会差十几像素，
+        // 但不该因此把正常测量也跳过
+        if (r.width < window.innerWidth - 24 || r.height < window.innerHeight - 24) return;
+      }
       const els = this._lyricEls || [];
       const wrap = $('.ov-lyrics');
       const m = [];
@@ -4107,8 +4384,16 @@
           const target = this._lyricTargetFor(li, p);
           const diff = target - (this._lyricScroll || 0);
           if (Math.abs(diff) > 0.5) {
-            const k = 1 - Math.exp(-dt * 11); // 收敛时间约 250ms
-            this._lyricScroll = Math.max(0, Math.min(target, (this._lyricScroll || 0) + diff * k));
+            const mm = this._lyricM && this._lyricM[li];
+            const lh = (mm && mm.h) || 42;
+            if (Math.abs(diff) > lh * 1.5) {
+              // 跨度超过 1.5 行（拖动进度条 / 长间奏 / 点歌词跳转 / 刚打开播放页）直接到位，
+              // 否则当前行会长时间停在错误位置慢慢滑动
+              this._lyricScroll = target;
+            } else {
+              const k = 1 - Math.exp(-dt * 20); // 收敛时间约 150~220ms，快到几乎看不出"追赶"
+              this._lyricScroll = Math.max(0, Math.min(target, (this._lyricScroll || 0) + diff * k));
+            }
             this._applyLyricScroll();
           }
         }
@@ -4140,12 +4425,15 @@
       return Math.max(0, Math.min(Math.max(0, scrollH - wrapH), target));
     },
 
-    /** 立即把活动行定格到居中位置（翻译/原文本切换后消除滚动追赶动画） */
+    /** 立即把活动行定格到应在的位置（打开播放页 / 大跨度跳转后，消除"追赶"过程）
+     *  注意：不写回 _lyricState.li，留给 _lyricUpdate 去点亮活动行，
+     *  否则状态相同会导致那一行漏掉高亮。 */
     _snapActiveLyric() {
-      const st = this._lyricState;
-      const li = st && st.li;
-      if (li == null || li < 0) return;
-      this._lyricScroll = this._lyricTargetFor(li, 0);
+      const lines = this._lyricLines || [];
+      const st = this._lyricState || (this._lyricState = { li: -1 });
+      let li = st.li;
+      if (li == null || li < 0) li = Lrc.findIndex(lines, Player.audio.currentTime || 0);
+      this._lyricScroll = li >= 0 ? this._lyricTargetFor(li, 0) : 0;
       this._applyLyricScroll();
     },
 
@@ -4208,38 +4496,538 @@
     /* ============================================================
      * 全屏播放页
      * ============================================================ */
+    /* ---------- 播放页过渡（共享元素式：底部播放条 → 全屏播放页） ----------
+     * 用逆变换把全屏页先压回播放条的位置与尺寸，再过渡回原状，
+     * 视觉上就是播放条拉伸放大、渐变展开成播放页；关闭时反向收回。 */
+    _barRect() {
+      const bar = $('#playerbar');
+      if (!bar || bar.classList.contains('hidden')) return null;
+      const r = bar.getBoundingClientRect();
+      if (!r.width || !r.height) return null;
+      return r;
+    },
+    _reducedMotion() {
+      try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; }
+    },
+    /** 展开/收起时让底部播放条跟着淡出、淡入（播放条长成播放页的观感） */
+    _barFade(show, ms) {
+      const bar = $('#playerbar');
+      if (!bar) return;
+      bar.style.transition = 'opacity ' + (ms || 180) + 'ms ease';
+      bar.style.opacity = show ? '1' : '0';
+      clearTimeout(this._barFadeT);
+      this._barFadeT = setTimeout(() => { bar.style.transition = ''; bar.style.opacity = ''; }, (ms || 180) + 60);
+    },
+
+    /** 播放条那块"控件底色"（与 #playerbar 的 background 保持一致） */
+    _plateColor() {
+      let rgb = '30, 30, 36';
+      try {
+        const v = getComputedStyle(document.documentElement).getPropertyValue('--panel-rgb').trim();
+        if (v) rgb = v;
+      } catch (e) {}
+      return 'rgba(' + rgb + ', .78)';
+    },
+    /** 播放页底色（--player-bg） */
+    _playerBg() {
+      try {
+        const v = getComputedStyle(document.documentElement).getPropertyValue('--player-bg').trim();
+        if (v) return v;
+      } catch (e) {}
+      return '#101014';
+    },
+    /** 播放条矩形 → 播放页"那块板"的尺寸（不缩放，只改尺寸，所以圆角永远不会被拉伸） */
+    _morphBox(rect) {
+      return {
+        top: rect.top.toFixed(1) + 'px',
+        left: rect.left.toFixed(1) + 'px',
+        width: rect.width.toFixed(1) + 'px',
+        height: rect.height.toFixed(1) + 'px',
+      };
+    },
+    _applyBox(ov, box) {
+      ov.style.top = box.top; ov.style.left = box.left;
+      ov.style.width = box.width; ov.style.height = box.height;
+    },
+    _clearBox(ov) {
+      ov.style.top = ''; ov.style.left = ''; ov.style.width = ''; ov.style.height = '';
+    },
+    /** 控件那块底色的阴影：读 CSS 变量 --bar-shadow（窄屏下 CSS 换成只落在 8px 间隙里的
+     *  短阴影），动画落地那一帧的阴影因此和播放条静止时完全一致。 */
+    _barShadow() {
+      const bar = $('#playerbar');
+      try {
+        const v = bar && getComputedStyle(bar).getPropertyValue('--bar-shadow').trim();
+        if (v) return v;
+      } catch (e) {}
+      return '0 12px 44px rgba(0, 0, 0, .45)';
+    },
+    /** 把 _barShadow() 拆成数值，供拖动时按进度连续插值 */
+    _barShadowParts() {
+      const v = this._barShadow();
+      // 颜色之前才是长度值：'0 8px 12px -8px rgba(...)' —— 开头的 0 没有单位，
+      // 只按 px 匹配会整体错位（blur 变成负数 → 整条阴影被浏览器丢掉）
+      const head = v.split(/rgba?\(|#/)[0];
+      const n = (head.match(/-?\d*\.?\d+/g) || []).map(parseFloat);
+      const rgba = v.match(/rgba?\(([^)]+)\)/);
+      let a = 0.45;
+      if (rgba) {
+        const parts = rgba[1].split(',');
+        const last = parseFloat(parts[parts.length - 1]);
+        if (isFinite(last)) a = last;
+      }
+      const num = (i, d) => (isFinite(n[i]) ? n[i] : d);
+      return { dx: num(0, 0), dy: num(1, 12), blur: num(2, 44), spread: num(3, 0), alpha: a };
+    },
+    /** 播放条当前的真实圆角：窄屏下 CSS 会改成 24/20px，
+     *  动画里写死 30px 的话落地那一帧就会和播放条对不上（圆角适配不好的根因）。 */
+    _barRadius() {
+      const bar = $('#playerbar');
+      if (!bar) return '30px';
+      try {
+        const v = parseFloat(getComputedStyle(bar).borderTopLeftRadius);
+        return (isFinite(v) && v > 0 ? v : 30) + 'px';
+      } catch (e) { return '30px'; }
+    },
+    /** 播放页展开：控件那块底色**按真实尺寸长大**铺满全屏（只改尺寸+圆角，不做缩放，
+     *  所以圆角不会被拉伸），底色从"控件底色"渐变成播放页底色，阴影实时跟着变，
+     *  内容在后半段淡入。 */
+    _morphOpen(ov) {
+      const rect = this._barRect();
+      if (!rect) return false;
+      const box = this._morphBox(rect);
+      const rad0 = this._barRadius();
+      const shadow = this._barShadow();
+      const plate = this._plateColor();
+      const page = this._playerBg();
+      try { if (this._morphAnim) this._morphAnim.cancel(); } catch (e) {}
+      ov.style.animation = 'none'; // 基础入场动画 ovIn 会抢 transform / 结束后重播
+      const barEl = $('#playerbar');
+      if (barEl) barEl.classList.add('morph-out'); // 控件模糊放大渐隐 + 自身不画底色
+      // 第 0 帧只有"控件底色"：先把内容彻底藏起来（不参与布局），
+      // 尺寸动画期间每帧只画一块圆角板，末尾不会卡；快到位时再淡入内容。
+      // 同时兜底清掉上一次退出/拖动可能残留的内联样式（否则内容会错位或整片黑）
+      this._clearMorphInline();
+      ov.classList.remove('ov-fade-out');
+      ov.classList.add('ov-morph-hidden', 'ov-morph-instant', 'ov-morphing');
+      void ov.offsetWidth;
+      ov.classList.remove('ov-morph-instant');
+      // 首帧就位（控件矩形 + 控件底色），避免闪一下全屏
+      this._applyBox(ov, box);
+      ov.style.backgroundColor = plate;
+      ov.style.borderRadius = rad0;
+      ov.style.boxShadow = shadow;
+      try {
+        this._morphAnim = ov.animate([
+          { offset: 0, top: box.top, left: box.left, width: box.width, height: box.height, borderRadius: rad0, backgroundColor: plate, boxShadow: shadow, backdropFilter: 'blur(26px)', webkitBackdropFilter: 'blur(26px)' },
+          // 阴影/毛玻璃只留在开头这一小段（此时板只有控件那么大，绘制便宜），
+          // 之后整段动画每帧只画一块圆角板 —— 否则每帧重绘大范围阴影+全屏毛玻璃会掉到 20 多帧
+          { offset: 0.16, boxShadow: '0 0 0 rgba(0, 0, 0, 0)', backdropFilter: 'none', webkitBackdropFilter: 'none' },
+          // 圆角前 72% 保持控件那种圆润，最后才收成直角——否则大矩形阶段像一块硬灰板
+          { offset: 0.72, borderRadius: rad0 },
+          { offset: 1, top: '0px', left: '0px', width: '100%', height: '100%', borderRadius: '0px', backgroundColor: page },
+        ], { duration: 460, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'both' }); // WAAPI
+        this._morphAnim.onfinish = () => this._morphSettle(ov);
+      } catch (e) {
+        ov.classList.remove('ov-morph-hidden', 'ov-morph-instant', 'ov-morphing');
+        this._clearBox(ov);
+        ov.style.backgroundColor = ''; ov.style.borderRadius = ''; ov.style.boxShadow = '';
+        ov.style.animation = '';
+        return false;
+      }
+      clearTimeout(this._morphContentT);
+      // 内容出现的时间点交给动画时间轴（不再用 setTimeout：主线程一卡，定时器就晚触发，
+      // 那段时间底色已经变黑而内容还没出来 —— 就是"黑屏一下"）。
+      // 布局被 .ov-fill 固定在视口尺寸，所以提前淡入不会带来任何重排，是纯合成开销。
+      const fillEl = $('#ov-fill');
+      this._fillAnim = null;
+      if (fillEl) {
+        try {
+          this._fillAnim = fillEl.animate([
+            // 内容已经在板里，会随板一起上下移动，所以这里只做**横向**反向平移（保持水平居中）：
+            // 纵向再加一次位移会变成两倍行程（手指动一点、内容跑一大截）
+            { offset: 0, transform: 'translate3d(' + (-rect.left).toFixed(1) + 'px,0,0)', opacity: 0 },
+            { offset: 0.18, opacity: 0 },
+            { offset: 0.5, opacity: 1 },
+            { offset: 1, transform: 'none', opacity: 1 },
+          ], { duration: 460, easing: 'cubic-bezier(.32,.72,0,1)', fill: 'both' }); // WAAPI
+        } catch (e) { this._fillAnim = null; }
+      }
+      clearTimeout(this._morphT);
+      this._morphT = setTimeout(() => this._morphSettle(ov), 500); // 兜底
+      return true;
+    },
+    /** 清掉内容层与播放条控件上的内联样式（拖动/动画残留），进入与收尾都要调一次 */
+    _clearMorphInline() {
+      const fillEl = $('#ov-fill');
+      if (fillEl) { fillEl.style.transform = ''; fillEl.style.opacity = ''; }
+      const barEl = $('#playerbar');
+      if (barEl) {
+        for (let i = 0; i < barEl.children.length; i++) {
+          const c = barEl.children[i];
+          c.style.filter = ''; c.style.opacity = ''; c.style.transform = ''; c.style.transition = '';
+        }
+      }
+    },
+    /** 动画收尾：清掉内联样式与临时类，回到播放页的常态 */
+    _morphSettle(ov) {
+      if (!ov) ov = $('#overlay');
+      clearTimeout(this._morphContentT);
+      if (this._morphAnim) { try { this._morphAnim.cancel(); } catch (e) {} this._morphAnim = null; }
+      if (this._plateAnim) { try { this._plateAnim.cancel(); } catch (e) {} this._plateAnim = null; }
+      if (this._fillAnim) { try { this._fillAnim.cancel(); } catch (e) {} this._fillAnim = null; }
+      this._clearBox(ov);
+      ov.style.backgroundColor = '';
+      ov.style.borderRadius = '';
+      ov.style.boxShadow = '';
+      ov.style.animation = 'none';
+      ov.classList.remove('ov-morph-hidden', 'ov-morph-instant', 'ov-morphing', 'ov-fade-out');
+      // 清掉内容层与播放条控件上所有拖动/动画留下的内联样式。
+      // 漏掉这里就会出现"退出后再进入内容错位/整片黑"（残留的 translate/opacity 一直生效）。
+      this._clearMorphInline();
+      // 展开结束时播放页已经是满屏、内容也已恢复，这时补量一次并把当前行重新就位
+      // （morph 期间为了不让尺寸/布局中途的假数据污染缓存，测量都被跳过了）
+      if (!ov.classList.contains('hidden')) {
+        this._measureLyrics();
+        this._snapActiveLyric();
+      }
+    },
+    /** 建立"退出"用的三条动画（底色 / 几何 / 内容），共 520ms 同一条时间轴。
+     *  正常退出用 ctl.play()；顶部小横条按住拖动时用 ctl.seek(p) 由手指驱动 —— 
+     *  这样"退出动画随小横条改变"用的是同一套动画，松手后接着播完即可。 */
+    _buildClose(ov) {
+      const rect = this._barRect();
+      if (!rect) return null;
+      const box = this._morphBox(rect);
+      const rad0 = this._barRadius();
+      const shadow = this._barShadow();
+      const plate = this._plateColor();
+      const page = this._playerBg();
+      const D = 520;
+      const easing = 'cubic-bezier(.32,.72,0,1)';
+      try { if (this._morphAnim) this._morphAnim.cancel(); } catch (e) {}
+      if (this._plateAnim) { try { this._plateAnim.cancel(); } catch (e) {} }
+      if (this._fillAnim) { try { this._fillAnim.cancel(); } catch (e) {} }
+      this._morphAnim = null; this._plateAnim = null; this._fillAnim = null;
+      clearTimeout(this._morphContentT);
+      clearTimeout(this._morphT);
+      ov.style.animation = 'none';
+      const barC = $('#playerbar');
+      if (barC) { barC.classList.add('morph-top'); barC.classList.remove('morph-out'); }
+      ov.classList.add('ov-fade-out', 'ov-morphing');
+
+      // ① 底色：大部分时间保持播放页底色（这样内容一直看得清、也不会整屏发白），
+      //    只在板快缩到控件大小时才换成控件底色
+      try {
+        this._plateAnim = ov.animate([
+          { offset: 0, backgroundColor: page },
+          { offset: 0.55, backgroundColor: page },
+          { offset: 0.9, backgroundColor: plate },
+          { offset: 1, backgroundColor: plate },
+        ], { duration: D, easing: easing, fill: 'both' }); // WAAPI
+      } catch (e) { this._plateAnim = null; }
+      // ② 几何：立刻开始收缩（不做"先停住"的保持帧，否则那段时间是一整屏空板）
+      try {
+        this._morphAnim = ov.animate([
+          { offset: 0, top: '0px', left: '0px', width: '100%', height: '100%', borderRadius: '0px' },
+          { offset: 0.3, borderRadius: rad0 },
+          { offset: 0.7, boxShadow: '0 0 0 rgba(0, 0, 0, 0)', backdropFilter: 'blur(0px)', webkitBackdropFilter: 'blur(0px)' },
+          { offset: 1, top: box.top, left: box.left, width: box.width, height: box.height, borderRadius: rad0, boxShadow: shadow, backdropFilter: 'blur(26px)', webkitBackdropFilter: 'blur(26px)' },
+        ], { duration: D, easing: easing, fill: 'both' }); // WAAPI
+      } catch (e) { this._morphAnim = null; }
+      if (!this._morphAnim) {
+        ov.classList.remove('ov-morph-hidden', 'ov-morphing', 'ov-fade-out');
+        ov.style.animation = '';
+        if (barC) barC.classList.remove('morph-top');
+        return null;
+      }
+      // ③ 内容：同一条时间轴淡出并反向位移（屏幕上原地不动）
+      const fillEl = $('#ov-fill');
+      if (fillEl) {
+        try {
+          this._fillAnim = fillEl.animate([
+            // 内容跟着板一起往下滑（横向反向平移保持水平居中，纵向不重复位移），
+            // 大部分时间保持可见，快落地时才淡出 —— 全程都有画面，不会出现空板或发白的纱
+            { offset: 0, transform: 'none', opacity: 1 },
+            { offset: 0.72, opacity: 1 },
+            { offset: 1, transform: 'translate3d(' + (-rect.left).toFixed(1) + 'px,0,0)', opacity: 0 },
+          ], { duration: D, easing: easing, fill: 'both' }); // WAAPI
+        } catch (e) { this._fillAnim = null; }
+      }
+      const anims = [this._morphAnim];
+      if (this._plateAnim) anims.push(this._plateAnim);
+      if (this._fillAnim) anims.push(this._fillAnim);
+      return { ov: ov, D: D, anims: anims };
+    },
+    /** 落地收尾：换回播放条自己（最后一帧两者完全一致，看不出接缝） */
+    _closeFinish(ov) {
+      clearTimeout(this._morphT);
+      this._morphSettle(ov);
+      const barEnd = $('#playerbar');
+      if (barEnd) {
+        barEnd.style.transition = 'none';
+        barEnd.classList.remove('morph-top', 'morph-out');
+        void barEnd.offsetWidth;
+        barEnd.style.transition = '';
+      }
+    },
+    /** 播放页收起：内容先淡出，那块底色缩回控件矩形并渐变成控件底色 */
+    _morphClose(ov, done) {
+      const ctl = this._buildClose(ov);
+      if (!ctl) { done(); return false; }
+      ctl.anims.forEach((a) => { try { a.play(); } catch (e) {} });
+      clearTimeout(this._morphT);
+      this._morphT = setTimeout(() => {
+        // 先隐藏播放页，再清理内联样式/类：否则最后会闪一帧"内容全亮"的小板
+        done();
+        this._closeFinish(ov);
+      }, ctl.D + 40);
+      return true;
+    },
+    /** 颜色插值：'rgb(a)' / 'rgba(...)' / '#rrggbb' 都吃 */
+    _mixColor(a, b, t) {
+      const parse = (c) => {
+        c = String(c || '').trim();
+        let m = /^rgba?\(([^)]+)\)$/i.exec(c);
+        if (m) { const p = m[1].split(',').map((x) => parseFloat(x)); return [p[0] || 0, p[1] || 0, p[2] || 0, p.length > 3 ? p[3] : 1]; }
+        m = /^#([0-9a-f]{6})$/i.exec(c);
+        if (m) { const n = parseInt(m[1], 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1]; }
+        return [16, 16, 20, 1];
+      };
+      const A = parse(a), B = parse(b);
+      const v = (i) => A[i] + (B[i] - A[i]) * t;
+      return 'rgba(' + Math.round(v(0)) + ', ' + Math.round(v(1)) + ', ' + Math.round(v(2)) + ', ' + v(3).toFixed(3) + ')';
+    },
+    /** 拖动时"直接跟随"：只按手指位置设置内联样式，不走时间轴（避免手指动一点、背景跑一大截） */
+    _grabApply(p) {
+      const ov = $('#overlay'), fill = $('#ov-fill'), r = this._grabRect;
+      if (!r || !ov) return;
+      const W = window.innerWidth, H = window.innerHeight;
+      const rad = parseFloat(this._barRadius()) || 30;
+      const lerp = (a, b) => a + (b - a) * p;
+      ov.style.top = lerp(0, r.top).toFixed(1) + 'px';
+      ov.style.left = lerp(0, r.left).toFixed(1) + 'px';
+      ov.style.width = lerp(W, r.width).toFixed(1) + 'px';
+      ov.style.height = lerp(H, r.height).toFixed(1) + 'px';
+      // 满屏时圆角必须是 0（否则四角会露出主页），缩到约 1/3 时到 30px
+      ov.style.borderRadius = (rad * Math.min(1, p * 3)).toFixed(1) + 'px';
+      // 底色：前 55% 保持播放页底色（内容清晰、不发白），之后才换成控件底色
+      ov.style.backgroundColor = this._mixColor(this._playerBg(), this._plateColor(), Math.max(0, Math.min(1, (p - 0.55) / 0.35)));
+      // 阴影 / 毛玻璃：跟着进度连续变化（不要"突然出现、突然消失"）
+      // 数值必须取自播放条当前真实阴影（窄屏是 8/12/-8 .55，宽屏才是 12/44 .45）：
+      // 以前写死 12/44/.45，窄屏拖动缩小时那层 44px 阴影会越过 8px 间隙盖到导航栏上。
+      // 注意：拖动期间播放条自己挂着 .morph-out/.morph-top，CSS 里 box-shadow 是 none，
+      // 所以这段时间阴影只能由这块板来画 —— 收到 0 就会「拖动时完全没有阴影」。
+      // 落地时板正好是控件矩形，阴影落在 8px 间隙里，不会碰到导航栏，所以不需要收回。
+      const s = Math.max(0, Math.min(1, (p - 0.55) / 0.45));
+      const sp = this._barShadowParts();
+      ov.style.boxShadow = s <= 0.01 ? 'none'
+        : (sp.dx * s).toFixed(1) + 'px ' + (sp.dy * s).toFixed(1) + 'px ' + (sp.blur * s).toFixed(1) + 'px '
+          + (sp.spread * s).toFixed(1) + 'px rgba(0, 0, 0, ' + (sp.alpha * s).toFixed(3) + ')';
+      const b = Math.max(0, Math.min(1, (p - 0.62) / 0.38));
+      ov.style.backdropFilter = b <= 0.03 ? 'none' : 'blur(' + (26 * b).toFixed(1) + 'px)';
+      // 播放条自身：拖动期间保持"不画底色、控件隐藏"（底色由这块板承担），
+      // 只有板快缩到控件大小时才把真实毛玻璃底交还回去 —— 否则全程都挂着一条"幽灵控件条"
+      const barEl = $('#playerbar');
+      if (barEl) {
+        const near = p > 0.82;
+        if (near && barEl.classList.contains('morph-out')) { barEl.classList.add('morph-top'); barEl.classList.remove('morph-out'); }
+        else if (!near && barEl.classList.contains('morph-top')) { barEl.classList.add('morph-out'); barEl.classList.remove('morph-top'); }
+      }
+      if (fill) {
+        // 内容随板一起上下移动（无需再加纵向位移），只做横向反向平移保持水平居中；
+        // 最后 28% 淡出
+        fill.style.opacity = String(Math.max(0, Math.min(1, (1 - p) / 0.28)));
+        fill.style.transform = 'translate3d(' + (-lerp(0, r.left)).toFixed(1) + 'px,0,0)';
+      }
+      // 底部控件：模糊/透明/缩放全部跟着拖动进度走（前 50% 基本看不见，之后逐渐清晰），
+      // 而不是一开始就按 CSS 过渡慢慢恢复
+      const bar = $('#playerbar');
+      if (bar) {
+        const q = Math.max(0, Math.min(1, (p - 0.5) / 0.45));
+        for (let i = 0; i < bar.children.length; i++) {
+          const c = bar.children[i];
+          c.style.filter = 'blur(' + (10 * (1 - q)).toFixed(2) + 'px)';
+          c.style.opacity = q.toFixed(3);
+          c.style.transform = q >= 1 ? '' : 'scale(' + (1 + 0.55 * (1 - q)).toFixed(3) + ')';
+          c.style.transition = 'none';
+        }
+      }
+    },
+    /** 让底部控件从当前状态过渡到目标状态（拖动松手后调用），结束后交给 CSS */
+    _grabBarTo(toVisible, dur, ease) {
+      const bar = $('#playerbar');
+      if (!bar) return null;
+      const anims = [];
+      for (let i = 0; i < bar.children.length; i++) {
+        const c = bar.children[i];
+        const from = {
+          filter: c.style.filter || 'none',
+          opacity: c.style.opacity === '' ? 1 : parseFloat(c.style.opacity),
+          transform: c.style.transform || 'none',
+        };
+        const to = toVisible
+          ? { filter: 'none', opacity: 1, transform: 'none' }
+          : { filter: 'blur(10px)', opacity: 0, transform: 'scale(1.55)' };
+        try { anims.push({ el: c, anim: c.animate([from, to], { duration: dur, easing: ease, fill: 'both' }) }); } catch (e) {}
+      }
+      return anims;
+    },
+    /** 松手后收尾：toClosed=true 继续退出，false 弹回打开态 */
+    _grabRelease(toClosed) {
+      const ov = $('#overlay'), fill = $('#ov-fill'), r = this._grabRect;
+      const W = window.innerWidth, H = window.innerHeight;
+      const rad0 = this._barRadius();
+      const cur = {
+        top: ov.style.top || '0px', left: ov.style.left || '0px',
+        width: ov.style.width || (W + 'px'), height: ov.style.height || (H + 'px'),
+        borderRadius: ov.style.borderRadius || '0px',
+      };
+      const tgt = toClosed
+        ? { top: r.top + 'px', left: r.left + 'px', width: r.width + 'px', height: r.height + 'px', borderRadius: rad0 }
+        : { top: '0px', left: '0px', width: W + 'px', height: H + 'px', borderRadius: '0px' };
+      const curBg = ov.style.backgroundColor || this._playerBg();
+      const tgtBg = toClosed ? this._plateColor() : this._playerBg();
+      const dur = toClosed ? 190 : 220;
+      const ease = 'cubic-bezier(.22,.61,.36,1)';
+      const a = ov.animate([Object.assign({ backgroundColor: curBg }, cur), Object.assign({ backgroundColor: tgtBg }, tgt)],
+        { duration: dur, easing: ease, fill: 'both' });
+      const barAnims = this._grabBarTo(toClosed, dur, ease);
+      let fa = null;
+      if (fill) {
+        const curT = fill.style.transform || 'none';
+        const curO = fill.style.opacity || '1';
+        const endT = toClosed
+          ? 'translate3d(' + (-r.left).toFixed(1) + 'px,0,0)'
+          : 'none';
+        fa = fill.animate([{ transform: curT, opacity: parseFloat(curO) }, { transform: endT, opacity: toClosed ? 0 : 1 }],
+          { duration: dur, easing: ease, fill: 'both' });
+      }
+      clearTimeout(this._morphT);
+      this._morphT = setTimeout(() => {
+        try { a.cancel(); } catch (e) {}
+        if (fa) { try { fa.cancel(); } catch (e) {} }
+        if (barAnims) barAnims.forEach((x) => { try { x.anim.cancel(); } catch (e) {} x.el.style.filter = ''; x.el.style.opacity = ''; x.el.style.transform = ''; x.el.style.transition = ''; });
+        if (toClosed) {
+          ov.classList.add('hidden');
+          document.body.classList.remove('no-scroll');
+          this._closeFinish(ov);
+        } else {
+          this._morphSettle(ov);
+          if (fill) { fill.style.transform = ''; fill.style.opacity = ''; }
+          const bar = $('#playerbar');
+          if (bar) { bar.classList.add('morph-out'); bar.classList.remove('morph-top'); }
+        }
+      }, dur + 30);
+    },
+    /** 顶部小横条：点按=直接退出；按住下滑=按手指 1:1 拖动退出动画，松手按进度决定退出还是弹回 */
+    _bindGrab() {
+      const g = $('#ov-grab');
+      if (!g || g.dataset.bound) return;
+      g.dataset.bound = '1';
+      let st = null;
+      const hidden = () => $('#overlay').classList.contains('hidden');
+      g.addEventListener('pointerdown', (e) => {
+        if (hidden()) return;
+        e.preventDefault();
+        try { g.setPointerCapture(e.pointerId); } catch (err) {}
+        st = { id: e.pointerId, y0: e.clientY, moved: false, p: 0 };
+        g.classList.add('on');
+      });
+      g.addEventListener('pointermove', (e) => {
+        if (!st || e.pointerId !== st.id) return;
+        const dy = e.clientY - st.y0;
+        if (!st.moved) {
+          if (dy < 6) return;                      // 位移太小：仍按点按处理
+          st.moved = true;
+          const ov = $('#overlay');
+          this._grabRect = this._barRect();         // 目标 = 控件矩形（固定住，拖动中不变）
+          if (!this._grabRect) { st = null; g.classList.remove('on'); return; }
+          ov.style.animation = 'none';
+          ov.classList.add('ov-morphing', 'ov-morph-instant');
+          // 播放条保持 .morph-out（不画底色 + 控件处于"溶解"状态），
+          // 真正的交还在 _grabApply 里按进度做（p>0.82 才切回 .morph-top）
+          const bar0 = $('#playerbar');
+          if (bar0) { bar0.classList.add('morph-out'); bar0.classList.remove('morph-top'); }
+        }
+        // 1:1：板的上边缘就跟着手指走（总行程 = 控件矩形上边缘的距离）
+        const p = Math.max(0, Math.min(1, dy / Math.max(1, this._grabRect.top)));
+        st.p = p;
+        this._grabApply(p);
+      });
+      const end = (e) => {
+        if (!st || (e && e.pointerId !== st.id)) return;
+        const s2 = st; st = null;
+        g.classList.remove('on');
+        try { g.releasePointerCapture(s2.id); } catch (err) {}
+        if (!s2.moved) { this.closeOverlay(); return; }   // 点按：直接退出播放器页面
+        this._grabRelease(s2.p > 0.3);
+      };
+      g.addEventListener('pointerup', end);
+      g.addEventListener('pointercancel', end);
+      g.addEventListener('lostpointercapture', end);
+      // 截图工具（微信截图 / Win+Shift+S 等）会抢焦点、吞掉 pointerup，
+      // 不做兜底页面就会永远卡在拖动中间那一帧
+      window.addEventListener('blur', () => { if (st) end({ pointerId: st.id }); });
+      document.addEventListener('visibilitychange', () => { if (document.hidden && st) end({ pointerId: st.id }); });
+      window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && st) end({ pointerId: st.id }); });
+    },
     openOverlay() {
       if (!Player.current()) { toast('当前没有播放歌曲', 'warn'); return; }
       const ov = $('#overlay');
       clearTimeout(this._ovT);
-      ov.classList.remove('hidden', 'ov-closing');
-      ov.classList.add('ov-opening');
-      this._ovT = setTimeout(() => ov.classList.remove('ov-opening'), 420);
+      ov.classList.remove('hidden', 'ov-closing', 'ov-opening');
+      // 先把 body 的滚动状态改好再启动动画：否则动画第一帧还要顺带重排整页（几千行的列表），
+      // 起步就会卡一下，看起来"生硬"
       document.body.classList.add('no-scroll');
+      void document.body.offsetHeight;
+      // 歌词度量必须发生在 morph **之前**：morph 期间内容被 content-visibility 跳过布局，
+      // 那时量 offsetTop/offsetHeight 全是 0，滚动位置就会算错（歌词位置不对的根因）。
       this.startLyricLoop();
       this._syncLyric(Player.curTime);
-      // 等自定义字体就绪后重测行高（字体加载会改变行高，缓存的 offsetTop 会失效）
       this._measureLyrics();
+      // 进场就位：用刚测好的行位置直接定格到当前行
+      this._snapActiveLyric();
+      if (!this._morphOpen(ov)) {
+        // fallback: bar unavailable or reduced-motion -> plain fade
+        ov.classList.add('ov-opening');
+        this._ovT = setTimeout(() => ov.classList.remove('ov-opening'), 420);
+      }
       if (document.fonts && document.fonts.ready) {
         document.fonts.ready.then(() => {
-          if (!document.getElementById('overlay').classList.contains('hidden')) this._measureLyrics();
+          if (!document.getElementById('overlay').classList.contains('hidden')) {
+            this._measureLyrics();
+            this._snapActiveLyric();
+          }
         }).catch(() => {});
       }
     },
     closeOverlay() {
+      // 一起听房间内的成员不允许返回主页面（避免与房主进度互相打架）：
+      // 只能通过「退出一起听房间」按钮离开，房主可自由返回切歌。
+      if (window.ListenTogether && ListenTogether.inRoom() && !ListenTogether.isHost()) {
+        toast('房间里请点右上角「退出一起听房间」', 'warn');
+        return;
+      }
       const ov = $('#overlay');
       this.stopLyricLoop();
       if (!$('#queue-drawer').classList.contains('hidden')) this.closeQueue();
-      document.body.classList.remove('no-scroll');
       if (ov.classList.contains('hidden')) return;
-      // 退出动画：下滑淡出后再隐藏（期间再次打开会取消并直接显示）
+      // 退出动画：缩回底部播放条后隐藏（morph 不可用时退回淡出）
       clearTimeout(this._ovT);
-      ov.classList.remove('ov-opening');
-      ov.classList.add('ov-closing');
-      this._ovT = setTimeout(() => {
+      ov.classList.remove('ov-opening', 'ov-closing');
+      // body 的滚动状态等动画结束再恢复：一开始就改会让动画首帧顺带重排整页，起步卡顿
+      const finish = () => {
         ov.classList.add('hidden');
         ov.classList.remove('ov-closing');
-      }, 260);
+        document.body.classList.remove('no-scroll');
+      };
+      if (!this._morphClose(ov, finish)) {
+        const barEl3 = $('#playerbar'); if (barEl3) barEl3.classList.remove('morph-out', 'morph-top');
+        this._morphSettle(ov);
+        ov.classList.add('ov-closing');
+        this._ovT = setTimeout(finish, 260);
+      }
     },
 
     /* ---------------- 音质（仅设置弹窗内切换） ---------------- */
@@ -5575,7 +6363,7 @@
         ms.metadata = new MediaMetadata({
           title: s.name,
           artist: artistList(s.artists).map(a => a.name).join(' / '),
-          album: s.album ? s.album.name : '',
+          album: Player.albumName(s.album),
           artwork: s.cover ? [{ src: coverUrl(s.cover), sizes: '512x512', type: 'image/jpeg' }] : [],
         });
       });

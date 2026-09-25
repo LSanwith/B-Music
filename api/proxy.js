@@ -5,9 +5,8 @@
  *  - nt=1 表示落七七（18years）整合源请求：密钥同样由服务端注入
  * Secrets：HONGYUN_KEY（红云点歌密钥；不设则 hk=1 返回 500，红云兜底不可用）
  *          NT18_KEY（落七七密钥；不设则 nt=1 返回 500，落七七辅助源不可用）
- *          SANWITH_SKEY（Sanwith 网易云 API 密钥；不设则 sw=1 返回 500） */
+ */
 const PROXY_ALLOWED = [
-  'https://silence-music-api.cc.cd',
   'https://silence-music-api.de5.net',
   'https://sience-music-api-backup.de5.net',
   'https://zm.wwoyun.cn',
@@ -53,27 +52,21 @@ export default async function handler(req, res) {
   const target = req.query.u;
   const hk = req.query.hk === '1';
   const nt = req.query.nt === '1';
-  const sw = req.query.sw === '1';
   if (!target) return res.status(400).json({ code: -1, msg: 'missing u' });
   let dest;
   try { dest = new URL(target); } catch (e) { return res.status(400).json({ code: -1, msg: 'bad url' }); }
   if (PROXY_ALLOWED.indexOf(dest.origin) < 0 || dest.protocol !== 'https:') {
     return res.status(403).json({ code: -1, msg: 'forbidden' });
   }
-  if (hk || nt || sw) {
+  if (hk || nt) {
     const isHkDest = dest.origin === 'https://api.xunjinlu.fun';
     const isNtDest = dest.origin === 'https://api.18years.ink';
-    const isSwDest = dest.origin === 'https://www.sanwith.cc.cd';
-    if ((hk && !isHkDest) || (nt && !isNtDest) || (sw && !isSwDest)) {
+    if ((hk && !isHkDest) || (nt && !isNtDest)) {
       return res.status(403).json({ code: -1, msg: 'key not allowed for this origin' });
     }
-    const key = hk ? (process.env.HONGYUN_KEY || '')
-      : (nt ? (process.env.NT18_KEY || '') : (process.env.SANWITH_SKEY || ''));
-    if (!key) {
-      return res.status(500).json({ code: -1, msg: (hk ? 'HONGYUN_KEY' : (nt ? 'NT18_KEY' : 'SANWITH_SKEY')) + ' not set' });
-    }
-    if (sw) dest.searchParams.set('SKey', key);
-    else dest.searchParams.set('key', key);
+    const key = hk ? (process.env.HONGYUN_KEY || '') : (process.env.NT18_KEY || '');
+    if (!key) return res.status(500).json({ code: -1, msg: (hk ? 'HONGYUN_KEY' : 'NT18_KEY') + ' not set' });
+    dest.searchParams.set('key', key);
   }
   // POST（音频上传等）：透传方法与原始 body
   const isPost = req.method && req.method !== 'GET' && req.method !== 'HEAD';

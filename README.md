@@ -38,7 +38,7 @@ PORT=8080 node server.js
 | 用途 | 接口 | 说明 |
 | --- | --- | --- |
 | 搜索/歌单/歌词/详情 | `silence-music-api.de5.net`（silence API 新地址）、`sience-music-api-backup.de5.net`（旧备份）、`zm.wwoyun.cn`、`www.sanwith.cc.cd`（Sanwith，需 SKey）、`music.mcseekeri.com` | 网易云音乐 API（多镜像自动容灾；原 `silence-music-api.cc.cd` 域名 SSL 不稳） |
-| 辅助搜索 / 解灰直链 | `www.sanwith.cc.cd`（Sanwith API） | 歌曲搜索与镜像并行、结果偏少时合并补充；`/song/url/match` 作为播放兜底（SKey 由代理 `sw=1` 注入） |
+| 辅助搜索 / 解灰直链 | `www.sanwith.cc.cd`（Sanwith API，同内核） | 歌曲搜索与镜像并行、结果偏少时合并补充；`/song/url/match` 作为播放兜底；官方已取消密钥校验 |
 | 播放地址兜底 / 解锁 | `api.xunjinlu.fun/apis/wymusicv4`（红云点歌v4） | 镜像拿不到直链时兜底 |
 | 播放地址竞速 / 解锁 | `api.18years.ink/Interface/Netease/`（落七七） | 与红云并行竞速，VIP 歌常用此源解锁 |
 

@@ -23,6 +23,7 @@
   --radius: 12px;
   --side-w: 238px;
   --bar-h: 76px;
+  --player-bg: #101014;   /* player page background (#overlay bg); the bar morph aligns to it */
   --topbar-h: 70px;
   --ease: cubic-bezier(.25, .1, .25, 1);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
@@ -520,7 +521,7 @@ button.vol-icon:hover { color: var(--fg-strong); background: var(--panel2); }
 
 /* ============ å…¨å±æ’­æ”¾é¡µï¼ˆNow Playingï¼‰ ============ */
 #overlay {
-  position: fixed; inset: 0; z-index: 100; background: #101014;
+  position: fixed; inset: 0; z-index: 100; background: var(--player-bg, #101014);
   display: flex; flex-direction: column; overflow: hidden;
   animation: ovIn .4s var(--ease);
 }
@@ -3294,3 +3295,545 @@ body::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: no
 .lt-msg.mine .lt-msg-body { text-align: right; }
 .lt-msg.mine .lt-msg-head { justify-content: flex-end; }
 .lt-msg-text { display: inline-block; max-width: 100%; }
+
+/* ===== v135: listen room view - live info, progress bar, tabs ===== */
+#listen .lt-room { display: block; }
+.lt-now {
+  padding: 12px 14px; border-radius: 14px;
+  background: var(--panel2); border: 1px solid var(--border);
+}
+.lt-now-line { display: flex; align-items: baseline; gap: 10px; }
+.lt-now-line .lt-song { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lt-count {
+  flex: none; font-size: 11.5px; font-weight: 700; color: var(--accent);
+  padding: 2px 8px; border-radius: 999px; background: var(--accent-soft);
+}
+.lt-progress { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.lt-time { font-size: 11px; color: var(--sub); font-variant-numeric: tabular-nums; flex: none; min-width: 34px; }
+.lt-progress input[type="range"] {
+  flex: 1; min-width: 0; height: 4px; appearance: none; -webkit-appearance: none;
+  border-radius: 999px; background: rgba(var(--fg-rgb), .16); outline: none; cursor: pointer;
+}
+.lt-progress input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--accent); border: 0; box-shadow: 0 2px 6px rgba(0,0,0,.35);
+}
+.lt-progress input[type="range"]::-moz-range-thumb {
+  width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--accent);
+}
+.lt-now .lt-members { margin-top: 10px; }
+
+/* €÷ / J) $*buÂlJ„H,h7	 */
+.lt-tabs {
+  display: flex; gap: 6px; margin: 12px 0 10px; padding: 4px;
+  background: var(--panel2); border: 1px solid var(--border); border-radius: 12px;
+}
+.lt-tab {
+  flex: 1; height: 34px; border: 0; border-radius: 9px; cursor: pointer;
+  background: none; color: var(--sub); font-size: 13px; font-weight: 600;
+  transition: background .18s var(--ease), color .18s var(--ease);
+}
+.lt-tab:hover { color: var(--text); }
+.lt-tab.active { background: var(--accent); color: var(--fg-strong); }
+.lt-pane { min-height: 0; }
+.lt-invite-tip { margin: 12px 0 0; font-size: 12px; line-height: 1.6; color: var(--sub); text-align: center; }
+.lt-invite { padding: 14px 16px; }
+
+/* ­>uX0„ ú w,?ô	® */
+.ov-leave-room {
+  height: 34px; padding: 0 14px; border-radius: 999px; cursor: pointer; flex: none;
+  background: var(--accent-soft); border: 1px solid rgba(var(--accent-rgb), .45);
+  color: var(--accent); font-size: 13px; font-weight: 700;
+}
+.ov-leave-room:hover { background: var(--accent); color: var(--fg-strong); }
+
+/* ===== v136: listen - left side tabs (like the notice dialog) ===== */
+.lt-main { display: flex; gap: 12px; align-items: stretch; }
+.lt-side {
+  flex: none; width: 104px; display: flex; flex-direction: column; gap: 6px;
+}
+.lt-side .lt-tab {
+  height: 44px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer;
+  background: var(--panel2); color: var(--sub);
+  font-size: 13px; font-weight: 600; letter-spacing: .2px;
+  transition: background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease);
+}
+.lt-side .lt-tab:hover { color: var(--text); background: var(--panel); }
+.lt-side .lt-tab.active {
+  background: var(--accent); border-color: transparent; color: var(--fg-strong);
+}
+.lt-content { flex: 1; min-width: 0; }
+.lt-content .lt-invite { height: 100%; }
+.lt-content .lt-chat { height: 176px; }
+
+@media (max-width: 520px) {
+  .lt-side { width: 82px; }
+  .lt-side .lt-tab { height: 40px; font-size: 12.5px; }
+  .lt-content .lt-chat { height: 138px; }
+}
+
+/* ç„*u~7\ŸÝY{|¹	 */
+.lt-tabs { all: unset; }
+
+/* ===== v137: listen - three compact left tabs, even spacing, fixed panel =====
+ * panel: fixed 480x500 while in a room (was auto 460x485)
+ * tabs: compact 34px pills, 88px column, uniform 10px gaps
+ */
+#listen .lt-panel.in-room { width: min(480px, 94vw); height: min(500px, 88vh); }
+#listen .modal-body { display: flex; flex-direction: column; }
+#listen .lt-room { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#listen .lt-main { flex: 1; min-height: 0; display: flex; gap: 10px; align-items: stretch; }
+#listen .lt-side { all: unset; display: flex; flex-direction: column; gap: 8px; flex: none; width: 88px; }
+#listen .lt-side .lt-tab {
+  height: 34px; padding: 0 4px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer;
+  background: var(--panel2); color: var(--sub); font-size: 12.5px; font-weight: 600;
+  transition: background .18s var(--ease), color .18s var(--ease), border-color .18s var(--ease);
+}
+#listen .lt-side .lt-tab:hover { color: var(--text); background: var(--panel); }
+#listen .lt-side .lt-tab.active { background: var(--accent); border-color: transparent; color: var(--fg-strong); }
+#listen .lt-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+#listen .lt-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+#listen .lt-pane .lt-invite { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+#listen .lt-pane .lt-chat { flex: 1; min-height: 0; height: auto; }
+#listen .lt-now { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+#listen .lt-now .lt-members { margin-top: 10px; }
+
+/* IÝáoW / ;: / •è	® ß  10px */
+#listen .lt-room { gap: 10px; }
+#listen .lt-invite { padding: 14px; }
+#listen .lt-leave { margin-top: 0; }
+#listen .lt-input { margin-top: 10px; }
+
+@media (max-width: 520px) {
+  #listen .lt-side { width: 74px; }
+  #listen .lt-side .lt-tab { height: 32px; font-size: 12px; }
+}
+
+/* ===== v137b: body fills the fixed panel height ===== */
+#listen .lt-panel.in-room .modal-body { flex: 1; min-height: 0; }
+#listen .lt-panel.in-room .lt-room { height: 100%; }
+
+/* ===== v137c: left tabs must not grow (v135 left flex:1 on them) ===== */
+#listen .lt-side .lt-tab { flex: none; width: 100%; }
+
+/* ===== v137d: room pane content top aligned ===== */
+#listen .lt-now { justify-content: flex-start; }
+#listen .lt-pane .lt-invite { justify-content: flex-start; }
+
+/* ===== v138 / v144: keep spaces in karaoke words, but never block wrapping =====
+ * v138: a word span holding a single space collapsed to zero width, so spaces inside
+ *       the line vanished while playing; white-space: pre preserved them.
+ * v144: pre also forbids breaking INSIDE that span, so when a lyric source hands us a
+ *       whole phrase as one word (or the column is narrow), the row cannot wrap: it is
+ *       clipped by the lyrics box, and breaks only land on span edges (e.g. "Hey" alone
+ *       on a row). pre-wrap keeps the spaces AND lets the browser wrap normally.
+ */
+.ly-line.active .ly-w,
+#overlay[data-karaoke] .ly-w { white-space: pre-wrap; }
+
+/* ===== v139: bottom bar dissolves into the player =====
+ * Entering the player: the bar content (cover / title / buttons) blurs out while the
+ * bar background cross-fades into the player background, so the expanding window
+ * reveals a player whose backdrop already matches. Leaving plays it backwards.
+ */
+#playerbar {
+  transition: background-color .5s var(--ease), border-color .5s var(--ease),
+    border-radius .5s var(--ease), box-shadow .5s var(--ease);
+}
+#playerbar > * {
+  transition: filter .42s var(--ease), opacity .42s var(--ease);
+}
+#playerbar.morph-out {
+  background-color: #101014;
+  border-color: transparent;
+  /* v163: keep the real radius while morphing (it is invisible then, but the
+     morph animations read it to land with matching corners) */
+  box-shadow: none;
+}
+#playerbar.morph-out > * { filter: blur(9px); opacity: 0; }
+
+/* ===== v140: bar controls dissolve into the player (final) =====
+ * Enter: every control inside the bar blurs and scales UP until it disappears,
+ *        while the bar background fades away so the player background shows through.
+ *        The bar is lifted above the player during the morph so it can dissolve on top.
+ * Leave: background fades back in, controls come down from blurred/large to sharp.
+ */
+#playerbar {
+  transition: background-color .55s var(--ease), border-color .55s var(--ease),
+    border-radius .45s var(--ease), box-shadow .5s var(--ease), backdrop-filter .55s var(--ease),
+    -webkit-backdrop-filter .55s var(--ease);
+}
+#playerbar > * {
+  transition: filter .46s var(--ease), opacity .46s var(--ease), transform .46s var(--ease);
+  transform-origin: 50% 50%;
+}
+#playerbar.morph-out {
+  z-index: 120;               /* Ç!ôn(­>uK
+Mý"¶ã"‰ */
+  background-color: transparent;
+  backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0);
+  border-color: transparent;
+  /* v163: keep the real radius while morphing (it is invisible then, but the
+     morph animations read it to land with matching corners) */
+  box-shadow: none;
+}
+#playerbar.morph-out > * {
+  filter: blur(10px);
+  opacity: 0;
+  transform: scale(1.55);     /* >'óÏ */
+}
+
+/* ===== v141: reverse dissolve runs WITH the collapse =====
+ * The z-index lift lives in its own class (.morph-top) so the bar can stay above the
+ * player page while the collapse animation plays. On close the bar drops .morph-out
+ * immediately: its background fades back in and its controls shrink from blurred back
+ * to sharp in parallel with the shrinking window (a true mirror of the enter).
+ */
+#playerbar.morph-top { z-index: 120; }
+#playerbar.morph-out { pointer-events: none; }
+
+/* ===== v142: the bar paints NO background while the player page is on screen =====
+ * The player page grows out of the bar rect and later shrinks back into it, so the
+ * bar own background is always exactly covered by the player display range: while the
+ * page is up the bar shows the player background itself. Previously the panel colour
+ * faded out over .55s (slower than the controls .46s), so in light themes a lighter
+ * white strip lingered on top of the dark player page. Now background / backdrop /
+ * border switch off instantly in the morph states, and fade back in only after the
+ * player page is gone (the class is dropped when the collapse finishes).
+ */
+/* v143: the plate fills the WHOLE bar box and cross-fades with the player background.
+ * Enter: panel colour -> player colour (so the plate melts into the player page instead of
+ *        lingering as a lighter strip), still eased, never snapped.
+ * Open : plate colour == player background, so the box reads as part of the player page.
+ * Leave: .morph-top only keeps the stacking order, so dropping .morph-out on close lets the
+ *        plate ease back to the panel colour WHILE the page retracts (gradual show).
+ */
+#playerbar.morph-out {
+  background-color: var(--player-bg, #101014);
+  background-image: none;
+  backdrop-filter: blur(0); -webkit-backdrop-filter: blur(0);
+  border-color: transparent;
+  /* v163: keep the real radius while morphing (it is invisible then, but the
+     morph animations read it to land with matching corners) */
+  box-shadow: none;
+  transition: background-color .5s var(--ease), border-color .5s var(--ease),
+    border-radius .45s var(--ease), box-shadow .5s var(--ease),
+    backdrop-filter .5s var(--ease), -webkit-backdrop-filter .5s var(--ease);
+}
+#playerbar.morph-top { z-index: 120; }
+
+/* ===== v142b: the bar concave-corner pseudo elements stay light too =====
+ * They are painted by body:has(.hb-bar) #playerbar::before / ::after and are not
+ * children, so the dissolve rules above never touched them. Hide them while the
+ * player page is on screen (same reason as v142).
+ */
+#playerbar.morph-out::before,
+#playerbar.morph-out::after,
+#playerbar.morph-top::before,
+#playerbar.morph-top::after { opacity: 0; }
+
+/* ===== v145: the bar background becomes the growing player plate =====
+ * While morphing, the BAR paints no background at all. The plate look comes from the
+ * player page itself: its background starts as the bar panel colour (same rgba + radius
+ * footprint comes from the clip window, which starts exactly on the bar box), then
+ * cross-fades into the player background as the window grows to the full screen.
+ * So the background really does fill the screen and fade away, and nothing is left
+ * sitting at the bottom as a darker strip. Closing plays the same thing backwards.
+ */
+/* v149: BOTH directions keep a single object: the bar paints no plate of its own while
+ * morphing (enter AND exit), so what you see is only the one growing/shrinking plate.
+ * The plate carries the live shadow and picks up the frosted backdrop near the end of the
+ * exit, so handing over to the real bar plate at landing is seamless. */
+#playerbar.morph-out,
+#playerbar.morph-top {
+  background-color: transparent;
+  background-image: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  border-color: transparent;
+  /* v162: border-radius is deliberately NOT reset here. The plate is transparent while
+   * morphing, so the radius is invisible anyway, but keeping the real value lets the
+   * morph animations read the bar true radius (30 / 24 / 20px by breakpoint) and land
+   * with matching corners on every screen size. */
+  box-shadow: none;
+  transition: none;      /* do not fade the plate itself, or a colour band appears */
+}
+
+/* ===== v146: morph on composited properties instead of clip-path =====
+ * clip-path repaints the whole screen (blurred backdrop included) every frame, so the
+ * animation stalled at the start and then snapped - the harsh exit. Now the player page
+ * is scaled/translated from the bar rect (composited) while its background cross-fades
+ * and its content fades in late, which keeps the whole move smooth.
+ */
+#overlay { transform-origin: 50% 50%; }
+#ov-bg { transition: background-image .6s, opacity .28s var(--ease); }
+#overlay > * { transition: opacity .28s var(--ease); }
+#overlay.ov-morph-hidden > * { opacity: 0; }
+#overlay.ov-morph-instant > * { transition: none; }
+
+/* v146b: hint the compositor while the morph runs (dropped again on settle) */
+/* v148: the plate animates its real box + radius + colours (no scaling), so the corner
+ * radius is never stretched by a non-uniform transform. */
+#overlay.ov-morphing { will-change: border-radius, background-color, box-shadow; }
+
+/* v152: the player content lives in .ov-fill, whose size is pinned to the viewport, so
+ * animating the plate box never re-lays it out. The old visibility / content-visibility
+ * tricks are gone: the content is hidden only by opacity (driven by the morph timeline
+ * itself), which keeps it a composited change and lets it appear early enough that the
+ * screen is never a blank dark plate ("black flash"). */
+#overlay.ov-morph-hidden #ov-fill { opacity: 0; }
+
+/* ===== v151: pin the player content to the viewport =====
+ * .ov-fill is the single child of #overlay and is laid out at 100vw x 100vh, so animating
+ * the overlay plate box (top/left/width/height) no longer re-lays-out the player page at
+ * all - that per-frame re-layout was what stuttered at the end of the enter. The content
+ * just fades in/out on the compositor (opacity), and because its layout never changes,
+ * the reveal costs nothing either.
+ */
+#ov-fill {
+  position: absolute; top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  display: flex; flex-direction: column;
+  transition: opacity .2s var(--ease);
+}
+#overlay.ov-morph-hidden #ov-fill { opacity: 0; }
+#overlay.ov-fade-out #ov-fill { opacity: 0; }
+
+/* ===== v154: top grabber instead of the X button, listen button in the toolbar =====
+ * The grabber sits centred at the top: tap closes the player page, press-and-drag drives
+ * the exit animation with the finger (the timeline is seeked, not restarted).
+ */
+.ov-grab {
+  position: absolute; left: 50%; top: 3px; transform: translateX(-50%);
+  width: 132px; height: 34px; padding: 0; border: 0; background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none;
+}
+.ov-grab i {
+  display: block; width: 52px; height: 5px; border-radius: 3px;
+  background: rgba(var(--fg-rgb), .42);
+  transition: background .18s var(--ease), width .18s var(--ease);
+}
+.ov-grab:hover i { background: rgba(var(--fg-rgb), .72); width: 62px; }
+.ov-grab.on i { background: rgba(var(--fg-rgb), .85); width: 66px; }
+.ov-grab:active { cursor: grabbing; }
+.ly-toolbar .ov-listen { width: 32px; height: 32px; flex: none; }
+.ly-toolbar .ov-listen svg { width: 17px; height: 17px; }
+
+/* ===== v157: the bar controls come back LATE during the exit =====
+ * When closing, .morph-top only carries the stacking order; the children used to start
+ * un-blurring immediately, so the mini player looked restored while the plate was still
+ * large. Now they start restoring at ~40% of the 520ms collapse and finish with it.
+ * (While dragging with the grabber the same values are driven directly by the finger.)
+ */
+#playerbar.morph-top > * {
+  transition-duration: .26s;
+  transition-delay: .22s;
+}
+
+/* ===== v160: the player bar paints IN FRONT OF the sidebar =====
+ * The bar was z-index 55 while the sidebar is 60, so the sidebar covered the bar
+ * wherever they overlapped. The bar is now 65: above the sidebar (60), still below the
+ * player page (100) and every modal / drawer, so nothing else about the morph changes.
+ */
+#playerbar { z-index: 65; }
+
+/* ===== v161: on narrow screens the listen tabs move BELOW the content =====
+ * The room panel used to keep the 88px tab column on the left, which squeezes the room
+ * pane on phones. Below 560px the layout stacks: content first, the three tabs become a
+ * full-width row at the bottom.
+ */
+@media (max-width: 560px) {
+  #listen .lt-main { flex-direction: column; gap: 8px; }
+  #listen .lt-content { order: 1; flex: 1 1 auto; min-height: 0; }
+  #listen .lt-side { order: 2; flex-direction: row; width: 100%; gap: 8px; }
+  #listen .lt-side .lt-tab { flex: 1 1 0; width: auto; height: 34px; padding: 0 6px; }
+  #listen .lt-pane .lt-chat { height: auto; }
+}
+
+/* ===== v164: on narrow screens the bottom nav paints IN FRONT OF the player bar =====
+ * The bar is 65 on wide screens (above the sidebar at 60). Below 900px the tab bar (58)
+ * is the bottom-most chrome, so the bar drops to 57 there: the nav now covers the bar and
+ * its shadow instead of the other way round. During the player page morph the bar still
+ * jumps to 120 (#playerbar.morph-out / .morph-top is more specific), so the plate keeps
+ * covering the nav while the page opens and closes.
+ */
+@media (max-width: 900px) {
+  #playerbar { z-index: 57; }
+}
+
+/* ===== v165: the two bottom controls stop shading EACH OTHER =====
+ * The bar sits 8px above the nav, so its 44px shadow reached 26px into the nav and the
+ * nav 34px shadow reached ~5px up onto the bar: measured on a 631px viewport that made
+ * the nav top ~1.8 levels darker and the bar bottom ~4.6 levels darker than they are
+ * without the other shadow. Both shadows are now clipped so they only fall on what is
+ * NOT one of the two controls: the bar keeps a bottom shadow inside the 8px gap, the nav
+ * keeps its shadow below itself (which still darkens the page behind, as before).
+ * --bar-shadow is the single source of truth, also read by _barShadow() in app.js so the
+ * morph animation lands with exactly the resting shadow.
+ */
+#playerbar {
+  --bar-shadow: 0 12px 44px rgba(0, 0, 0, .45);
+  box-shadow: var(--bar-shadow);
+}
+@media (max-width: 900px) {
+  #playerbar { --bar-shadow: 0 8px 12px -8px rgba(0, 0, 0, .55); }
+  #tabbar { box-shadow: 0 26px 36px -20px rgba(0, 0, 0, .42); }
+}
+
+/* ===== v166: on narrow screens both bottom controls cast the SAME shadow =====
+ * v165 clipped them but left two different values (bar 8/12/-8 .55, nav 26/36/-20 .42),
+ * so the bar showed a tight dark band in the 8px gap while the nav, sitting 8px above the
+ * bottom edge, had almost all of its wide shadow fall off screen: the two looked nothing
+ * alike. They now share one shadow, so the band under the bar and the band under the nav
+ * have the same depth; both stay inside their own 8px strip and never reach the other
+ * control.
+ */
+@media (max-width: 900px) {
+  #tabbar { box-shadow: 0 8px 12px -8px rgba(0, 0, 0, .55); }
+}
+
+/* ===== v168: BetterMusic curated page (sidebar entry, hash #/curated) =====
+ * Two cards per row that always fill the content width, so they grow and shrink with the
+ * viewport instead of sitting in a fixed 620px column with empty space next to them.
+ * Each card: a small 56px square SVG cover with the playlist name (and track count) to its
+ * right, then the plain song list (name + artist, click a row to play). The list is clipped
+ * at a fixed height, so all cards are the same height and the page keeps scrolling on touch.
+ * The whole card opens #/curated/<key>, which has the topbar back button to return here.
+ */
+.bm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.bm-card {
+  display: flex; flex-direction: column;
+  min-width: 0; overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  cursor: pointer;
+  transition: border-color .2s var(--ease);
+}
+.bm-card:hover { border-color: rgba(var(--fg-rgb), .22); }
+.bm-top { display: flex; align-items: center; gap: 10px; padding: 10px; border-bottom: 1px solid var(--border); }
+.bm-cover { flex: 0 0 auto; width: 56px; height: 56px; border-radius: 12px; overflow: hidden; background: transparent; }
+.bm-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.bm-info { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.bm-name { font-size: 15px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bm-count { font-size: 11.5px; color: var(--sub); }
+.bm-tri {
+  flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: rgba(var(--accent-rgb), .92); color: #fff;
+  opacity: 0; transform: scale(.86);
+  transition: opacity .2s var(--ease), transform .2s var(--ease);
+}
+.bm-tri svg { width: 14px; height: 14px; fill: currentColor; }
+.bm-card:hover .bm-tri { opacity: 1; transform: scale(1); }
+.bm-songs { flex: 1 1 auto; min-height: 0; max-height: 300px; overflow: hidden; padding: 6px 8px 8px; }
+.bm-song {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  height: 24px; padding: 0 6px; border-radius: 6px;
+  transition: background-color .16s var(--ease);
+}
+.bm-song:hover { background: rgba(var(--accent-rgb), .16); }
+.bm-song-name { min-width: 0; font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bm-song-artist { flex: 0 0 auto; max-width: 48%; font-size: 11px; color: var(--sub); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 420px) {
+  .bm-song-artist { display: none; }
+}
+/* ===== v169: keep the curated card title readable on phones =====
+ * At 176px per card the 56px cover plus the hover play badge left only ~70px for the name,
+ * so a four-character name was clipped to two characters. On narrow cards the badge is hidden (there is no
+ * hover on touch anyway) and the cover shrinks to 48px, which gives the name room.
+ */
+@media (max-width: 520px) {
+  .bm-top { gap: 8px; padding: 8px; }
+  .bm-cover { width: 48px; height: 48px; border-radius: 10px; }
+  .bm-name { font-size: 13.5px; }
+  .bm-tri { display: none; }
+}
+
+/* ===== v170: no white plate behind the curated covers =====
+ * The light theme gives .dt-cover a plain white background; the curated SVGs are square
+ * with a ~1% transparent margin, so a thin white ring showed around the artwork (and the
+ * card cover had the same problem at 56px). Both cover boxes are transparent now: what you
+ * see is only the SVG itself on top of the card/page background.
+ */
+.bm-dt-cover { background: transparent !important; }
+
+/* ===== v171: no white plate behind the covers (kills the white fringe on the corners) =====
+ * In the light themes --bg3 is #ffffff and it sits behind every cover box. The image is
+ * clipped to the rounded corners, so the anti-aliased corner pixels blended with that
+ * white plate and every cover looked like it had a white edge on all four corners.
+ * The plates are transparent now, so the corners blend into the page instead.
+ *   .sr-cover  song rows (playlist pages, search, queue ...)
+ *   .dt-cover  big cover on playlist / album / curated detail pages
+ */
+.sr-cover,
+.dt-cover { background: transparent; }
+
+/* ===== v172: cover shadows via drop-shadow, so the rounded corners have no light fringe =====
+ * box-shadow is clipped to OUTSIDE the border box, so the little pocket between the
+ * rounded corner and the square box never receives any shadow. With a transparent cover
+ * background that pocket shows the plain page while everything around it is darkened by
+ * the shadow - measured on the detail cover: 243,245,249 inside the pocket against
+ * 223,227,231 just outside, i.e. a bright edge on all four corners.
+ * filter: drop-shadow() is generated from what the element actually paints (the rounded,
+ * clipped artwork), so it covers that pocket too and the corner blends smoothly.
+ */
+.sr-cover,
+.dt-cover {
+  box-shadow: none;
+  filter: drop-shadow(0 3px 9px rgba(0, 0, 0, .30));
+}
+.dt-cover { filter: drop-shadow(0 14px 24px rgba(0, 0, 0, .42)); }
+
+/* ===== v173: on narrow screens the playlist cover sits at the LEFT edge too =====
+ * The <=700px block stacks .detail-head and centers it. The text and the action buttons
+ * were later moved back to the left, but the cover kept align-items: center and floated in
+ * the middle of the page. Now the whole head is left aligned on narrow screens, so the
+ * cover lines up with the title / meta / buttons below it.
+ */
+@media (max-width: 700px) {
+  .detail-head { align-items: flex-start; }
+  .detail-head .dt-info { text-align: left; }
+}
+
+/* ===== v174: curated cards / playlist page take a tint from their cover =====
+ * JS samples each cover and writes --bm-rgb (e.g. "214, 78, 62"). The tint is mixed with
+ * the PAGE background (var(--bg)) instead of a fixed colour, so the same cover gives a
+ * dark, muted tone on the dark themes and a pale pastel on the light themes: a bright
+ * cover colour can never glare on a dark page, and a dark one can never muddy a light
+ * page. The plain --panel colour stays in front of the color-mix line as a fallback for
+ * browsers without color-mix().
+ */
+.bm-card {
+  --bm-rgb: 128, 128, 128;
+  background: var(--panel);
+  background: color-mix(in srgb, rgb(var(--bm-rgb)) 16%, var(--bg));
+  border-color: color-mix(in srgb, rgb(var(--bm-rgb)) 22%, var(--border));
+}
+.bm-card:hover {
+  border-color: color-mix(in srgb, rgb(var(--bm-rgb)) 55%, var(--border));
+}
+.bm-card .bm-top {
+  border-bottom-color: color-mix(in srgb, rgb(var(--bm-rgb)) 22%, var(--border));
+}
+.bm-detail { position: relative; }
+.bm-detail { position: relative; }
+
+/* ===== v175: the cover tint covers the WHOLE screen on a curated playlist page =====
+ * The first version only washed the top 420px of the content column. Now the page
+ * background itself is a fixed gradient mixed from the cover colour and var(--bg), so the
+ * tint fills the whole window (sidebar / topbar keep their own surfaces on top of it) and
+ * fades back to the plain page background lower down. Same colour-mix rule as the cards,
+ * so it stays dark on dark themes and pale on light themes.
+ */
+html.bm-tint-page body {
+  background: linear-gradient(180deg,
+    color-mix(in srgb, rgb(var(--bm-rgb, 128 128 128)) 26%, var(--bg)) 0%,
+    color-mix(in srgb, rgb(var(--bm-rgb, 128 128 128)) 12%, var(--bg)) 38%,
+    var(--bg) 78%,
+    var(--bg) 100%) fixed no-repeat;
+}

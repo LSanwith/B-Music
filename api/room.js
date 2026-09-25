@@ -123,6 +123,7 @@ function roomPublic(room, now) {
     createdAt: room.createdAt,
     updatedAt: room.updatedAt,
     state: room.state || null,
+    max: ROOM_MAX,
     members: liveMembers(room, now),
     seq: room.seq || 0,
   };
@@ -199,6 +200,12 @@ export default async function handler(req, res) {
       const isHost = String(room.host.uid) === uid;
       if (!room.members[uid] && !isHost) return res.status(409).json({ msg: '你已不在房间中' });
       room.members[uid] = Object.assign(me(user), { at: now, role: isHost ? 'host' : 'guest' });
+      // 任何人（含成员）都可以拖动进度：房间状态里记录新的位置与时间戳
+      if (b.seek !== undefined && b.seek !== null && room.state) {
+        const t = Math.max(0, Number(b.seek) || 0);
+        room.state.position = t;
+        room.state.at = now;
+      }
       // 房主上报播放状态（权威）
       if (isHost && b.state && typeof b.state === 'object') {
         const s = b.state;

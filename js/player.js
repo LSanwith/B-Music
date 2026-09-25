@@ -68,14 +68,22 @@
       return this.queue[this.index] || null;
     },
 
+    /** 专辑字段统一取值：可能是字符串、{name}、{id,name,cover}，
+     *  历史数据里甚至出现过 {name:{name:'x'}}（把对象塞进了 name）。
+     *  这里永远返回字符串 —— 界面上再也不会出现 [object Object]。 */
+    albumName(al) {
+      let v = al;
+      for (let i = 0; i < 3 && v && typeof v === 'object'; i++) v = v.name;
+      return typeof v === 'string' ? v : '';
+    },
+
     snapshot(song) {
       const ar = Array.isArray(song.artists) ? song.artists
         : (typeof song.artists === 'string' ? song.artists.split(' / ').map(a => ({ name: a })) : []);
-      const al = song.album && typeof song.album === 'object' ? song.album : { name: song.album || '' };
       return {
         id: song.id, name: song.name,
-        artists: ar.map(x => x.name).join(' / '),
-        album: al.name || '', // 容错：album 可能为字符串
+        artists: ar.map(x => (x && typeof x === 'object' ? x.name : x) || '').filter(Boolean).join(' / '),
+        album: this.albumName(song.album),
         cover: song.cover || '',
         duration: song.duration || 0,
       };

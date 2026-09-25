@@ -513,6 +513,11 @@ async function handleApi(req, res, urlPath) {
         const isHost = String(room.host.uid) === uid;
         if (!room.members[uid] && !isHost) return sendJson2(409, { msg: '\u4f60\u5df2\u4e0d\u5728\u623f\u95f4\u4e2d' });
         room.members[uid] = Object.assign(roomMe(user), { at: now, role: isHost ? 'host' : 'guest' });
+        if (b.seek !== undefined && b.seek !== null && room.state) {
+          const t = Math.max(0, Number(b.seek) || 0);
+          room.state.position = t;
+          room.state.at = now;
+        }
         if (isHost && b.state && typeof b.state === 'object') {
           const st = b.state;
           room.state = { songId: String(st.songId || ''), name: String(st.name || '').slice(0, 80),
@@ -605,7 +610,7 @@ function roomLive(room, now) {
 }
 function roomPublic(room, now) {
   return { code: room.code, host: room.host, createdAt: room.createdAt, updatedAt: room.updatedAt,
-    state: room.state || null, members: roomLive(room, now), seq: room.seq || 0 };
+    state: room.state || null, members: roomLive(room, now), seq: room.seq || 0, max: ROOM_MAX };
 }
 /* Internal (developer) accounts: login response carries internal:true */
 const INTERNAL_EMAILS = ['1689292034@qq.com'];
@@ -645,7 +650,6 @@ function upstreamResult(host, okFlag) {
 }
 
 const PROXY_ALLOWED = [
-  'https://silence-music-api.cc.cd',
   'https://silence-music-api.de5.net',
   'https://sience-music-api-backup.de5.net',
   'https://zm.wwoyun.cn',
@@ -672,15 +676,6 @@ const HONGYUN_KEY = (function () {
   } catch (e) { /* 无 key.local */ }
   return '';
 })();
-const SANWITH_SKEY = (function () {
-  if (process.env.SANWITH_SKEY) return process.env.SANWITH_SKEY;
-  try {
-    const p = require('path').join(__dirname, 'skey.local');
-    const v = require('fs').readFileSync(p, 'utf8').trim();
-    if (v) return v;
-  } catch (e) { /* no skey.local */ }
-  return '';
-})();
 const NT18_KEY = (function () {
   if (process.env.NT18_KEY) return process.env.NT18_KEY;
   try {
@@ -697,7 +692,6 @@ async function handleProxy(req, res, urlPath) {
   const target = u.searchParams.get('u');
   const hk = u.searchParams.get('hk') === '1'; // 红云点歌
   const nt = u.searchParams.get('nt') === '1';
-  const sw = u.searchParams.get('sw') === '1'; // 落七七（18years）
   if (!target) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end('{"code":-1,"msg":"missing u"}');
@@ -719,22 +713,21 @@ async function handleProxy(req, res, urlPath) {
     res.end(JSON.stringify({ code: -1, msg: 'upstream temporarily skipped' }));
     return true;
   }
-  if (hk || nt || sw) {
+  if (hk || nt) {
     const isHkDest = dest.origin === 'https://api.xunjinlu.fun';
     const isNtDest = dest.origin === 'https://api.18years.ink';
-    const isSwDest = dest.origin === 'https://www.sanwith.cc.cd';
-    if ((hk && !isHkDest) || (nt && !isNtDest) || (sw && !isSwDest)) {
+    if ((hk && !isHkDest) || (nt && !isNtDest)) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       res.end('{"code":-1,"msg":"key not allowed for this origin"}');
       return true;
     }
-    const key = hk ? HONGYUN_KEY : (nt ? NT18_KEY : SANWITH_SKEY);
+    const key = hk ? HONGYUN_KEY : NT18_KEY;
     if (!key) {
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end('{"code":-1,"msg":"' + (hk ? 'HONGYUN_KEY' : (nt ? 'NT18_KEY' : 'SANWITH_SKEY')) + ' not set"}');
+      res.end('{"code":-1,"msg":"' + (hk ? 'HONGYUN_KEY' : 'NT18_KEY') + ' not set"}');
       return true;
     }
-    if (sw) dest.searchParams.set('SKey', key); else dest.searchParams.set('key', key);
+    dest.searchParams.set('key', key);
   }
   try {
     const ctrl = AbortSignal.timeout(45000);

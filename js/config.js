@@ -13,7 +13,7 @@
  * ============================================================ */
 window.APP_CONFIG = {
   /* 网易云音乐 API 接口（多镜像：按顺序尝试，失败自动切下一个并记住可用的那个）
-   * 说明：原主镜像 silence-music-api.cc.cd 域名 SSL 不稳（现已迁移到 https://silence-music-api.de5.net，另有备份域名 https://sience-music-api-backup.de5.net），
+   * 说明：原主镜像 silence-music-api.cc.cd 已废弃，现用 https://silence-music-api.de5.net（另有备份 https://sience-music-api-backup.de5.net），
    *       因此改为多镜像容灾；三个镜像都是标准 NeteaseCloudMusicApi 部署；Sanwith 需带 SKey（由代理注入）。 */
   API_MIRRORS: [
     'https://silence-music-api.de5.net',   // silence API 新地址（官方文档：/docs/）
@@ -36,10 +36,9 @@ window.APP_CONFIG = {
   NT18_KEY: '',
 
   /* Sanwith 网易云 API（辅助源：补充搜索、封面图片与解灰播放地址）
-   * 说明：所有请求需带 SKey；密钥由服务端注入（代理 sw=1），浏览器 URL 不携带密钥。
-   * 服务端密钥来源：Vercel 环境变量 SANWITH_SKEY；本地 ./skey.local 或同名环境变量。 */
+   */
   SANWITH_ENDPOINT: 'https://www.sanwith.cc.cd',
-  SANWITH_SKEY: '',
+  // Sanwith 已取消密钥校验：直接作为普通镜像使用，无需 SKey
 
   /* bugpk 网易云直链源（兜底播放源，无损及以下；无需密钥，经同源代理转发） */
   BUGPK_ENDPOINT: 'https://api.bugpk.com',

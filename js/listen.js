@@ -32,6 +32,8 @@ window.ListenTogether = (function () {
     seq: 0,              // 已收到的最新消息序号
     timer: null,
     busy: false,
+    tab: 'room',        // 'room' | 'invite' | 'chat'
+    seeking: false,     // 正在拖动进度条（期间不被轮询覆盖）
     fails: 0,
     isHost: false,
     lastSyncAt: 0,
@@ -63,12 +65,13 @@ window.ListenTogether = (function () {
     if (!P || !P.current || !P.audio) return null;
     const cur = P.current();
     if (!cur) return null;
-    const dur = cur.duration || P.audio.duration || 0;
+    const snap = (P.snapshot ? P.snapshot(cur) : null) || cur; // 规范成字符串字段（artists/album 可能是对象）
+    const dur = snap.duration || P.audio.duration || 0;
     return {
       songId: String(cur.id || ''),
-      name: cur.name || '',
-      artists: typeof cur.artists === 'string' ? cur.artists : '',
-      cover: cur.cover || '',
+      name: snap.name || '',
+      artists: snap.artists || '',
+      cover: snap.cover || '',
       duration: dur,
       position: Number(P.audio.currentTime) || 0,
       playing: !P.audio.paused,
@@ -141,9 +144,10 @@ window.ListenTogether = (function () {
         renderChat();
       }
       renderRoom();
-      if (!isHost() && S.room.state) {
+      // 房间内所有人（含房主）都对齐房间状态：成员拖动进度后大家都会跟上
+      if (S.room.state) {
         S._loose = Date.now() - (S.room.state.at || 0) > STALE_MS;
-        if (!S._loose) followState(S.room.state);
+        if (!S._loose && !S.seeking) followState(S.room.state);
       }
     } catch (e) {
       S.fails++;
@@ -239,6 +243,30 @@ window.ListenTogether = (function () {
     if (reason) toast(reason, 'warn');
   }
 
+  /** 任何人拖动进度条：上报给房间，所有人（含房主）都会对齐 */
+  async function seekTo(sec) {
+    if (!inRoom()) return;
+    const t = Math.max(0, Number(sec) || 0);
+    try { Player.seek(t); } catch (e) {}
+    S.room.state = Object.assign({}, S.room.state || {}, { position: t, at: Date.now() });
+    try {
+      await api('/room?a=poll', { method: 'POST', body: JSON.stringify({ code: S.room.code, seek: t, since: S.seq }) });
+      toast('已同步进度给房间所有人');
+    } catch (e) { toast((e && e.message) || '同步进度失败', 'error'); }
+  }
+
+  /** 播放页进度条开始拖动：暂停跟随，避免和拖动打架 */
+  function dragStart() {
+    S.seeking = true;
+  }
+
+  /** 播放页进度条松手：把进度同步给房间所有人（房主与成员都可以） */
+  function syncSeek(sec) {
+    S.seeking = false;
+    if (!inRoom()) return;
+    return seekTo(sec);
+  }
+
   async function send() {
     const input = $('#lt-text');
     if (!input || !inRoom()) return;
@@ -309,6 +337,12 @@ window.ListenTogether = (function () {
     renderRoom();
     renderChat();
     renderBadge();
+    notify();
+  }
+
+  /** 通知外部（app.js）刷新播放页顶栏：房主显示 ✕、成员显示「退出一起听房间」 */
+  function notify() {
+    try { document.dispatchEvent(new CustomEvent('ym:listen')); } catch (e) {}
   }
 
   /** 播放页顶栏的一起听角标：在房间里显示人数 */
@@ -318,6 +352,7 @@ window.ListenTogether = (function () {
     const on = inRoom();
     b.classList.toggle('hidden', !on);
     if (on) b.textContent = String((S.room.members || []).length || 1);
+    notify();
   }
 
   function renderRoom() {
@@ -328,12 +363,27 @@ window.ListenTogether = (function () {
     if (!invite) return;
     const on = inRoom();
     if (idle) idle.classList.toggle('hidden', on);
-    const roomOnly = $('#lt-room-only');
-    if (roomOnly) roomOnly.classList.toggle('hidden', !on); // 聊天/输入/退出只在房间内出现
-    if (invite) invite.classList.toggle('hidden', !on || !isHost());
-    if (status) status.classList.toggle('hidden', !on);
-    if (members) members.classList.toggle('hidden', !on);
+    const room = $('#lt-room');
+    if (room) room.classList.toggle('hidden', !on);
+    const panelEl2 = document.querySelector('#listen .lt-panel');
+    if (panelEl2) panelEl2.classList.toggle('in-room', on); // 房间内固定尺寸，未进房间用内容高度
     if (!on) return;
+    // 邀请页签：房主与成员都能看到口令（成员也可以再拉人进来）
+    if (invite) invite.classList.remove('hidden');
+    const tipEl = $('#lt-invite-tip');
+    if (tipEl) tipEl.textContent = isHost()
+      ? '把口令或链接发给好友，他打开后就会跟上你的进度（最多 4 人）'
+      : '把口令发给好友，他也能加入这个房间（最多 4 人）';
+    const TABS = ['room', 'invite', 'chat'];
+    if (TABS.indexOf(S.tab) < 0) S.tab = 'room';
+    const tabs = $$('#lt-tabs .lt-tab');
+    tabs.forEach((el) => el.classList.toggle('active', el.dataset.ltTab === S.tab));
+    ['room', 'invite', 'chat'].forEach((k) => {
+      const el = $('#lt-pane-' + k);
+      if (el) el.classList.toggle('hidden', S.tab !== k);
+    });
+    const panelEl = document.querySelector('#listen .lt-panel');
+    if (panelEl) panelEl.classList.add('in-room'); // 房间内固定面板尺寸
 
     const codeEl = $('#lt-code');
     if (codeEl) codeEl.textContent = S.room.code;
@@ -353,6 +403,9 @@ window.ListenTogether = (function () {
       metaEl.textContent = role + extra +
         (st && st.playing ? ' · 播放中' : st ? ' · 已暂停' : '');
     }
+    // 成员数 + 人数上限
+    const countEl = $('#lt-count');
+    if (countEl) countEl.textContent = ((S.room.members || []).length) + '/' + (S.roomMax || 4) + ' 人';
     if (members) {
       const list = S.room.members || [];
       members.innerHTML = list.map((m) => {
@@ -425,20 +478,13 @@ window.ListenTogether = (function () {
         codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
       });
     }
-    // 口令块可折叠（状态记在 sessionStorage，刷新后保持）
-    const inviteToggle = $('#lt-invite-toggle');
-    const applyCollapsed = (collapsed) => {
-      const box = $('#lt-invite');
-      if (!box) return;
-      box.classList.toggle('collapsed', !!collapsed);
-      try { sessionStorage.setItem('bmusic:lt-collapsed', collapsed ? '1' : '0'); } catch (e) {}
-    };
-    if (inviteToggle) {
-      let collapsed = false;
-      try { collapsed = sessionStorage.getItem('bmusic:lt-collapsed') === '1'; } catch (e) {}
-      applyCollapsed(collapsed);
-      inviteToggle.addEventListener('click', () => applyCollapsed(!$('#lt-invite').classList.contains('collapsed')));
-    }
+    // 两个切换页：邀请 / 聊天
+    $$('#lt-tabs .lt-tab').forEach((el) => el.addEventListener('click', () => {
+      const k = el.dataset.ltTab;
+      S.tab = (k === 'chat' || k === 'invite') ? k : 'room';
+      renderRoom();
+      if (S.tab === 'chat') { const c = $('#lt-chat'); if (c) c.scrollTop = c.scrollHeight; }
+    }));
     on('#lt-copy-code', () => copy(inRoom() ? S.room.code : '', '口令已复制'));
     on('#lt-copy-link', () => copy(inviteLink(), '邀请链接已复制'));
     on('#lt-send', () => send());
@@ -475,7 +521,7 @@ window.ListenTogether = (function () {
   }
 
   return {
-    open, create, join, leave, send, poll, bindOnce, renderBadge,
+    open, create, join, leave, send, poll, bindOnce, renderBadge, seekTo, syncSeek, dragStart,
     isHost, inRoom, inviteLink,
     get room() { return S.room; },
     get chat() { return S.chat; },
