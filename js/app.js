@@ -3869,6 +3869,7 @@
       $('#pb-title').textContent = snap.name;
       $('#pb-artist').textContent = snap.artists;
       $('#pb-cover').src = d.song.cover ? coverUrl(d.song.cover) : PLACEHOLDER;
+      this._applyDynCover(d.song);
       const faved = Store.FavSongs.has(d.song.id);
       $('#pb-fav').classList.toggle('on', faved);
       $('#pb-fav').innerHTML = Icons.heartIcon(faved);
@@ -3887,12 +3888,58 @@
       if (this._queueOpen) this.renderQueue();
     },
 
+    /** 动态歌曲封面（mp4）：拿到动态封面就在静态封面之上叠一层循环播放的静音视频，
+     *  没有（或加载失败、服务端未配置网易云 cookie）就保持静态封面 —— 视频真正开始
+     *  播放的那一刻才显示，所以不会出现「先黑一下再出画面」。
+     *  只给当前播放的歌做这件事，列表里仍然是静态图。 */
+    _applyDynCover(song) {
+      const bar = $('#pb-cover-v');
+      const big = $('#ov-cover-v');
+      if (!bar || !big) return;
+      const setOff = () => {
+        [bar, big].forEach((v) => {
+          v.classList.remove('on');
+          try { v.pause(); } catch (e) {}
+          v.removeAttribute('src');
+          try { v.load(); } catch (e) {}
+        });
+      };
+      const id = song && song.id;
+      if (!id) { setOff(); return; }
+      const seq = (this._dynSeq = (this._dynSeq || 0) + 1);
+      setOff();
+      if (!window.API || !API.songDynamicCover) return;
+      API.songDynamicCover(id).then((url) => {
+        if (this._dynSeq !== seq || !url) return;                 // 已经切歌 / 没有动态封面
+        const cur = Player.current();
+        if (!cur || String(cur.id) !== String(id)) return;
+        [bar, big].forEach((v) => {
+          if (v.getAttribute('src') !== url) v.setAttribute('src', url);
+          v.loop = true;
+          v.muted = true;
+          const show = () => { if (this._dynSeq === seq) v.classList.add('on'); };
+          v.addEventListener('playing', show, { once: true });
+          v.addEventListener('error', () => v.classList.remove('on'), { once: true });
+          try {
+            const p = v.play();
+            if (p && p.catch) p.catch(() => {});
+          } catch (e) {}
+        });
+      }).catch(() => {});
+    },
+
     _onState(d) {
       const playing = d.state === 'playing';
       $('#pb-play').classList.toggle('playing', playing);
       $('#ov-play').classList.toggle('playing', playing);
       $('#pb-dot').classList.toggle('on', playing);
       $('#ov-disc').classList.toggle('spinning', playing);
+      // 动态封面跟着播放状态走：暂停时定格在同一帧
+      ['#pb-cover-v', '#ov-cover-v'].forEach((sel) => {
+        const v = $(sel);
+        if (!v || !v.classList.contains('on')) return;
+        try { if (playing) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } else v.pause(); } catch (e) {}
+      });
       if (d.state === 'loading') {
         $('#pb-play').classList.add('loading');
         $('#ov-play').classList.add('loading');

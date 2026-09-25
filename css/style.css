@@ -3883,3 +3883,21 @@ html.bm-tint-page body {
   -webkit-backface-visibility: hidden;
 }
 #playerbar, #tabbar { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+
+/* ===== v177: dynamic song covers (mp4) =====
+ * A muted looping video sits exactly on top of the static cover and is only revealed once
+ * it actually reports "playing", so there is never a black flash in between; songs without
+ * a dynamic cover (or a failed load) simply keep showing the static image underneath.
+ */
+.dyn-cover {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .28s var(--ease);
+}
+.dyn-cover.on { opacity: 1; }
+.pb-cover { position: relative; }
+.ov-disc .dyn-cover { border-radius: 50%; }

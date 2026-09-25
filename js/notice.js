@@ -148,6 +148,16 @@ window.APP_NOTICE = {
         '性能：播放页转场、切页与列表入场动画加上合成层提示，交给 GPU 渲染，滚动与进出播放页更顺',
       ],
     },
+    {
+      version: '1.5.2',
+      date: '2026-09-25',
+      title: '更新公告',
+      items: [
+        '新增：动态歌曲封面（mp4）——当前播放的歌曲如果有动态封面，底部播放条的封面和播放页封面都会自动播放循环视频，暂停时定格在同一帧，继续播放再动起来',
+        '没有动态封面、封面加载失败或服务端未配置网易云 cookie 时，照常显示静态封面，不会出现黑块或空白',
+        '动态封面只在当前播放的歌曲上加载（列表里仍是静态图），并且带 30 分钟缓存，不会反复请求',
+      ],
+    },
   ],
   get version() { return window.APP_NOTICE.history[window.APP_NOTICE.history.length - 1].version; },
   get date() { return window.APP_NOTICE.history[window.APP_NOTICE.history.length - 1].date; },

@@ -345,6 +345,36 @@
       return s ? normalizeSong(s) : null;
     },
 
+    /** 动态歌曲封面（mp4）：网易云官方接口需要登录 cookie，由本站服务端代取
+     *  （本地 server.js / 线上 api/dyncover.js 注入 NETEASE_COOKIE）。
+     *  返回 mp4 地址；没有动态封面 / 服务端未配置 cookie 时返回 ''（用静态封面兜底）。
+     *  结果按歌曲 id 缓存（含空结果，避免反复请求）。 */
+    _dynCoverCache: new Map(),
+    _dynCoverPending: new Map(),
+    async songDynamicCover(id) {
+      const key = String(id || '');
+      if (!key) return '';
+      const hit = API._dynCoverCache.get(key);
+      if (hit !== undefined) return hit;
+      if (API._dynCoverPending.has(key)) return API._dynCoverPending.get(key);
+      const p = (async () => {
+        let url = '';
+        try {
+          const r = await fetch('/api/dyncover?id=' + encodeURIComponent(key), { credentials: 'omit' });
+          if (r.ok) {
+            const j = await r.json();
+            url = (j && j.url) || '';
+          }
+        } catch (e) { url = ''; }
+        if (url && location.protocol === 'https:' && url.indexOf('http://') === 0) url = 'https://' + url.slice(7);
+        API._dynCoverCache.set(key, url);
+        API._dynCoverPending.delete(key);
+        return url;
+      })();
+      API._dynCoverPending.set(key, p);
+      return p;
+    },
+
     /** 歌词（带缓存）：/lyric/new 含 lrc/yrc(逐字)；tlyric 缺失时回补 /lyric */
     _lyricCache: new Map(),
     async lyric(id) {

@@ -187,7 +187,7 @@ async function handleApi(req, res, urlPath) {
   const API_PATHS = ['/api/register', '/api/sendcode', '/api/captcha', '/api/login',
     '/api/logout', '/api/account/delete', '/api/data',
     '/api/account/avatar', '/api/account/password', '/api/account/profile',
-    '/api/cookieurl', '/api/ai', '/api/qq/check', '/api/room', '/api/local'];
+    '/api/cookieurl', '/api/dyncover', '/api/ai', '/api/qq/check', '/api/room', '/api/local'];
   if (API_PATHS.indexOf(urlPath) < 0) return false;
   const method = req.method;
   try {
@@ -259,6 +259,44 @@ async function handleApi(req, res, urlPath) {
     }
     /* 网易云会员音源（黑胶 cookie 仅存本地 netease_cookie.txt，不随仓库分发；
      *  经 Silence 增强库 eapi 通道 → 母带级音源） */
+    /* Dynamic song cover (mp4). Netease needs a logged-in cookie for this endpoint:
+     * locally it is read from netease_cookie.txt, on Vercel from NETEASE_COOKIE
+     * (see api/dyncover.js). Returns { code: 200, url } - url is '' when the song has
+     * no dynamic cover, so the client falls back to the static cover. */
+    if (urlPath === '/api/dyncover' && method === 'GET') {
+      const sendJson = (code, obj) => {
+        res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+        res.end(JSON.stringify(obj));
+        return true;
+      };
+      const id = String((req.url.match(/[?&]id=(\d+)/) || [])[1] || '');
+      if (!id) return sendJson(400, { code: -1, msg: 'bad id' });
+      const hit = DYN_COVER_CACHE.get(id);
+      if (hit && Date.now() - hit.t < 30 * 60 * 1000) return sendJson(200, { code: 200, url: hit.url });
+      let cookie = (process.env.NETEASE_COOKIE || '').trim();
+      if (!cookie) {
+        try { cookie = require('fs').readFileSync(require('path').join(__dirname, 'netease_cookie.txt'), 'utf8').trim(); } catch (e) {}
+      }
+      if (!cookie) return sendJson(200, { code: 200, url: '', msg: 'no cookie' });
+      try {
+        const r = await fetch('https://music.163.com/api/songplay/dynamic-cover?songId=' + encodeURIComponent(id), {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36',
+            'Referer': 'https://music.163.com/',
+            'Cookie': cookie,
+          },
+          signal: AbortSignal.timeout(12000),
+        });
+        const j = await r.json().catch(() => ({}));
+        let url = (j && j.data && j.data.videoPlayUrl) || '';
+        if (url) url = url.replace(/^http:/, 'https:');
+        DYN_COVER_CACHE.set(id, { t: Date.now(), url: url });
+        return sendJson(200, { code: 200, url: url });
+      } catch (e) {
+        return sendJson(200, { code: 200, url: '', msg: 'upstream error' });
+      }
+    }
+
     if (urlPath === '/api/cookieurl' && method === 'GET') {
       const fsx = require('fs');
       const pts = require('path');
@@ -649,6 +687,8 @@ function upstreamResult(host, okFlag) {
   UPSTREAM_FAIL.set(host, rec);
 }
 
+/* Dynamic cover (mp4) cache: songId -> { t, url } (30 min) */
+const DYN_COVER_CACHE = new Map();
 const PROXY_ALLOWED = [
   'https://silence-music-api.de5.net',
   'https://sience-music-api-backup.de5.net',
@@ -659,6 +699,7 @@ const PROXY_ALLOWED = [
   'https://api.bugpk.com',
   'https://oiapi.net',
   'https://www.sanwith.cc.cd',
+  'https://music.163.com',
 ];
 
 /** /proxy?u=<完整URL>[&hk=1][&nt=1] —— 同源转发上游 API，规避上游 CORS 响应头不稳定问题。

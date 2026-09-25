@@ -16,6 +16,7 @@ const PROXY_ALLOWED = [
   'https://api.bugpk.com',
   'https://oiapi.net',
   'https://www.sanwith.cc.cd',
+  'https://music.163.com',
 ];
 
 /* 二进制上传（听歌识曲音频）：优先使用运行时已缓冲的 body，缺失时读原始流 */
