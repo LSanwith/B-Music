@@ -2308,7 +2308,7 @@
         songs: favSongs.map(s => this._snapToSong(s)),
       };
       const html =
-        '<section class="view-section"><div class="sec-head"><h2>我的收藏</h2></div>' +
+        '<section class="view-section">' +
         '<div class="fav-tabs"><button class="chip' + (tab === 'songs' ? ' active' : '') + '" data-favtab="songs">收藏歌曲 (' + favSongs.length + ')</button>' +
         '<button class="chip' + (tab === 'playlists' ? ' active' : '') + '" data-favtab="playlists">收藏歌单 (' + favPls.length + ')</button>' +
         '<button class="chip' + (tab === 'recent' ? ' active' : '') + '" data-favtab="recent">最近播放 (' + recents.length + ')</button>' +
