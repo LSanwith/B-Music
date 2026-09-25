@@ -3900,4 +3900,7 @@ html.bm-tint-page body {
 }
 .dyn-cover.on { opacity: 1; }
 .pb-cover { position: relative; }
-.ov-disc .dyn-cover { border-radius: 50%; }
+/* ╜>ub/ 16px р└╧bа .ov-disc img	ф▒Bе{( *рMЩ▄hм
+   ИHыл≥├ 50%ф▒1├ *ж(╧bb
+ */
+.ov-disc .dyn-cover { border-radius: 16px; }
