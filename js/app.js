@@ -125,6 +125,16 @@
           e.preventDefault();
         }, { passive: false });
       }
+      // 点空白处（没点在歌词行上）时清掉文本选中：选中框和浏览器取词条不会继续留在歌词上。
+      // 点在歌词行内不清，拖选歌词文字照旧可用。
+      const ovEl = $('#overlay');
+      if (ovEl) {
+        ovEl.addEventListener('pointerdown', (e) => {
+          if (e.target && e.target.closest && e.target.closest('.ly-line')) return;
+          const sel = window.getSelection();
+          if (sel && !sel.isCollapsed) sel.removeAllRanges();
+        });
+      }
     },
 
     nav(route, params) {
@@ -4229,6 +4239,18 @@
      * - 背景高光随音乐起伏（AnalyserNode）动态增减
      */
     startLyricLoop() {
+      // 从后台标签页返回：歌词循环停过一段时间，音频却一直在走，回来时会一次跳很多行。
+      // 这里把状态标记为「瞬时到位」，第一帧不再做 .25s 的淡入/去模糊过渡
+      // （整列歌词一起过渡看起来就是「歌词变淡了」）。
+      if (!this._lyricVisBound) {
+        this._lyricVisBound = true;
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) return;
+          this._lastTick = 0;
+          this._lyricSnap = true;
+          if (!this._lyricRafId) this.startLyricLoop();
+        });
+      }
       if (this._lyricRafId) return;
       this._lastTick = 0;
       const tick = (now) => {
@@ -4273,7 +4295,23 @@
       }
     },
 
+    /** 让歌词的行级状态（active / 模糊 / 透明度）瞬时到位，不做过渡。
+     *  跳行（拖动进度条、点歌词、从后台返回）时用：否则所有行会从灰色非活动态
+     *  一起过渡到新状态，视觉上就是「整列歌词变淡」。frames 帧后恢复过渡。 */
+    _lyricNoAnim(frames) {
+      const inner = $('#ov-lyrics-inner');
+      if (inner) inner.classList.add('ly-noanim');
+      this._lyricNoAnimLeft = Math.max(this._lyricNoAnimLeft || 0, frames || 2);
+    },
+
     _lyricUpdate(now) {
+      if (this._lyricNoAnimLeft > 0) {
+        this._lyricNoAnimLeft--;
+        if (this._lyricNoAnimLeft <= 0) {
+          const inner = $('#ov-lyrics-inner');
+          if (inner) inner.classList.remove('ly-noanim');
+        }
+      }
       if ($('#overlay').classList.contains('hidden')) return;
       const dt = Math.min(0.1, Math.max(0.001, (now - (this._lastTick || now)) / 1000));
       this._lastTick = now;
@@ -4333,9 +4371,15 @@
 
       // 1) 活动行切换（仅变化时操作 DOM；离开的行必须熄灭）
       if (li !== st.li) {
+        // 跨行跳转（拖动进度条 / 点歌词 / 从后台返回）不做过渡，直接到位
+        const jumped = st.li < 0 || Math.abs(li - st.li) > 1;
         if (st.li >= 0) this._resetLyricLine(st.li);
         if (els[li]) els[li].classList.add('active');
         st.li = li;
+        if (jumped || this._lyricSnap) {
+          this._lyricSnap = false;
+          this._lyricNoAnim(2);
+        }
         // 非活动行模糊度随距离渐变：越靠近主行越清晰（d=1 → 0.5px），
         // 越远越模糊（d>=7 → 4px，上限 4px / 下限 0.5px）
         for (let i = 0; i < els.length; i++) {

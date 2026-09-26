@@ -3900,7 +3900,71 @@ html.bm-tint-page body {
 }
 .dyn-cover.on { opacity: 1; }
 .pb-cover { position: relative; }
-/* ­>ub/ 16px Ò„¹bÁ .ov-disc img	Æ‘BÅ{( *ÒMýŒhÍ
-   éHÙÌ™† 50%Æ‘1† *Ö(¹bb
- */
+/* the player page cover is a 16px-radius square (see .ov-disc img), so the video layer
+   must use the same radius to line up exactly (it used to be 50%, which made it a circle) */
 .ov-disc .dyn-cover { border-radius: 16px; }
+
+/* ===== v178: hover highlight for lyric lines =====
+ * ONE rounded block holding the whole line (original + translation): 5px outside the text on
+ * all four sides.
+ *
+ * Width: a block child is as wide as the track, which is what made the box run hundreds of
+ * pixels past a short line, so the line itself shrinks to its text with width: fit-content.
+ * Wrapping is untouched: fit-content = min(max-content, available), so a line that already
+ * fills the track keeps exactly the same line breaks (verified over all 84 lines: 0 height
+ * changes).
+ *
+ * Height: an absolutely positioned box is laid out against the PADDING box of .ly-line,
+ * and .ly-line has padding: 12px 0 (line 639, no media query overrides it), so the 12px has
+ * to be added back into the insets. Inside a row, with line-height 1.75 the half-leading is
+ * (1.75 - font content height) / 2 = .193em and the glyph ink starts another .182em below the
+ * font box top, so ink begins .375em below the row top. The inset is therefore
+ * 12px + .375em - 3px = .375em + 9px: a 3px gap above the glyphs and, symmetrically, 3px
+ * below the last row. The 7px is the 12px line padding minus the 5px gap; left and right use
+ * -5px (the 3px of the first version plus 2px), and
+ * because the line box ends exactly at the text, -5px is 5px outside the glyphs.
+ * The bottom row is the translation (font size .64em), so its inset is
+ * .24em + 9px; lines without a translation (no .ly-trans element, or it is .hide) fall back
+ * to .375em + 9px. Wrapped rows need no extra term: one more row adds exactly one line
+ * height to both the row box and the ink position.
+ *
+ * Painting: the pseudo is z-index: -1 inside a z-index: 0 line, so it sits under the text
+ * and its karaoke words while staying above the panel behind it.
+ *
+ * Motion: a plain fade (opacity only). No box in the lyric flow changes size, so the layout
+ * and the cached scroll offsets stay exactly as they were.
+ *
+ * Text rows also get line-height 1.2 with .275em of vertical padding. The padding equals the
+ * leading that 1.75 gave up, so the row box, the glyph positions and the cached offsets are
+ * all unchanged, but the native ::selection band is painted at max(line box, font box): it
+ * drops from 1.75em (39px at 22px text) to the font box (30px), i.e. from 8.25px above the
+ * glyphs to 4px, so the red selection band (the glyphs plus 4px) sits inside the grey hover
+ * card (the glyphs plus 5px) instead of spilling over it.
+ */
+.ly-line { position: relative; z-index: 0; width: fit-content; }
+.ly-line > .ly-text, .ly-line > .ly-trans { line-height: 1.2; padding: .275em 0; }
+.ly-line::before {
+  content: ''; position: absolute; z-index: -1;
+  top: calc(.375em + 7px); bottom: calc(.24em + 7px); left: -5px; right: -5px;
+  background: var(--panel2); border-radius: 8px;
+  opacity: 0; transition: opacity .2s ease; pointer-events: none;
+}
+.ly-line:not(:has(.ly-trans:not(.hide)))::before { bottom: calc(.375em + 7px); }
+.ly-line:hover::before { opacity: 1; }
+
+/* ===== v179: returning from a hidden tab must not fade the lyrics =====
+ * While the tab is hidden requestAnimationFrame stops, so the active lyric line can jump
+ * many lines at once when it comes back. Every line would then run its .25s opacity/filter
+ * transition from the grey non-active state, which reads as "the lyrics went pale". The
+ * jump path adds .ly-noanim for two frames so the new state lands instantly, exactly like
+ * the scroll position already does for long jumps.
+ */
+#ov-lyrics-inner.ly-noanim .ly-line,
+#ov-lyrics-inner.ly-noanim .ly-line::before { transition: none !important; }
+
+
+/* ===== v180: selecting lyric text =====
+ * The selection keeps the theme accent (the red of the cover), which is what the global
+ * ::selection paints. Only its height changed: the short line-height above makes Chrome paint
+ * a 30px band instead of 39px, so it stays inside the hover card instead of covering the row.
+ */
