@@ -1971,7 +1971,8 @@
     _bannerHtml(banners) {
       const slides = banners.map((b, i) =>
         '<div class="banner-slide' + (i === 0 ? ' active' : '') + '" data-banner="' + i + '">' +
-        '<img src="' + esc(coverUrl(b.pic)) + '" alt="" loading="lazy">' +
+        // 首图在首屏，直接 eager + 高优先级：既是最快可见的大图，也避免 lazy 把 load 事件推迟
+        '<img src="' + esc(coverUrl(b.pic)) + '" alt=""' + (i === 0 ? ' fetchpriority="high"' : ' loading="lazy"') + '>' +
         (b.title ? '<span class="banner-tag">' + esc(b.title) + '</span>' : '') + '</div>').join('');
       return '<section class="banner-wrap"><div class="banner">' + slides +
         '</div><div class="banner-dots">' + banners.map((_, i) =>

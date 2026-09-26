@@ -88,6 +88,7 @@
    * （探测成功设 window.APP_LOCAL_SERVER），否则退化为直连（尽力而为）。
    */
   let _proxyState = 'auto'; // auto | on | off
+  let _proxyRetryAt = 0;    // 判定代理不可用后的冷却结束时间（到期自动再试）
   let _localServer = null;
 
   /*
@@ -144,6 +145,8 @@
     const viaLocal = location.protocol === 'file:' && !!_localServer; // file:// + 本机服务器在跑
 
     // 1) 走代理（http 同源代理，或 file:// 下的本机服务器代理）
+    // 被判定不可用后只冷却 60 秒：一次冷启动超时不应该让整页后续请求全部改直连
+    if (_proxyState === 'off' && Date.now() >= _proxyRetryAt) _proxyState = 'auto';
     if ((viaHttp || viaLocal) && _proxyState !== 'off') {
       try {
         const base0 = viaLocal ? _localServer : '';
@@ -164,6 +167,7 @@
             throw new Error('proxy HTTP ' + res.status);
           }
           _proxyState = 'off'; // 页面不在本应用服务器上，无代理
+          _proxyRetryAt = Date.now() + 60000;
         } else if (!res.ok) {
           throw new Error('proxy HTTP ' + res.status); // 上游失败：代理本身可用，保留
         } else {
@@ -173,7 +177,13 @@
       } catch (e) {
         if (String(e.message).indexOf('proxy HTTP') === 0) throw e;
         if (keyed) throw e; // 密钥源不回退直连（避免密钥暴露在 URL）
+        /* 超时 / 中断只说明这一次慢（serverless 冷启动 + 上游 3 秒很常见），代理本身没问题：
+         * 抛给上层换下一个镜像、继续走代理，绝不能因此关掉代理去撞直连 —— 镜像被墙时直连
+         * 必然 ERR_CONNECTION_RESET，控制台刷满报错，而且整页会话都退化成直连。
+         * 只有真的“代理端点不存在”（404/405 且返回非 JSON）才关，并且 60 秒后再试。 */
+        if (e && (e.name === 'TimeoutError' || e.name === 'AbortError')) throw e;
         _proxyState = 'off';     // 其它请求：关闭代理后走直连
+        _proxyRetryAt = Date.now() + 60000;
       }
     }
     if (keyed) {
@@ -190,10 +200,16 @@
       return await fetchJson(target, timeoutMs);
     } catch (e) {
       directErr = e;
-      await new Promise(r => setTimeout(r, 400));
-      try {
-        return await fetchJson(target, timeoutMs);
-      } catch (e2) { directErr = e2; }
+      /* 连接被直接重置 / 域名被墙（ERR_CONNECTION_RESET、Failed to fetch）时，400ms 后重试
+       * 结果一样，只会把控制台刷成两条重复报错 —— 这种错误不再重试，直接交给上层换镜像。 */
+      const netFail = !!(e && (e.name === 'TimeoutError' || e.name === 'AbortError' ||
+        /Failed to fetch|NetworkError|ERR_|fetch failed|Load failed|network/i.test(String(e.message || ''))));
+      if (!netFail) {
+        await new Promise(r => setTimeout(r, 400));
+        try {
+          return await fetchJson(target, timeoutMs);
+        } catch (e2) { directErr = e2; }
+      }
     }
     /* 直连被网络层打断（ERR_CONNECTION_RESET / Failed to fetch：镜像域名被墙或被重置）时，
      * 再试一次同源代理 —— 代理是服务端去取，本机连不上镜像也能拿到数据；

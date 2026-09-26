@@ -35,6 +35,8 @@ tools/_lt_test.js
 tools/_hover_test.js
 tools/_shot-*.png
 _shot-*.png
+# 本地一次性验证脚本（临时文件，不进仓库）
+tools/_*.js
 
 # ???????????????
 mail.local
